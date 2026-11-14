@@ -5,13 +5,14 @@ partial class App
     private void ShowGraphicsSettings() => _ = PerformAsync(async () =>
     {
         var answer = await RequestDialogAsync(new("Graphics folder",
-            "Use a local Philly-compatible folder you have permission to use. No images are downloaded or bundled. " +
-            "Expected: chara, chip and Skins\\Mine. Leave blank for the schematic map.",
+            "Use the original wphi graphics from tools\\Get-WphiGraphics.ps1, a wphi checkout, " +
+            "or a permitted Philly folder. The app itself does not download images. " +
+            "Expected: chara and Skins\\Mine. Leave blank for the schematic map.",
             "Load", "Graphics folder", graphicsFolder, "graphics-folder"));
         if (!answer.Accepted) return;
         var folder = answer.Value.Trim();
         await graphics.SetFolderAsync(folder);
-        graphicsFolder = folder;
+        graphicsFolder = graphics.Folder;
         foreach (var session in sessions) await graphics.PrepareAsync(session);
         Directory.CreateDirectory(store.Folder);
         var path = Path.Combine(store.Folder, "graphics-folder.txt");

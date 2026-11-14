@@ -112,10 +112,37 @@ without sending, and a separate Enter sending exactly one Japanese line.
 ## Character graphics and map chips
 
 Choose **View > Graphics folder**, enter an absolute local folder, then **Load**.
-Use a Philly-compatible graphics directory that you already have permission to
-use; this app does not download assets, bundle wphi's artwork, or grant rights to
-redistribute a third party's files. Keep the original artists' license/readme
-files with your collection. Point at the directory containing these paths:
+To use **the actual graphics shipped by wphi**, run this explicit setup command
+in PowerShell 7.4 or later:
+
+```powershell
+.\tools\Get-WphiGraphics.ps1
+```
+
+Then load the printed absolute directory (by default `.local\wphi-graphics`).
+The setup script downloads the reviewed wphi revision
+`d8f11bf60c95d470fa14ca83bcc4c02d5c83fecc`, verifies the archive's SHA-256,
+and imports its unchanged BMPs and license/author notices. It refuses existing
+directories and does not import Config files or any public-server endpoints.
+It does not redraw or substitute the graphics. To use an existing checkout,
+enter its root or `resources\phi` directly; a checkout root is resolved to that
+graphics subfolder. For an offline setup, pass `-ArchivePath` with the matching
+original archive and `-OutputDirectory` with a new local folder.
+
+The imported non-sushi character sheets are **PCGL-applicable graphics parts**.
+PCGL permits PHI-supporting use with the scope declaration and license attached;
+the importer preserves both original PCGL files and wphi's provenance README.
+Sushi sheets are expressly excluded from PCGL and identified upstream as MIT
+(Copyright 2026 s7k); the MIT notice is also attached. The Mine skin identifies
+**Cress** as author, and wphi records its maintainer's reuse confirmation on
+2026-11-07. This record is not treated as a blanket PCGL/MIT grant for the skin.
+Artwork stays in the external local folder, not in this application's package
+or source repository. See `tools\WphiGraphics-NOTICE.md` for exact scope and
+sources. Preserve these notices with screenshots and any permitted distribution.
+Other user-provided collections still require their own permission.
+
+The app itself does not download images or connect while loading graphics.
+Point at the directory containing these paths:
 
 ```text
 chara\<graphic-or-character-name>.bmp
@@ -129,6 +156,8 @@ Skins\Mine\Images\Items.bmp
 
 Characters use the original 96-pixel-wide BMP sheet: four 32-pixel-high rows
 (back, right, front, left), two 16x32 frames followed by two 32x32 frames.
+The original bundled 96x160 sheets also contain a bottom portrait row, which
+is not part of map animation and is not drawn on the map.
 Exact RGB `(0,128,128)` is transparent. Larger `*` actors use the 32x32 frames;
 ordinary animated sheets alternate their two frames every 500 ms.
 This includes type `0x75`, as in wphi. Name-keyed `#ex-obj` instructions
@@ -171,6 +200,16 @@ The configured folder is saved as `graphics-folder.txt` beside the profile file.
 Leave it blank and Load to return to the explicitly labelled schematic map.
 Missing or corrupt files are reported on screen; missing actors use their
 tag-stripped initial in yellow (or `?` for an empty name).
+
+The importer checks are reproducible with the downloaded original archive:
+
+```powershell
+.\tools\Test-WphiGraphics.ps1 -ArchivePath C:\Downloads\wphi-original.zip -ArtifactDirectory C:\Temp\wphi-import-check
+```
+
+Use a new artifact directory. These checks compare every imported file against
+the untouched archive, require the license/author notices, exclude Config files,
+and reject altered archives and attempts to overwrite an existing collection.
 
 ## Data and trust
 

@@ -29,6 +29,8 @@ internal sealed class GraphicsStore
         try
         {
             Folder = folder.Length == 0 ? "" : Path.GetFullPath(folder);
+            if (Folder.Length > 0 && Directory.Exists(Path.Combine(Folder, "resources", "phi", "chara")))
+                Folder = Path.Combine(Folder, "resources", "phi");
             images.Clear();
             aliases.Clear();
             defaults.Clear();
