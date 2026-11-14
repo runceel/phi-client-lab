@@ -16,13 +16,14 @@ internal static class GameViews
     public static Element Map(GameSession session, Action<int, int> move, Action attack)
     {
         var eagle = session.ShowEagle ? session.Eagle : null;
-        var width = eagle?.Width ?? session.Map?.Size ?? 7;
-        var height = eagle?.Height ?? width;
-        var tiles = eagle?.Tiles ?? session.Map?.Tiles;
-        var attributes = eagle?.Attributes ?? session.Map?.Attributes;
+        var board = eagle is null ? null : EagleBoard.Build(eagle);
+        var width = board?.Dim ?? session.Map?.Size ?? 7;
+        var height = width;
+        var tiles = board?.Tiles ?? session.Map?.Tiles;
+        var attributes = board?.Attributes ?? session.Map?.Attributes;
         var selfX = eagle?.SelfX ?? width / 2;
         var selfY = eagle?.SelfY ?? height / 2;
-        var cell = Math.Min(48, 336.0 / Math.Max(width, height));
+        const int cell = 32;
         var rows = new List<Element>();
         for (var y = 0; y < height; y++)
         {
@@ -30,11 +31,11 @@ internal static class GameViews
             for (var x = 0; x < width; x++)
             {
                 var index = y * width + x;
-                var tile = tiles is null ? '?' : (char)tiles[index];
-                var attr = attributes?[index] ?? 0;
-                var actors = eagle is null ? session.Map?.Actors.Where(a => a.X == x && a.Y == y).ToArray() : null;
+                var tile = tiles is null || index >= tiles.Length ? '?' : (char)tiles[index];
+                var attr = attributes is null || index >= attributes.Length ? 0 : attributes[index];
+                var actors = (board?.Actors ?? session.Map?.Actors)?.Where(a => a.X == x && a.Y == y).ToArray();
                 var self = x == selfX && y == selfY;
-                var actor = actors?.Length > 0 || eagle is not null && attr == 0x58;
+                var actor = actors?.Length > 0;
                 var caption = tile is ' ' or 's' ? "" : tile.ToString();
                 var glyph = self ? !session.NorthFixed && eagle is null ? "^" : session.Map?.Direction switch
                     { 'E' => ">", 'S' => "v", 'W' => "<", _ => "^" } : "o";

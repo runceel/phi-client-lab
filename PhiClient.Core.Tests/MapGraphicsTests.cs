@@ -38,7 +38,7 @@ public sealed class MapGraphicsTests
     }
 
     [Fact]
-    public void FramesRespectDirectionSizeAnimationAndNonAnimatedObjects()
+    public void FramesRespectDirectionSizeAndAnimateEveryCharacterKind()
     {
         var sprite = Solid(96, 160, 0);
         for (var y = 0; y < 128; y++)
@@ -54,7 +54,7 @@ public sealed class MapGraphicsTests
         Assert.Equal(0, Color(rendered, 7, 5));
         rendered = MapGraphics.Draw(1, 1, [(byte)' '], [0],
             [normal with { DefaultGraphic = 0x75 }], _ => null, null, _ => sprite, 1);
-        Assert.Equal(10, Color(rendered, 8, 5));
+        Assert.Equal(11, Color(rendered, 8, 5));
     }
 
     [Fact]
@@ -87,7 +87,7 @@ public sealed class MapGraphicsTests
         Assert.Equal(60, Color(rendered, 32, 8));
         Assert.Equal(60, Color(rendered, 32, 28));
         Assert.Equal(20, Color(rendered, 32, 29));
-        Assert.Throws<ArgumentException>(() => MapGraphics.Draw(15, 15, [], [], [], _ => null, null, _ => null));
+        Assert.Throws<ArgumentException>(() => MapGraphics.Draw(15, 15, [0], [0], [], _ => null, null, _ => null));
     }
 
     [Theory]
@@ -110,6 +110,7 @@ public sealed class MapGraphicsTests
         foreach (var offset in new[] { 0, 68 })
         {
             packed[offset + 7] = (byte)'2';
+            "0001"u8.CopyTo(packed.AsSpan(offset + 8));
             packed[offset + 13] = (byte)'3';
             packed[offset + 15] = (byte)'4';
             packed[offset + 17] = (byte)'R';

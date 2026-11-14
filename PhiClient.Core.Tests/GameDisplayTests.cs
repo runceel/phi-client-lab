@@ -44,8 +44,9 @@ public sealed class GameDisplayTests
         Assert.Equal(map.Tiles, unchanged.Tiles);
         Assert.Equal(map.Attributes, unchanged.Attributes);
         Assert.IsType<LogLine>(Assert.Single(parser.Feed("#m57 M"u8.ToArray())));
-        Assert.Empty(parser.Feed("#m57 ."u8.ToArray()));
-        Assert.IsType<LogLine>(Assert.Single(parser.Feed("#map M"u8.ToArray())));
+        Assert.Empty(Assert.IsType<MapFrame>(Assert.Single(parser.Feed("#m57 ."u8.ToArray()))).Tiles);
+        Assert.Empty(parser.Feed("#map M"u8.ToArray()));
+        Assert.Equal(new byte[25], Assert.IsType<MapFrame>(Assert.Single(parser.Feed("#map ."u8.ToArray()))).Tiles);
     }
 
     [Fact]

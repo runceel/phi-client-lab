@@ -60,7 +60,8 @@ partial class App
     private void Refresh()
     {
         if (disposed) return;
-        if (active is { } session) session.GraphicsImage = graphics.Draw(session);
+        if (active is { } session) session.GraphicsImage = graphics.Draw(session,
+            gameControl?.XamlRoot?.RasterizationScale ?? 1);
         model = ClientUpdate.Apply(model, new ClientMessage.GraphicsChanged(graphics.Revision, graphics.Notice));
         publish?.Invoke(model);
     }

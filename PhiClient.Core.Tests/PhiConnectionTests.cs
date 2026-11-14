@@ -208,6 +208,14 @@ public sealed class PhiConnectionTests
             await stream.WriteAsync("\n"u8.ToArray(), timeout.Token);
             var packed = Enumerable.Repeat((byte)' ', 142).ToArray();
             "#m57 W "u8.CopyTo(packed);
+            foreach (var offset in new[] { 0, 68 })
+            {
+                "00001"u8.CopyTo(packed.AsSpan(offset + 7));
+                packed[offset + 17] = (byte)'F';
+                "00"u8.CopyTo(packed.AsSpan(offset + 51));
+                packed[offset + 70] = (byte)'#';
+                "01"u8.CopyTo(packed.AsSpan(offset + 72));
+            }
             packed[13] = (byte)'1';
             packed[15] = (byte)'2';
             PhiWire.Encoding.GetBytes("太郎").CopyTo(packed, 19);

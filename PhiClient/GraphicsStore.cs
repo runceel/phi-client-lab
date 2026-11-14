@@ -43,8 +43,9 @@ internal sealed class GraphicsStore
                     foreach (var line in (await ReadIndexAsync(file)).Split('\n'))
                     {
                         var parts = line.Trim().Split((char[]?)null, 2, StringSplitOptions.RemoveEmptyEntries);
-                        if (parts.Length == 2 && GraphicsNames.Safe(parts[0]) && aliases.Count < 10000)
-                            aliases.TryAdd(parts[1], parts[0]);
+                        if (parts.Length == 2 && GraphicsNames.Safe(parts[0]) &&
+                            (aliases.Count < 10000 || aliases.ContainsKey(parts[1])))
+                            aliases[parts[1]] = parts[0];
                     }
             var index = Path.Combine(Folder, "Skins", "Mine", "Chara", "Index.txt");
             if (File.Exists(index))
@@ -84,9 +85,9 @@ internal sealed class GraphicsStore
         aliases.TryGetValue(actor.Name, out var alias);
         foreach (var name in actor.DefaultGraphic == 0x40
             ? new[] { actor.Graphic, alias, actor.Name } : new[] { alias, actor.Graphic, actor.Name })
-            if (name is not null && GraphicsNames.Safe(name) && File.Exists(Path.Combine(Folder, "chara", name + ".bmp")))
+            if (name is not null && GraphicsNames.Allowed(name) && File.Exists(Path.Combine(Folder, "chara", name + ".bmp")))
                 return Path.Combine("chara", name + ".bmp");
-        if (defaults.TryGetValue(GraphicsNames.DefaultKey(actor.DefaultGraphic), out var file))
+        if (defaults.TryGetValue(GraphicsNames.DefaultKey(actor.DefaultGraphic), out var file) && GraphicsNames.Allowed(file))
             foreach (var rel in new[] { Path.Combine("Skins", "Mine", "Chara", file), Path.Combine("chara", file) })
                 if (File.Exists(Path.Combine(Folder, rel))) return rel;
         return null;
@@ -96,7 +97,7 @@ internal sealed class GraphicsStore
     {
         if (resolvedChips.TryGetValue(name, out var cached)) return cached;
         if (resolvedChips.Count >= 4096) resolvedChips.Clear();
-        var path = GraphicsNames.Safe(name) && name != "default" ? Path.Combine("chip", name + ".bmp") : "";
+        var path = GraphicsNames.Allowed(name) && name != "default" ? Path.Combine("chip", name + ".bmp") : "";
         if (path.Length > 0 && File.Exists(Path.Combine(Folder, path))) return resolvedChips[name] = path;
         if (path.Length > 0) AddIssue($"Missing mapset '{name}'; using Default.bmp.");
         return resolvedChips[name] = Path.Combine("Skins", "Mine", "chip", "Default.bmp");
@@ -110,7 +111,8 @@ internal sealed class GraphicsStore
             if (Folder.Length == 0) return;
             foreach (var mapset in session.MapSets) await LoadAsync(ChipPath(mapset), 1);
             await LoadAsync(Path.Combine("Skins", "Mine", "Images", "Items.bmp"), 2);
-            foreach (var actor in (session.Map?.Actors ?? []).Concat(Actors(session)).Distinct())
+            foreach (var actor in (session.Map?.Actors ?? []).Concat(
+                session.Eagle is { } eagle ? EagleBoard.Build(eagle).Actors : []).Distinct())
             {
                 var path = CharacterPath(actor);
                 if (path is not null) await LoadAsync(path, 0);
@@ -131,6 +133,8 @@ internal sealed class GraphicsStore
         images.Add(relative, null);
         try
         {
+            if (!GraphicsNames.Allowed(Path.GetFileName(relative)))
+                throw new ArgumentException("This graphic filename is excluded.");
             var path = Path.Combine(Folder, relative);
             var file = new FileInfo(path);
             if (!file.Exists) throw new FileNotFoundException("File not found.");
@@ -151,28 +155,34 @@ internal sealed class GraphicsStore
         }
     }
 
-    private static IReadOnlyList<Actor> Actors(GameSession session) => session.ShowEagle && session.Eagle is { } eagle
-        ? eagle.Attributes.Select((attr, i) => (attr, i)).Where(cell => cell.attr == 0x58)
-            .Select(cell => new Actor(cell.i % eagle.Width, cell.i / eagle.Width, "EagleEye character", DefaultGraphic: 0x80)).ToArray()
-        : session.Map?.Actors ?? [];
-
-    public WriteableBitmap? Draw(GameSession session)
+    public WriteableBitmap? Draw(GameSession session, double rasterScale)
     {
         var eagle = session.ShowEagle ? session.Eagle : null;
         var map = session.Map;
         if (Folder.Length == 0 || map is null && eagle is null) return null;
-        var key = (map, eagle, Revision, AnimationFrame);
+        var frame = eagle is null ? AnimationFrame : 0;
+        var key = (map, eagle, session.Model.MapSets, Revision, frame, rasterScale);
         if (session.GraphicsKey == key && session.GraphicsImage is not null) return session.GraphicsImage;
         PixelImage? Get(string path) => images.GetValueOrDefault(path);
-        var rendered = MapGraphics.Draw(eagle?.Width ?? map!.Size, eagle?.Height ?? map!.Size,
-            eagle?.Tiles ?? map!.Tiles, eagle?.Attributes ?? map!.Attributes, Actors(session),
+        var board = eagle is null ? null : EagleBoard.Build(eagle);
+        var dim = board?.Dim ?? map!.Size;
+        var actors = board?.Actors ?? map!.Actors;
+        PixelImage? Character(Actor actor) => CharacterPath(actor) is { } path ? Get(path) : null;
+        var rendered = MapGraphics.Draw(dim, dim,
+            board?.Tiles ?? map!.Tiles, board?.Attributes ?? map!.Attributes, actors,
             slot => Get(ChipPath(session.MapSets[slot])), Get(Path.Combine("Skins", "Mine", "Images", "Items.bmp")),
-            actor => CharacterPath(actor) is { } path ? Get(path) : null, AnimationFrame, eagle is not null);
+            Character, frame, eagle is not null);
+        session.GraphicsWidth = rendered.Width;
+        session.GraphicsHeight = rendered.Height;
+        session.GraphicsLabels = MapLabels.Missing(actors, dim, actor => Character(actor) is not null, board is null ? 16 : 0)
+            .Concat(MapLabels.Names(actors, dim, board is null ? 16 : 0)).ToArray();
+        rendered = rendered.ScaleNearest((int)Math.Round(rendered.Width * rasterScale),
+            (int)Math.Round(rendered.Height * rasterScale));
         if (session.GraphicsImage is not { } bitmap || bitmap.PixelWidth != rendered.Width || bitmap.PixelHeight != rendered.Height)
             session.GraphicsImage = bitmap = new WriteableBitmap(rendered.Width, rendered.Height);
         using (var buffer = bitmap.PixelBuffer.AsStream()) buffer.Write(rendered.Pixels);
         bitmap.Invalidate();
-        session.GraphicsKey = (map, eagle, Revision, AnimationFrame);
+        session.GraphicsKey = key with { Item4 = Revision };
         return bitmap;
     }
 }

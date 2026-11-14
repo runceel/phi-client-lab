@@ -1,4 +1,5 @@
 using PhiClient.Core;
+using System.Collections.Immutable;
 
 namespace PhiClient;
 
@@ -36,5 +37,8 @@ internal sealed class GameSession(SavedCharacter character, Func<GameModel> read
     public ChoiceSelection Selection => Model.Selection;
     public IReadOnlyList<string> Log => Model.Log;
     public Microsoft.UI.Xaml.Media.Imaging.WriteableBitmap? GraphicsImage { get; set; }
-    public (MapFrame?, EagleFrame?, int, int) GraphicsKey { get; set; }
+    public (MapFrame?, EagleFrame?, ImmutableArray<string>, int, int, double) GraphicsKey { get; set; }
+    public int GraphicsWidth { get; set; }
+    public int GraphicsHeight { get; set; }
+    public IReadOnlyList<MapLabel> GraphicsLabels { get; set; } = [];
 }

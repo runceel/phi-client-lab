@@ -5,6 +5,26 @@ namespace PhiClient.Core.Tests;
 public sealed class ModelUpdateTests
 {
     [Fact]
+    public void MagnifiedMapsAndMapsetChangesRemainIsolatedWithoutMutatingPriorRenderInputs()
+    {
+        var initial = ClientUpdate.Apply(ClientUpdate.Apply(new(), new ClientMessage.GameOpened("alpha")),
+            new ClientMessage.GameOpened("beta"));
+        var frame = new MapFrame('N', [], [], [new(1, 2, "Giant", Magnify: new(64, 96, -2))]);
+        var mapped = ClientUpdate.Apply(initial, new ClientMessage.GameChanged("alpha",
+            new GameMessage.Received(frame)));
+        var redefined = ClientUpdate.Apply(mapped, new ClientMessage.GameChanged("alpha",
+            new GameMessage.Received(new MapSetNotice(1, "alternate"))));
+        Assert.Null(initial.Games["alpha"].Map);
+        Assert.Null(redefined.Games["beta"].Map);
+        Assert.Equal(new Magnify(64, 96, -2), Assert.Single(redefined.Games["alpha"].Map!.Actors).Magnify);
+        Assert.Equal("default", mapped.Games["alpha"].MapSets[1]);
+        Assert.Equal("default", redefined.Games["beta"].MapSets[1]);
+        Assert.Equal("alternate", redefined.Games["alpha"].MapSets[1]);
+        Assert.NotEqual(mapped.Games["alpha"].MapSets, redefined.Games["alpha"].MapSets);
+        Assert.Same(mapped.Games["alpha"].Map, redefined.Games["alpha"].Map);
+    }
+
+    [Fact]
     public void ServerMessagesUpdateOnlyTheirCharacterAndDoNotMutatePriorSnapshots()
     {
         var empty = new ClientModel();

@@ -8,9 +8,28 @@ public sealed class PixelImage
 
     public PixelImage(int width, int height, byte[] pixels)
     {
-        if (width is <= 0 or > 2048 || height is <= 0 or > 2048 || pixels.Length != width * height * 4)
+        if (width is <= 0 or > 4096 || height is <= 0 or > 4096 || pixels.Length != width * height * 4)
             throw new ArgumentException("Invalid BGRA image dimensions.");
         (Width, Height, Pixels) = (width, height, pixels);
+    }
+
+    public PixelImage ScaleNearest(int factor)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(factor, 1);
+        return ScaleNearest(checked(Width * factor), checked(Height * factor));
+    }
+
+    public PixelImage ScaleNearest(int width, int height)
+    {
+        if (width is < 1 or > 4096 || height is < 1 or > 4096)
+            throw new ArgumentOutOfRangeException(nameof(width), "Scaled image must fit 4096 pixels per side.");
+        if (width == Width && height == Height) return this;
+        var pixels = new byte[width * height * 4];
+        for (var y = 0; y < height; y++)
+        for (var x = 0; x < width; x++)
+            Pixels.AsSpan(((y * Height / height) * Width + x * Width / width) * 4, 4)
+                .CopyTo(pixels.AsSpan((y * width + x) * 4, 4));
+        return new(width, height, pixels);
     }
 
     public PixelImage Transparent(bool horizontalMask = false, bool verticalMask = false)
@@ -39,6 +58,7 @@ public sealed class PixelImage
 
 public static class GraphicsNames
 {
+    public static bool Allowed(string name) => Safe(name) && !name.StartsWith("LANU_", StringComparison.OrdinalIgnoreCase);
     public static bool Safe(string name) => !string.IsNullOrWhiteSpace(name) && name.Length <= 128 &&
         name is not "." and not ".." && !name.Any(c => c < 32 || "\\/:*?\"<>|".Contains(c)) &&
         !name.EndsWith('.') && !name.EndsWith(' ');
@@ -54,6 +74,21 @@ public static class GraphicsNames
 
 public static class MapGraphics
 {
+    public static IReadOnlyList<(Actor Actor, int Offset)> ArrangeRow(IEnumerable<Actor> actors) =>
+        actors.OrderBy(actor => actor.X).ThenBy(actor => actor.Layer).GroupBy(actor => actor.X)
+            .SelectMany(group =>
+            {
+                var row = group.ToArray();
+                if (row.Length == 2 && row.Count(actor => actor.Size == '*') == 1)
+                    row = row.OrderBy(actor => actor.Size == '*' ? 0 : 1).ToArray();
+                return row.Select((actor, index) => (actor, row.Length != 2 || row.All(a => a.Size == '*') ? 0 :
+                    row.All(a => a.Size != '*') ? (index == 0 ? -8 : 8) : actor.Size == '*' ? 0 : 8));
+            }).ToArray();
+
+    public static (double X, double Y, long Width, long Height) MagnifiedDestination(double x, double y, Magnify size) =>
+        (x - Math.Floor(((double)size.Width - 32) / 2),
+            y - Math.Floor(((double)size.Height - 32) * 5 / 6) - size.Z, size.Width, size.Height);
+
     public static int[] Chips(byte tile) => (char)tile switch
     {
         ':' => [1], '+' => [2], 'T' => [1, 3], '_' => [4], 'o' => [5], '@' => [6], '#' => [7],
@@ -71,10 +106,11 @@ public static class MapGraphics
         Func<Actor, PixelImage?> character, int frame = 0, bool eagle = false)
     {
         if (width is < 1 or > 15 || height is < 1 or > 15 ||
-            tiles.Length != width * height || attributes.Length != tiles.Length)
+            tiles.Length != 0 && tiles.Length != width * height || attributes.Length != tiles.Length)
             throw new ArgumentException("Invalid map graphics frame.");
-        var canvas = new PixelImage(width * 32, height * 32 + 16, new byte[width * 32 * (height * 32 + 16) * 4]);
-        for (var i = 3; i < canvas.Pixels.Length; i += 4) canvas.Pixels[i] = 255;
+        var top = eagle ? 0 : 16;
+        var canvas = new PixelImage(width * 32, height * 32 + top, new byte[width * 32 * (height * 32 + top) * 4]);
+        for (var i = top * canvas.Width * 4 + 3; i < canvas.Pixels.Length; i += 4) canvas.Pixels[i] = 255;
         void Copy(PixelImage image, int sx, int sy, int w, int h, int dx, int dy)
         {
             for (var y = 0; y < h; y++)
@@ -88,20 +124,37 @@ public static class MapGraphics
                 image.Pixels.AsSpan(src, 4).CopyTo(canvas.Pixels.AsSpan(dst, 4));
             }
         }
+        void CopyScaled(PixelImage image, int sx, int sy, int sw, int sh,
+            (double X, double Y, long Width, long Height) destination)
+        {
+            var (dx, dy, dw, dh) = destination;
+            if (dw == 0 || dh == 0) return;
+            if (dw < 0) dx += dw;
+            if (dh < 0) dy += dh;
+            var w = Math.Abs((double)dw);
+            var h = Math.Abs((double)dh);
+            var left = (int)Math.Clamp(Math.Ceiling(dx), 0, canvas.Width);
+            var right = (int)Math.Clamp(Math.Ceiling(dx + w), 0, canvas.Width);
+            var first = (int)Math.Clamp(Math.Ceiling(dy), 0, canvas.Height);
+            var last = (int)Math.Clamp(Math.Ceiling(dy + h), 0, canvas.Height);
+            for (var y = first; y < last; y++)
+            for (var x = left; x < right; x++)
+                Copy(image, sx + (int)((x - dx) * sw / w), sy + (int)((y - dy) * sh / h), 1, 1, x, y);
+        }
         void Tile(PixelImage sheet, int index, int x, int y) =>
-            Copy(sheet, index % 16 * 32, index / 16 * 48, 32, 48, x * 32, y * 32);
+            Copy(sheet, index % 16 * 32, index / 16 * 48, 32, 48, x * 32, y * 32 + top - 16);
         for (var y = 0; y < height; y++)
         {
-            for (var x = 0; x < width; x++)
+            for (var x = 0; tiles.Length > 0 && x < width; x++)
             {
                 var i = y * width + x;
-                if (chip(attributes[i] & 3) is { } sheet)
+                if (chip(eagle ? 0 : attributes[i] & 3) is { } sheet)
                     foreach (var index in Chips(tiles[i])) Tile(sheet, index, x, y);
             }
-            for (var x = 0; x < width; x++)
+            for (var x = 0; tiles.Length > 0 && x < width; x++)
             {
                 var i = y * width + x;
-                if (chip(attributes[i] & 3) is not { } sheet) continue;
+                if (chip(eagle ? 0 : attributes[i] & 3) is not { } sheet) continue;
                 if (tiles[i] == '_')
                 {
                     bool Water(int dx, int dy) => x + dx >= 0 && x + dx < width && y + dy >= 0 &&
@@ -117,54 +170,36 @@ public static class MapGraphics
                             pattern < 6 ? (q < 2 ? 2 : 3) : 3 - q;
                         Copy(sheet, index % 16 * 32 + (quarter & 1) * 16,
                             index / 16 * 48 + 16 + (quarter / 2) * 16, 16, 16,
-                            x * 32 + (q & 1) * 16, y * 32 + 16 + q / 2 * 16);
+                            x * 32 + (q & 1) * 16, y * 32 + top + q / 2 * 16);
                     }
                 }
                 if ((attributes[i] & 8) != 0)
                     Tile(sheet, "@#H=[{|%".Contains((char)tiles[i]) ? 20 : 18, x, y);
             }
-            for (var x = 0; x < width; x++)
+            for (var x = 0; tiles.Length > 0 && x < width; x++)
             {
                 var i = y * width + x;
                 var no = (attributes[i] & 0x70) >> 4;
-                if (no == 0 || eagle && attributes[i] == 0x58) continue;
-                if (eagle && chip(attributes[i] & 3) is { } sheet) Tile(sheet, 19, x, y);
+                if (no == 0) continue;
+                if (eagle && chip(0) is { } sheet) Tile(sheet, 19, x, y);
                 else if (items is not null)
                 {
                     var circle = tiles[i] is (byte)'x' or (byte)'%';
-                    Copy(items, no * 32, circle && no is 5 or 6 ? 5 : 0, 32, circle ? 21 : 32, x * 32, y * 32 + 8);
+                    Copy(items, no * 32, circle && no is 5 or 6 ? 5 : 0, 32, circle ? 21 : 32, x * 32, y * 32 + top - 8);
                 }
             }
-            foreach (var group in actors.Where(a => a.Y == y && a.X >= 0 && a.X < width)
-                .OrderBy(a => a.X).ThenBy(a => a.Layer).GroupBy(a => a.X))
+            foreach (var (actor, dx) in ArrangeRow(actors.Where(a => a.Y == y && a.X >= 0 && a.X < width)))
             {
-                var row = group.ToArray();
-                if (row.Length == 2 && row.Count(a => a.Size == '*') == 1)
-                    row = row.OrderBy(a => a.Size == '*' ? 0 : 1).ToArray();
-                for (var i = 0; i < row.Length; i++)
+                if (character(actor) is { } image)
                 {
-                    var actor = row[i];
-                    var dx = row.Length != 2 || row.All(a => a.Size == '*') ? 0 :
-                        row.All(a => a.Size != '*') ? (i == 0 ? -8 : 8) : actor.Size == '*' ? 0 : 8;
-                    if (character(actor) is { } image)
-                    {
-                        var source = CharacterFrame(actor, actor.DefaultGraphic == 0x75 ? 0 : frame);
-                        Copy(image, source.X, source.Y, source.Width, 32,
-                            actor.X * 32 + (32 - source.Width) / 2 + dx, y * 32 + (eagle ? 16 : 5));
-                    }
+                    var source = CharacterFrame(actor, eagle ? 0 : frame);
+                    var x = actor.X * 32 + (32 - source.Width) / 2 + dx;
+                    var destY = y * 32 + top - (eagle ? 0 : 11);
+                    if (actor.Magnify is { } magnify)
+                        CopyScaled(image, source.X, source.Y, source.Width, 32, MagnifiedDestination(x, destY, magnify));
                     else
-                    {
-                        for (var py = 0; py < 12; py++)
-                        for (var px = 0; px < 8; px++)
-                        {
-                            var dst = ((y * 32 + 20 + py) * canvas.Width + actor.X * 32 + 12 + px + dx) * 4;
-                            if (dst >= 0 && dst + 3 < canvas.Pixels.Length)
-                            {
-                                canvas.Pixels[dst] = 0;
-                                canvas.Pixels[dst + 1] = canvas.Pixels[dst + 2] = 255;
-                            }
-                        }
-                    }
+                        Copy(image, source.X, source.Y, source.Width, 32,
+                            x, destY);
                 }
             }
         }

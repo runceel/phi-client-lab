@@ -180,7 +180,13 @@ partial class App
         var map = VStack(8,
             SubHeading(session.ShowEagle && session.Eagle is not null ? "EagleEye" :
                 $"Local map ({session.Map?.Size ?? 7} x {session.Map?.Size ?? 7})").AutomationId("local-map"),
-            GraphicMap(session),
+            (ScrollViewer(GraphicMap(session)) with
+            {
+                HorizontalScrollBarVisibility = Microsoft.UI.Xaml.Controls.ScrollBarVisibility.Auto,
+                HorizontalScrollMode = Microsoft.UI.Xaml.Controls.ScrollMode.Enabled
+            }).AutomationId("map-viewport").MaxWidth(344),
+            TextBlock("Characters: " + string.Join(", ", MapLabels.NameList(session.Map?.Actors ?? [])))
+                .TextWrapping(TextWrapping.Wrap).Width(336).AutomationId("map-character-names"),
             TextBlock(model.GraphicsNotice).TextWrapping(TextWrapping.Wrap).FontSize(12).Width(336)
                 .AutomationId("graphics-notice"),
             TextBlock(session.Map is null ? "Waiting for a map." :
@@ -225,22 +231,41 @@ partial class App
     {
         var bitmap = session.GraphicsImage;
         if (bitmap is null) return GameViews.Map(session, (x, y) => MapClick(session, x, y), () => Send(session, "hit"));
-        var scale = Math.Min(1.5, 336.0 / bitmap.PixelWidth);
         // The preview's Image descriptor requires a URI even when OnMount supplies a live bitmap.
-        return Image("ms-appx:///Assets/Square44x44Logo.scale-200.png")
-            .Width(bitmap.PixelWidth * scale).Height(bitmap.PixelHeight * scale)
+        var picture = Image("ms-appx:///Assets/Square44x44Logo.scale-200.png")
+            .AccessibilityHidden()
+            .Width(session.GraphicsWidth).Height(session.GraphicsHeight)
             .WithKey($"pixels-{bitmap.PixelWidth}-{bitmap.PixelHeight}")
+            .OnMount(element => MountMapImage((Microsoft.UI.Xaml.Controls.Image)element, bitmap));
+        Element Label(MapLabel label, int dx, int dy, string color) => TextBlock(label.Text)
+            .AccessibilityHidden()
+            .FontFamily("Segoe UI").FontSize(label.Missing ? 14 : 9).FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+            .Foreground(BrushHelper.Parse(color)).Width(session.GraphicsWidth).TextAlignment(TextAlignment.Center)
+            .IsHitTestVisible(false).Canvas(label.X - session.GraphicsWidth / 2.0 + dx,
+                label.Y - (label.Missing ? 9 : 0) + dy);
+        var layers = new List<Element> { picture.Canvas(0, 0) };
+        foreach (var label in session.GraphicsLabels)
+        {
+            if (!label.Missing)
+                foreach (var (dx, dy) in new[] { (-1, 0), (1, 0), (0, -1), (0, 1) })
+                    layers.Add(Label(label, dx, dy, "#000000"));
+            layers.Add(Label(label, 0, 0, label.Missing ? "#FFFF00" : "#FFFFFF"));
+        }
+        return Canvas(layers.ToArray()).Width(session.GraphicsWidth).Height(session.GraphicsHeight)
+            .WithKey($"map-surface-{session.GraphicsWidth}-{session.GraphicsHeight}")
             .AutomationId("sprite-map").AutomationName("Character sprites and map chips: " +
-                string.Join(", ", session.Map?.Actors.Select(actor => actor.Name) ?? []))
-            .OnMount(element => ((Microsoft.UI.Xaml.Controls.Image)element).Source = bitmap)
+                string.Join(", ", MapLabels.NameList(session.Map?.Actors ?? [])))
+            .OnMount(element => ((Microsoft.UI.Xaml.UIElement)element).Clip =
+                new Microsoft.UI.Xaml.Media.RectangleGeometry { Rect = new Windows.Foundation.Rect(0, 0,
+                    session.GraphicsWidth, session.GraphicsHeight) })
             .OnPointerPressed((sender, args) =>
             {
                 if (session.ShowEagle || sender is not Microsoft.UI.Xaml.UIElement view) return;
                 var point = args.GetCurrentPoint(view);
                 if (point.Properties.IsRightButtonPressed) Send(session, "hit");
-                else if (point.Properties.IsLeftButtonPressed && point.Position.Y >= 16 * scale)
-                    MapClick(session, (int)(point.Position.X / (32 * scale)) - session.Map!.Size / 2,
-                        (int)((point.Position.Y / scale - 16) / 32) - session.Map.Size / 2);
+                else if (point.Properties.IsLeftButtonPressed &&
+                    MapLabels.Hit(point.Position.X, point.Position.Y, session.Map!.Size) is { } hit)
+                    MapClick(session, hit.X, hit.Y);
                 else return;
                 args.Handled = true;
             });

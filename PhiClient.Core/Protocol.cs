@@ -15,7 +15,8 @@ public sealed record InputRequested : ServerEvent;
 public sealed record Choice(string Number, string Text);
 public sealed record Choices(IReadOnlyList<Choice> Items, bool Complete = true) : ServerEvent;
 public sealed record Actor(int X, int Y, string Name, string Graphic = "", char Direction = 'F',
-    char Size = '#', int Layer = 0, int DefaultGraphic = 1, int Status = 0);
+    char Size = '#', int Layer = 0, int DefaultGraphic = 1, int Status = 0, Magnify? Magnify = null);
+public sealed record Magnify(long Width, long Height, long Z);
 public sealed record MapSetNotice(int Index, string Name) : ServerEvent;
 public sealed record MapFrame(char Direction, byte[] Tiles, byte[] Attributes, IReadOnlyList<Actor> Actors, int Size = 7) : ServerEvent;
 public sealed record MapStyle(bool NorthUp) : ServerEvent;
@@ -132,6 +133,7 @@ public sealed partial class ProtocolParser
     private int size = 7;
     private readonly List<Actor> actors = [];
     private bool clearActors = true;
+    private readonly Dictionary<string, Magnify> magnifications = new(StringComparer.Ordinal);
     private byte[]? eagleTiles;
     private byte[]? eagleAttributes;
     private int eagleWidth, eagleHeight, eagleX = -1, eagleY = -1;
@@ -157,27 +159,21 @@ public sealed partial class ProtocolParser
         }
         if (raw.AsSpan().StartsWith("#m57 M"u8) || raw.AsSpan().StartsWith("#map M"u8))
         {
-            var nextSize = raw[2] == '5' ? 7 : 5;
-            if (size != nextSize)
-            {
-                actors.Clear();
-                tiles = attributes = null;
-                size = nextSize;
-            }
+            size = raw[2] == '5' ? 7 : 5;
             if (size == 5 && raw.Length >= 7 && raw.AsSpan(7).SequenceEqual("-"u8))
                 return [];
             var cells = size * size;
-            if (raw.Length < 18 + cells * 2)
+            if (raw.Length > 7) direction = (char)raw[7];
+            if (size == 7 && raw.Length < 18 + cells * 2)
             {
                 tiles = attributes = null;
                 return [new LogLine("[Protocol] Incomplete terrain frame ignored.")];
             }
-            direction = (char)raw[7];
             tiles = new byte[cells];
             attributes = new byte[cells];
             for (var i = 0; i < cells; i++)
             {
-                tiles[i] = raw[18 + i * 2];
+                tiles[i] = raw.Length > 18 + i * 2 ? raw[18 + i * 2] : (byte)0;
                 attributes[i] = size == 7 ? raw[19 + i * 2] :
                     (byte)((raw.Length > 68 + i * 2 && raw[68 + i * 2] == '.' ? 0x60 : 0) |
                         (raw.Length > 69 + i * 2 && raw[69 + i * 2] == '-' ? 0x08 : 0));
@@ -187,11 +183,6 @@ public sealed partial class ProtocolParser
         if (text.StartsWith("#m57 O", StringComparison.Ordinal) ||
             text.StartsWith("#m57 W", StringComparison.Ordinal))
         {
-            if (clearActors)
-            {
-                actors.Clear();
-                clearActors = false;
-            }
             ParseActor(raw, 0);
             if (raw[5] == 'W')
                 ParseActor(raw, 68);
@@ -200,9 +191,22 @@ public sealed partial class ProtocolParser
         if (text is "#m57 ." or "#map .")
         {
             clearActors = true;
-            var expectedSize = text == "#m57 ." ? 7 : 5;
-            return tiles is null || attributes is null || size != expectedSize ? [] :
-                [new MapFrame(direction, (byte[])tiles.Clone(), (byte[])attributes.Clone(), actors.ToArray(), size)];
+            return [new MapFrame(direction, tiles is null ? [] : tiles.Take(size * size).ToArray(),
+                attributes is null ? [] : attributes.Take(size * size).ToArray(), actors.ToArray(), size)];
+        }
+        if (text.StartsWith("#ex-obj ", StringComparison.Ordinal))
+        {
+            var fields = text.Split((char[]?)null, 6, StringSplitOptions.RemoveEmptyEntries);
+            if (fields.Length != 6 ||
+                !long.TryParse(fields[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out var width) ||
+                !long.TryParse(fields[3], NumberStyles.Integer, CultureInfo.InvariantCulture, out var height) ||
+                !long.TryParse(fields[4], NumberStyles.Integer, CultureInfo.InvariantCulture, out var z) ||
+                string.IsNullOrWhiteSpace(fields[5]))
+                return [new LogLine("[Protocol] Invalid object magnification ignored.")];
+            if (magnifications.Count >= 10000 && !magnifications.ContainsKey(fields[5].Trim()))
+                return [new LogLine("[Protocol] Object magnification limit reached.")];
+            magnifications[fields[5].Trim()] = new(width, height, z);
+            return [];
         }
         if (text.StartsWith("#ex-eagleeye ", StringComparison.Ordinal))
             return ParseEagle(raw, text);
@@ -307,20 +311,27 @@ public sealed partial class ProtocolParser
 
     private void ParseActor(byte[] raw, int offset)
     {
-        if (raw.Length < offset + 74 || actors.Count >= 1000)
+        if (raw.Length < offset + 74)
             return;
         var x = raw[offset + 13] - (byte)'0';
         var y = raw[offset + 15] - (byte)'0';
-        if (x is < 0 or > 6 || y is < 0 or > 6)
-            return;
-        int Hex(int start, int count, int empty) =>
+        bool Hex(int start, int count, out int value) =>
             int.TryParse(Encoding.ASCII.GetString(raw, offset + start, count).Trim(),
-                NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var value) ? value : empty;
-        var facing = (char)raw[offset + 17];
-        actors.Add(new Actor(x, y, PhiWire.Encoding.GetString(raw, offset + 19, 31).Trim(),
-            PhiWire.Encoding.GetString(raw, offset + 54, 15).Trim(),
-            "BRFL".Contains(facing) ? facing : 'F', raw[offset + 70] == '*' ? '*' : '#',
-            Hex(7, 1, 0), Hex(72, 2, 1), Hex(51, 2, 0)));
+                NumberStyles.HexNumber, CultureInfo.InvariantCulture, out value);
+        if (x is < 0 or > 9 || y is < 0 or > 9 ||
+            !Hex(7, 1, out var layer) || !Hex(8, 4, out _) ||
+            !Hex(51, 2, out var status) || !Hex(72, 2, out var kind))
+            return;
+        var name = PhiWire.Encoding.GetString(raw, offset + 19, 31).TrimEnd();
+        if (clearActors)
+        {
+            actors.Clear();
+            clearActors = false;
+        }
+        if (actors.Count >= 1000) return;
+        actors.Add(new Actor(x, y, name, PhiWire.Encoding.GetString(raw, offset + 54, 15).TrimEnd(),
+            (char)raw[offset + 17], (char)raw[offset + 70], layer, kind, status,
+            magnifications.GetValueOrDefault(name)));
     }
 
     public static string Movement(string direction, bool northUp, bool strafe = false) =>

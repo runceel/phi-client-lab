@@ -42,6 +42,20 @@ directory: keep it in place and do not share it between configurations or
 architectures. Do not disable packaging or change system ACLs to work around
 registration errors.
 
+For a trimmed Release, use its normal restore:
+
+```powershell
+dotnet publish .\PhiClient\PhiClient.csproj -c Release -p:Platform=x64
+```
+
+A Debug-only restore does not include
+the Release linker/crossgen tools; do not reuse it with `--no-restore`.
+Use a fresh layout when switching between build and publish outputs.
+When registering the published folder directly, supply the MSBuild-generated
+`AppxManifest.xml` with its Windows App Runtime package dependency, not the
+unexpanded source `Package.appxmanifest`. A successful build alone does not
+verify that the trimmed package activates.
+
 ## Playing
 
 1. Register an existing character: enter a display name, server hostname, TCP
@@ -117,6 +131,9 @@ Characters use the original 96-pixel-wide BMP sheet: four 32-pixel-high rows
 (back, right, front, left), two 16x32 frames followed by two 32x32 frames.
 Exact RGB `(0,128,128)` is transparent. Larger `*` actors use the 32x32 frames;
 ordinary animated sheets alternate their two frames every 500 ms.
+This includes type `0x75`, as in wphi. Name-keyed `#ex-obj` instructions
+resize sprites with nearest-neighbor sampling and the original bottom anchor;
+the definition is captured when the actor's `O` row arrives.
 
 Map sheets are 1024x96 BMPs: the left 512 pixels hold 32 chips, in 16 columns
 of 32x48; the right half is the opacity mask. Items use a horizontal strip,
@@ -127,17 +144,33 @@ occlusion, and same-cell actor offsets. Attribute bits 0–1 select the four
 `#mapset` / `#mapset-define` sheets. Missing named mapsets use `Default.bmp`
 with a visible notice.
 
+Rendering follows wphi commit `d8f11bf60c95d470fa14ca83bcc4c02d5c83fecc`.
+Maps default to 100%: 32 logical pixels per cell, with nearest-neighbor
+physical-DPI resampling rather than automatic fitting. Normal maps have a
+16-pixel transparent top margin; missing terrain displays black beneath any
+retained actors. The pointer coordinate transform uses that same margin.
+Noncentral names have white text with a black outline, strip PHI tags, and
+use the last nonempty name at a shared cell. The name list uses stable y order.
+
+EagleEye uses a square of the maximum received width/height, padding with `?`.
+It has no top margin, always uses frame 0 and mapset 0, and scrolls rather
+than shrinking to the pane. Attribute `0x58` becomes a nameless, front-facing
+large `t_man` / type `0x40` actor, not a sign or an item. Supply
+`chara\t_man.bmp` or the type's permitted default graphic.
+
 Character resolution follows the original priority: `.ali` alias, graphic name,
 character name, then the type default in `Skins\Mine\Chara\Index.txt`;
 `setcg` type `0x40` tries the graphic name before aliases. Index/alias text uses
 CP932. Default files are searched in the skin's Chara folder and then `chara`.
+Repeated aliases are last-wins in file enumeration order; multiple alias files
+have no guaranteed ordering. `LANU_` graphic filenames are excluded.
 Reload the folder after modifying images; file and resolved-name caches are
 bounded. Sheets are limited to 8 MiB / 2048 pixels per side.
 
 The configured folder is saved as `graphics-folder.txt` beside the profile file.
 Leave it blank and Load to return to the explicitly labelled schematic map.
-Missing or corrupt files are reported on screen; missing actors use a yellow
-placeholder rather than silently pretending their sprites loaded.
+Missing or corrupt files are reported on screen; missing actors use their
+tag-stripped initial in yellow (or `?` for an empty name).
 
 ## Data and trust
 
@@ -175,12 +208,14 @@ preparation, checked/paged selections, controlled dialogs, and sign editing.
 
 Not yet implemented: full Philly folder/settings import, world discovery and
 image selection previews, automatic asset downloads, configurable skins other
-than the Mine directory layout, rich speech styling, overlaid actor-name/status
-decorations, legacy 5x5 actor decoding, `#ex-obj` arbitrary sprite magnification,
+than the Mine directory layout, rich speech styling, overlaid actor status
+decorations, legacy 5x5 actor decoding, configurable 50–400% map zoom,
 extended maps / movement prediction, automatic re-equipping, dedicated
 private-message UI, master-magic menus, world transfers, configurable F8–F12 /
 Alt+G keymaps, window-layout persistence and updates. The map is integrated,
-not a separate floating window.
+not a separate floating window. The title/direction display remains textual,
+not wphi's compass. Extended maps and movement prediction remain requested
+wphi compatibility gaps, not features excluded because Philly lacks them.
 Raw commands can access server features, but do not add missing client-side UI.
 
 ## Layout and verification
@@ -198,7 +233,9 @@ Raw commands can access server features, but do not add missing client-side UI.
   pure updates. Graphics are prepared before rendering and exposed as live
   native bitmaps.
 - Other `PhiClient.Core` files: transport, framing, parsing, input mapping and
-  platform-independent pixel composition.
+  platform-independent pixel composition. `MapPresentation.cs` holds pure
+  EagleEye conversion, names/initials and pointer-coordinate projection;
+  `App.MapEffects.cs` owns native bitmap/DPI lifecycle adaptation.
 - `PhiClient.Core.Tests`: loopback-server tests; no live game service is needed.
 
 `dotnet test` exercises the wire-level login, split CP932 input, literal sign
@@ -208,6 +245,10 @@ success/rejection, keyboard/modifier precedence, CR/LF current-line behavior,
 paged selections, magic preparation, sprite masks/occlusion, and immutable
 state transitions/session isolation. Native packaged checks use a synthetic
 loopback server and newly authored test graphics, not copied upstream art.
+The water-edge regression checks all 256 independent 8-neighbor combinations
+and all four quadrants against a separately transcribed source table.
+Synthetic fixtures verify numerical rendering rules; they do not establish
+visual equivalence to original artwork that is not licensed or supplied.
 Public-server interoperability, ARM64 execution, high-contrast rendering and
 other IME/input-method combinations remain unverified.
 
