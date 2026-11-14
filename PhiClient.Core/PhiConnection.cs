@@ -6,7 +6,13 @@ public sealed class PhiConnection : IDisposable
 {
     private readonly TcpClient client = new() { NoDelay = true };
     private readonly SemaphoreSlim sending = new(1, 1);
+    private readonly SemaphoreSlim actions = new(1, 1);
+    private readonly object automation = new();
     private readonly CancellationTokenSource lifetime = new();
+    private TaskCompletionSource<Choices?>? equipment;
+    private int hiddenLists;
+    private long hideUntil;
+    private long equipmentPromptUntil;
     private long lastReceive = Environment.TickCount64;
     private NetworkStream? stream;
     public event Action<ServerEvent>? Received;
@@ -70,8 +76,9 @@ public sealed class PhiConnection : IDisposable
         }
     }
 
-    public async Task SendAsync(string[] commands, CancellationToken token = default)
+    public async Task SendAsync(string[] commands, CancellationToken token = default, int suppressLists = 0)
     {
+        ArgumentOutOfRangeException.ThrowIfNegative(suppressLists);
         var lines = commands.ToArray();
         foreach (var line in lines)
             PhiWire.ValidateLine(line);
@@ -82,11 +89,101 @@ public sealed class PhiConnection : IDisposable
         {
             if (stream is null)
                 throw new InvalidOperationException("Not connected.");
+            if (suppressLists > 0)
+                lock (automation)
+                {
+                    if (Environment.TickCount64 >= hideUntil)
+                        hiddenLists = 0;
+                    hiddenLists += suppressLists;
+                    hideUntil = Environment.TickCount64 + 5000;
+                }
             await stream.WriteAsync(PhiWire.Encode(string.Join('\n', lines) + "\n"), timeout.Token);
         }
         finally
         {
             sending.Release();
+        }
+    }
+
+    public async Task SendActionAsync(InputAction action, CancellationToken token = default)
+    {
+        foreach (var line in action.Commands)
+            PhiWire.ValidateLine(line);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, lifetime.Token);
+        await actions.WaitAsync(linked.Token);
+        try
+        {
+            var commands = action.Commands;
+            if (action.AutoUnequip)
+            {
+                var response = new TaskCompletionSource<Choices?>(TaskCreationOptions.RunContinuationsAsynchronously);
+                lock (automation)
+                    equipment = response;
+                Choices? list;
+                try
+                {
+                    await SendAsync(["unequip"], linked.Token);
+                    list = await response.Task.WaitAsync(TimeSpan.FromSeconds(5), linked.Token);
+                }
+                catch (TimeoutException ex)
+                {
+                    throw new IOException("No equipment response within five seconds; the spell was not cast.", ex);
+                }
+                finally
+                {
+                    lock (automation)
+                        equipment = null;
+                }
+                if (list is not null)
+                {
+                    var weapon = list.Items.Any(choice => choice.Number == "1" &&
+                        choice.Text.Contains("[Wpn]", StringComparison.OrdinalIgnoreCase));
+                    commands = [weapon ? "1" : ".", .. commands];
+                }
+            }
+            await SendAsync(commands, linked.Token, action.HiddenLists);
+        }
+        finally
+        {
+            actions.Release();
+        }
+    }
+
+    private bool ConsumeAutomation(ServerEvent item)
+    {
+        lock (automation)
+        {
+            var now = Environment.TickCount64;
+            if (equipment is not null)
+            {
+                if (item is Choices { Complete: true } list && equipment.TrySetResult(list))
+                {
+                    equipmentPromptUntil = now + 5000;
+                    return true;
+                }
+                if (item is LogLine line && (line.Text.Contains("装備を外せません", StringComparison.Ordinal) ||
+                    line.Text.Contains("なにも装備していません", StringComparison.Ordinal) ||
+                    line.Text.Contains("何も装備していません", StringComparison.Ordinal) ||
+                    line.Text.Contains("Can not unequip.", StringComparison.OrdinalIgnoreCase)))
+                    return equipment.TrySetResult(null);
+            }
+            if (item is LogLine prompt && now < equipmentPromptUntil &&
+                (prompt.Text.Contains("外す装備を選択", StringComparison.Ordinal) ||
+                    prompt.Text.Contains("Select equipment to unequip", StringComparison.OrdinalIgnoreCase)))
+            {
+                equipmentPromptUntil = 0;
+                return true;
+            }
+            if (item is Choices { Complete: true } && hiddenLists > 0)
+            {
+                if (now < hideUntil)
+                {
+                    hiddenLists--;
+                    return true;
+                }
+                hiddenLists = 0;
+            }
+            return false;
         }
     }
 
@@ -111,7 +208,7 @@ public sealed class PhiConnection : IDisposable
                 {
                     if (item is Reply reply)
                         await SendAsync([reply.Command], token);
-                    else
+                    else if (parser.InLiteralBlock || !ConsumeAutomation(item))
                         Received?.Invoke(item);
                     if (item is Closed)
                         return;

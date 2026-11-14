@@ -53,19 +53,91 @@ registration errors.
    public endpoint and no automatic registration.
 3. Choose **Connect**. Each connected character gets its own tab and independent
    connection, status, map, log and command input.
-4. Type chat or raw PHI commands and press Enter or **Send**. Lists show the
-   server's actual selection numbers, including continuation pages. Choose an
-   item or **Cancel selection**.
-5. Press Esc in the command field for movement mode. Arrows / numpad 8, 2, 4, 6
-   move; Ctrl moves without turning on north-up maps; Shift+Left/Right turn.
-   Numpad 7/9 turn, 5 turns back. Z/X/C get/put/use; Space attacks.
-   Tab returns to the command field. On-screen buttons offer the same basic
-   actions. The confirmed server map style controls movement commands.
-6. **Write sign** opens a multiline editor. **Send sign** sends separate lines
+4. Enter or **Send** sends the current line and keeps it for reuse.
+   Shift+Enter inserts a newline; Ctrl+Enter or **Party** sends to the party.
+   Ordinary Enter does not turn a leading `*` into an accidental world shout:
+   use **Operation > Shout current line** and confirm instead.
+5. Esc switches from the command field to movement mode; Tab returns to input.
+   Gameplay shortcuts do not intercept typing or editing controls.
+   Native menus expose actions, system magic, map options and keyboard help.
+6. **Action > Write sign** opens a multiline editor. **Send sign** sends separate lines
    followed by `.`, and **Cancel sign** sends `.!`. Protocol-command lines and
    standalone terminators cannot be inserted into sign content.
 7. **Disconnect** sends `#x` before closing. Close a tab before deleting its
    saved character; deletion needs a second confirmation click.
+
+| Keys outside text fields | Action |
+|---|---|
+| Arrows / numpad 8,2,4,6 | Move using the server-confirmed map style |
+| Ctrl+movement | Strafe on north-up maps; face a direction on rotating maps |
+| Shift+arrows | Relative forward/backward movement or turn left/right |
+| Numpad 7,9,5 | Turn left, right, back |
+| 789 / UIO / JKL / M, `- ; / '` | Full-key equivalents; toggle in Operation |
+| Z/X/C/V/F | Get, put, use, sort, floor items |
+| A/S/D/B | Read, write, erase sign, watch board |
+| Q/W/M/R/P | Equip, unequip, check+look, spells, pay |
+| Space / J; L / numpad Enter | Attack; cast |
+| F1–F7 / Alt+1–7 | Numbered spells |
+| Alt+letter / Alt+Shift+letter | System magic; see the Magic menu |
+| T / Shift+T; Shift+7 / Shift+5 | Rotating / north-up; 7x7 / 5x5 |
+| Shift+F5 | Show/hide map pane |
+| Ctrl+Tab / Ctrl+Shift+Tab | Next/previous character, including from the input field |
+| Pause / Shift+F1; Alt+Pause | Force disconnect current; all characters |
+| Lists: 1–9, arrows, Space, Enter | Current-page selection, cursor, check, confirm checked rows |
+| Lists: Esc/0/period/left/right; minus/plus | Cancel; all |
+
+List continuation keeps prior checks and uses the server's real numbers.
+System magic that needs free hands first waits for the actual equipment list,
+removes the weapon if present, and suppresses only intermediate equipment/spell
+lists. Target lists remain visible. Preparation times out visibly after five
+seconds; automatic re-equipping is not implemented. Call, Return and shouting
+require confirmation. Japanese IME composition has dedicated commit-key guards.
+A native Microsoft IME check verified physical romaji composition, commit Enter
+without sending, and a separate Enter sending exactly one Japanese line.
+
+## Character graphics and map chips
+
+Choose **View > Graphics folder**, enter an absolute local folder, then **Load**.
+Use a Philly-compatible graphics directory that you already have permission to
+use; this app does not download assets, bundle wphi's artwork, or grant rights to
+redistribute a third party's files. Keep the original artists' license/readme
+files with your collection. Point at the directory containing these paths:
+
+```text
+chara\<graphic-or-character-name>.bmp
+chara\*.ali
+chip\<server-mapset>.bmp
+Skins\Mine\chip\Default.bmp
+Skins\Mine\Chara\Index.txt
+Skins\Mine\Chara\<default-graphic>.bmp
+Skins\Mine\Images\Items.bmp
+```
+
+Characters use the original 96-pixel-wide BMP sheet: four 32-pixel-high rows
+(back, right, front, left), two 16x32 frames followed by two 32x32 frames.
+Exact RGB `(0,128,128)` is transparent. Larger `*` actors use the 32x32 frames;
+ordinary animated sheets alternate their two frames every 500 ms.
+
+Map sheets are 1024x96 BMPs: the left 512 pixels hold 32 chips, in 16 columns
+of 32x48; the right half is the opacity mask. Items use a horizontal strip,
+at least 256x64: the bottom half masks the top half. A mask pixel is opaque
+only when all RGB channels exceed 200. The map includes the top overhang,
+tree/ground composition, water edges, signs, item/circle clipping, row-ordered
+occlusion, and same-cell actor offsets. Attribute bits 0–1 select the four
+`#mapset` / `#mapset-define` sheets. Missing named mapsets use `Default.bmp`
+with a visible notice.
+
+Character resolution follows the original priority: `.ali` alias, graphic name,
+character name, then the type default in `Skins\Mine\Chara\Index.txt`;
+`setcg` type `0x40` tries the graphic name before aliases. Index/alias text uses
+CP932. Default files are searched in the skin's Chara folder and then `chara`.
+Reload the folder after modifying images; file and resolved-name caches are
+bounded. Sheets are limited to 8 MiB / 2048 pixels per side.
+
+The configured folder is saved as `graphics-folder.txt` beside the profile file.
+Leave it blank and Load to return to the explicitly labelled schematic map.
+Missing or corrupt files are reported on screen; missing actors use a yellow
+placeholder rather than silently pretending their sprites loaded.
 
 ## Data and trust
 
@@ -95,30 +167,49 @@ truncated at 8,192 characters.
 
 ## Implemented and not yet implemented
 
-Implemented: registration by ID, server-side character creation, credential-backed
-profiles, simultaneous character sessions, CP932 TCP login, text/chat commands,
-status display, north-up/rotating 7x7 symbolic maps with actor positions,
-movement and common actions, numbered selection lists, and sign editing.
+Implemented: registration and creation, credential-backed profiles, independent
+native character tabs, menus, multiline/current-line/party input, HP/MP bars and
+named conditions, 7x7 and legacy 5x5 terrain, 15x15 EagleEye, user-supplied sprite
+and tile-sheet rendering, full-key movement and common actions, system-magic
+preparation, checked/paged selections, controlled dialogs, and sign editing.
 
-The map uses native text tiles (`@` self, `o` actor, `#` wall, `.` floor);
-it does not reproduce wphi's sprite rendering. Not yet implemented:
-Philly folder/settings import, world discovery and image selection previews,
-character/map graphics and downloads, skins, rich speech styling, 5x5 maps,
-EagleEye graphics, extended maps / movement prediction, automatic equipment
-handling and magic shortcuts, dedicated private-message UI, master-magic menus,
-world transfers, configurable keymaps, window-layout persistence and updates.
+Not yet implemented: full Philly folder/settings import, world discovery and
+image selection previews, automatic asset downloads, configurable skins other
+than the Mine directory layout, rich speech styling, overlaid actor-name/status
+decorations, legacy 5x5 actor decoding, `#ex-obj` arbitrary sprite magnification,
+extended maps / movement prediction, automatic re-equipping, dedicated
+private-message UI, master-magic menus, world transfers, configurable F8–F12 /
+Alt+G keymaps, window-layout persistence and updates. The map is integrated,
+not a separate floating window.
 Raw commands can access server features, but do not add missing client-side UI.
 
 ## Layout and verification
 
-- `PhiClient`: packaged pure-C# Reactor UI and Windows credential storage.
-- `PhiClient.Core`: transport, line framing and protocol parsing without UI.
+- `PhiClient.Core\ClientModel.cs`, `GameModel.cs`: UI-free state, typed messages
+  and pure update functions; selection updates are copy-on-write.
+- `PhiClient\App.cs`, `App.Game.cs`: Reactor views; `App.State.cs` connects the
+  actual `ClientModel` to Reactor's `UseReducer`, rather than a dummy counter.
+- `App.Effects.cs`, `App.Input.cs`, `App.GraphicsEffects.cs`, `App.Dialogs.cs`:
+  lifecycle/network commands, physical-key/IME adapters, graphics configuration,
+  and the native dialog bridge. Async results dispatch typed messages.
+- `CharacterStore`, `GraphicsStore`, `GameSession`: Windows persistence, bounded
+  local asset loading, and per-tab runtime handles. Connections/bitmaps/controls
+  are not stored in the core models; file loading never runs in the views or
+  pure updates. Graphics are prepared before rendering and exposed as live
+  native bitmaps.
+- Other `PhiClient.Core` files: transport, framing, parsing, input mapping and
+  platform-independent pixel composition.
 - `PhiClient.Core.Tests`: loopback-server tests; no live game service is needed.
 
 `dotnet test` exercises the wire-level login, split CP932 input, literal sign
 blocks, map bytes and packed actors, list numbering, server control replies,
 64 KiB framing boundaries, outbound injection rejection, and registration
-success/rejection. It does not assert interoperability with a live public world.
+success/rejection, keyboard/modifier precedence, CR/LF current-line behavior,
+paged selections, magic preparation, sprite masks/occlusion, and immutable
+state transitions/session isolation. Native packaged checks use a synthetic
+loopback server and newly authored test graphics, not copied upstream art.
+Public-server interoperability, ARM64 execution, high-contrast rendering and
+other IME/input-method combinations remain unverified.
 
 ## Upstream and licensing
 

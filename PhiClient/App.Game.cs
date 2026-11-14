@@ -1,0 +1,258 @@
+using Microsoft.UI.Reactor;
+using Microsoft.UI.Reactor.Core;
+using Microsoft.UI.Reactor.Layout;
+using Microsoft.UI.Xaml;
+using PhiClient;
+using PhiClient.Core;
+using static Microsoft.UI.Reactor.Factories;
+
+partial class App
+{
+    private Microsoft.UI.Xaml.Controls.ListView? listControl;
+
+    private Element AppMenu()
+    {
+        var session = active;
+        MenuFlyoutItemData Action(string label, InputAction action) =>
+            MenuItem(label, () => { if (session is not null) Execute(session, action); })
+                with { IsEnabled = session?.Connected == true };
+        MenuFlyoutItemData Key(string label, ConsoleKey key, bool alt = false, bool shift = false) =>
+            Action(label, GameInput.Resolve(key, session?.NorthFixed ?? true, false,
+                alt: alt, shift: shift) ?? throw new InvalidOperationException("Missing menu binding."));
+        return MenuBar(
+            Menu("File",
+                MenuItem("Connect / disconnect", ToggleConnection) with { IsEnabled = session is not null },
+                MenuItem("Disconnect all", () =>
+                {
+                    foreach (var s in sessions.ToArray())
+                        _ = SessionOperationAsync(s, () => DisconnectAsync(s));
+                }),
+                MenuItem("Force disconnect  |  Pause", () => session?.Connection?.Dispose())
+                    with { IsEnabled = session?.Connection is not null },
+                MenuSeparator(),
+                MenuItem("Close tab", () => { if (session is not null) CloseTab(session); })
+                    with { IsEnabled = session is not null },
+                MenuItem("Characters / registration", () => { showCharacters = !showCharacters; refresh(); })),
+            Menu("Character",
+                MenuItem("Next tab  |  Ctrl+Tab", () => CycleTab(1)),
+                MenuItem("Previous tab  |  Ctrl+Shift+Tab", () => CycleTab(-1)),
+                MenuSeparator(),
+                MenuSubItem("Saved characters", characters.Select(character => (MenuFlyoutItemBase)
+                    MenuItem(character.Name, () => _ = PerformAsync(() => OpenAsync(character)))).ToArray())),
+            Menu("Operation",
+                ToggleMenuItem("Follow latest log", followLog, value => { followLog = value; refresh(); }),
+                ToggleMenuItem("Full-key movement (789 UIO JKL M)", fullKeys, value => { fullKeys = value; refresh(); }),
+                MenuItem("Shout current line...", () => { if (session is not null) Submit(session, shout: true); })
+                    with { IsEnabled = session?.Connected == true },
+                MenuItem("Save log to settings folder", SaveLog) with { IsEnabled = session is not null }),
+            Menu("Action",
+                Key("Get  |  Z / numpad +", ConsoleKey.Z),
+                Key("Put  |  X / numpad -", ConsoleKey.X),
+                Key("Use  |  C / numpad *", ConsoleKey.C),
+                Key("Sort  |  V", ConsoleKey.V),
+                Key("Floor items  |  F", ConsoleKey.F),
+                MenuSeparator(),
+                Key("Read sign  |  A", ConsoleKey.A),
+                Key("Write sign  |  S", ConsoleKey.S),
+                Key("Erase sign  |  D", ConsoleKey.D),
+                Key("Watch board  |  B", ConsoleKey.B),
+                Key("Pay...  |  P", ConsoleKey.P),
+                MenuSeparator(),
+                Key("Equip  |  Q / numpad /", ConsoleKey.Q),
+                Key("Unequip  |  W", ConsoleKey.W),
+                Key("Check and look  |  M / numpad 0", ConsoleKey.M),
+                Action("Skills", GameInput.Command("skills")),
+                Action("Attack  |  Space", GameInput.Command("hit"))),
+            Menu("Magic",
+                Key("Spells  |  R", ConsoleKey.R),
+                Action("Cast  |  numpad 3 / numpad Enter", GameInput.Command("cast")),
+                MenuSeparator(),
+                Key("Wizard eye  |  Alt+W", ConsoleKey.W, true),
+                Key("Wizard light  |  Alt+Shift+W", ConsoleKey.W, true, true),
+                Key("Eagle eye  |  Alt+E", ConsoleKey.E, true),
+                Key("Identify  |  Alt+I", ConsoleKey.I, true),
+                Key("Party eye  |  Alt+P", ConsoleKey.P, true),
+                Key("Wizard lock  |  Alt+L", ConsoleKey.L, true),
+                Key("Unlock  |  Alt+U", ConsoleKey.U, true),
+                MenuSubItem("More magic",
+                    Key("List  |  Alt+Shift+L", ConsoleKey.L, true, true),
+                    Key("Detect  |  Alt+D", ConsoleKey.D, true),
+                    Key("Create  |  Alt+C", ConsoleKey.C, true),
+                    Key("Destroy  |  Alt+Shift+D", ConsoleKey.D, true, true),
+                    Key("Analyze  |  Alt+A", ConsoleKey.A, true),
+                    Key("Forget  |  Alt+F", ConsoleKey.F, true),
+                    Key("Charge spell  |  Alt+Shift+C", ConsoleKey.C, true, true),
+                    Key("Search...  |  Alt+S", ConsoleKey.S, true),
+                    Key("Appear...  |  Alt+Shift+A", ConsoleKey.A, true, true),
+                    Key("Disappear...  |  Alt+Shift+U", ConsoleKey.U, true, true)),
+                MenuSeparator(),
+                Key("Call...  |  Alt+B", ConsoleKey.B, true),
+                Key("Return...  |  Alt+R", ConsoleKey.R, true)),
+            Menu("View",
+                MenuItem("Graphics folder...", ShowGraphicsSettings),
+                ToggleMenuItem("Map pane  |  Shift+F5", showMap, value => { showMap = value; refresh(); }),
+                Key("Rotating  |  T", ConsoleKey.T),
+                Key("North up  |  Shift+T", ConsoleKey.T, shift: true),
+                Key("7 x 7  |  Shift+7", ConsoleKey.D7, shift: true),
+                Key("5 x 5  |  Shift+5", ConsoleKey.D5, shift: true),
+                MenuItem("Local map / EagleEye", () =>
+                {
+                    session?.Dispatch(new GameMessage.EagleToggled());
+                    refresh();
+                }) with { IsEnabled = session?.Eagle is not null },
+                Action("Refresh", GameInput.Command("see"))),
+            Menu("Help",
+                MenuItem("Keyboard controls", ShowKeyboardHelp),
+                MenuItem("About", () => _ = PerformAsync(async () => await SessionDialogAsync("PHI Client",
+                    "C# / WinUI 3 with official Microsoft.UI.Reactor preview. " +
+                    "Newly drawn schematic maps; no wphi image assets are bundled. " +
+                    "PHI uses unencrypted TCP. This is not yet a complete wphi replacement.")))));
+    }
+
+    private Element GameView(GameSession session)
+    {
+        var selection = session.Selection;
+        var choices = !selection.Active ? Empty() : VStack(4,
+            TextBlock(selection.Waiting ? "Waiting for next page..." :
+                "Selection: 1-9 choose; Space check; Enter send; Esc cancel").TextWrapping(TextWrapping.Wrap),
+            ListView(selection.Cursor, index =>
+                {
+                    session.Dispatch(new GameMessage.SelectionMoved(index - selection.Cursor));
+                }, selection.Items.Select((choice, index) => (Element)HStack(6,
+                    CheckBox(selection.Checked.Contains(choice.Number), value =>
+                    {
+                        if (selection.Checked.Contains(choice.Number) == value) return;
+                        session.Dispatch(new GameMessage.SelectionToggled(index));
+                    }, ""),
+                    TextBlock($"{(index >= selection.PageStart ? $"({index - selection.PageStart + 1}) " : "")}" +
+                        $"[{choice.Number}] {choice.Text}").TextWrapping(TextWrapping.Wrap))).ToArray())
+                .ItemClick(index => Choose(session, selection.Pick(index)))
+                .MaxHeight(220).IsEnabled(!selection.Waiting).AutomationId("selection-list")
+                .OnMount(element => listControl = (Microsoft.UI.Xaml.Controls.ListView)element),
+            HStack(6,
+                Button("Send selection", () => Choose(session, selection.Confirm())).IsEnabled(!selection.Waiting),
+                Button("All", () => Send(session, "-")),
+                Button("Cancel selection", () => Send(session, "."))));
+
+        var log = ScrollViewer(TextBlock(string.Join('\n', session.Log)).TextWrapping(TextWrapping.Wrap)
+            .IsTextSelectionEnabled(true).FontFamily("Consolas").AutomationId("game-log"))
+            .OnMount(element =>
+            {
+                var viewer = (Microsoft.UI.Xaml.Controls.ScrollViewer)element;
+                var scrollQueued = false;
+                viewer.LayoutUpdated += (_, _) =>
+                {
+                    if (scrollQueued || !followLog || active != session || !viewer.IsLoaded ||
+                        viewer.ScrollableHeight - viewer.VerticalOffset <= 1) return;
+                    scrollQueued = true;
+                    dispatcher?.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+                    {
+                        scrollQueued = false;
+                        if (followLog && active == session && viewer.IsLoaded && viewer.XamlRoot is not null)
+                            viewer.ChangeView(null, viewer.ScrollableHeight, null);
+                    });
+                };
+            }).Flex(grow: 1, basis: 0);
+
+        var chat = FlexColumn(
+            HStack(8, SubHeading("Server log"),
+                Caption($"{session.World} {session.Area}").AutomationId("world-location")).Flex(shrink: 0),
+            log, choices.Flex(shrink: 0), SignEditor(session).Flex(shrink: 0),
+            TextBox(session.Input, value =>
+                {
+                    if (session.Input == value) return;
+                    session.Dispatch(new GameMessage.InputChanged(value));
+                }, header: "Message or raw PHI command")
+                .AcceptsReturn(true).Height(82).AutomationId("command-input")
+                .OnMount(element => AttachInput((Microsoft.UI.Xaml.Controls.TextBox)element, session))
+                .OnPreviewKeyDown((_, args) => OnInputKeyDown(session, args))
+                .OnKeyUp((_, args) =>
+                {
+                    if (args.Key == Windows.System.VirtualKey.Enter) committingComposition = false;
+                }).Flex(shrink: 0),
+            HStack(8,
+                Button("Send", () => Submit(session)).IsEnabled(session.Connected).AutomationId("send-command"),
+                Button("Party", () => Submit(session, party: true)).IsEnabled(session.Connected),
+                Caption("Enter: current line  |  Shift+Enter: newline  |  Ctrl+Enter: party"))
+                .Flex(shrink: 0)
+        ).Flex(grow: 1, basis: 0);
+
+        var map = VStack(8,
+            SubHeading(session.ShowEagle && session.Eagle is not null ? "EagleEye" :
+                $"Local map ({session.Map?.Size ?? 7} x {session.Map?.Size ?? 7})").AutomationId("local-map"),
+            GraphicMap(session),
+            TextBlock(model.GraphicsNotice).TextWrapping(TextWrapping.Wrap).FontSize(12).Width(336)
+                .AutomationId("graphics-notice"),
+            TextBlock(session.Map is null ? "Waiting for a map." :
+                $"Facing {session.Map.Direction} | {(session.NorthFixed ? "North up" : "Rotating")}")
+                .AutomationId("map-state"),
+            session.Eagle is null ? Empty() : Button(session.ShowEagle ? "Back to local map" : "Show EagleEye", () =>
+            {
+                session.Dispatch(new GameMessage.EagleToggled());
+            }),
+            GameViews.Status(session),
+            TextBlock("Click: move toward tile. Right-click: attack.\nWithout graphics: circle = character, ! = sign, * = item.")
+                .TextWrapping(TextWrapping.Wrap).FontSize(12).Width(336),
+            HStack(6,
+                Button("Turn left", () => Send(session, "turn l")),
+                Button("Forward", () => Move(session, "N")),
+                Button("Turn right", () => Send(session, "turn r"))),
+            HStack(6,
+                Button("Left", () => Move(session, "W")),
+                Button("Attack", () => Send(session, "hit")),
+                Button("Right", () => Move(session, "E")),
+                Button("Back", () => Move(session, "S")))
+        ).Width(344);
+
+        return FlexColumn(
+            HStack(6,
+                Button(session.Connecting ? "Connecting..." : session.Connected ? "Disconnect" : "Reconnect", ToggleConnection)
+                    .IsEnabled(!session.Connecting && !session.Closing).AutomationId("connection-toggle"),
+                Button("Keyboard movement mode", () => gameControl?.Focus(FocusState.Programmatic))
+                    .OnMount(element => gameControl = (Microsoft.UI.Xaml.Controls.Button)element)
+                    .AutomationId("movement-mode"),
+                Button("Close tab", () => CloseTab(session)).IsEnabled(!session.Connecting && !session.Closing)
+                    .AutomationId("close-tab")).Flex(shrink: 0),
+            Caption(session.PreparingMagic ? "Preparing magic: waiting for equipment response; other input is paused." :
+                $"Esc: movement  |  Tab: input  |  Ctrl+Tab: next character  |  {(fullKeys ? "Full-key movement on" : "Full-key movement off")}")
+                .AutomationId("input-mode").Flex(shrink: 0),
+            FlexRow(showMap && !showCharacters ? ScrollViewer(map).Width(360).Flex(shrink: 0) : Empty(), chat)
+                .Flex(grow: 1, basis: 0)
+        ).Flex(grow: 1, basis: 0).FlexPadding(12, 8);
+    }
+
+    private Element GraphicMap(GameSession session)
+    {
+        var bitmap = session.GraphicsImage;
+        if (bitmap is null) return GameViews.Map(session, (x, y) => MapClick(session, x, y), () => Send(session, "hit"));
+        var scale = Math.Min(1.5, 336.0 / bitmap.PixelWidth);
+        // The preview's Image descriptor requires a URI even when OnMount supplies a live bitmap.
+        return Image("ms-appx:///Assets/Square44x44Logo.scale-200.png")
+            .Width(bitmap.PixelWidth * scale).Height(bitmap.PixelHeight * scale)
+            .WithKey($"pixels-{bitmap.PixelWidth}-{bitmap.PixelHeight}")
+            .AutomationId("sprite-map").AutomationName("Character sprites and map chips: " +
+                string.Join(", ", session.Map?.Actors.Select(actor => actor.Name) ?? []))
+            .OnMount(element => ((Microsoft.UI.Xaml.Controls.Image)element).Source = bitmap)
+            .OnPointerPressed((sender, args) =>
+            {
+                if (session.ShowEagle || sender is not Microsoft.UI.Xaml.UIElement view) return;
+                var point = args.GetCurrentPoint(view);
+                if (point.Properties.IsRightButtonPressed) Send(session, "hit");
+                else if (point.Properties.IsLeftButtonPressed && point.Position.Y >= 16 * scale)
+                    MapClick(session, (int)(point.Position.X / (32 * scale)) - session.Map!.Size / 2,
+                        (int)((point.Position.Y / scale - 16) / 32) - session.Map.Size / 2);
+                else return;
+                args.Handled = true;
+            });
+    }
+
+    private Element SignEditor(GameSession session) => !session.Editing ? Empty() : VStack(6,
+        TextBox(session.BoardText, text =>
+            {
+                if (session.BoardText == text) return;
+                session.Dispatch(new GameMessage.BoardChanged(text));
+            }, header: "Sign text").AcceptsReturn(true).Height(120).AutomationId("sign-text"),
+        HStack(6,
+            Button("Send sign", () => SendSign(session)),
+            Button("Cancel sign", () => Send(session, ".!"))));
+}

@@ -223,4 +223,90 @@ public sealed class PhiConnectionTests
         foreach (var frame in frames)
             Assert.Equal(new[] { new Actor(1, 2, "太郎"), new Actor(5, 4, "NPC") }, frame.Actors);
     }
+
+    [Theory]
+    [InlineData("Wpn", "1")]
+    [InlineData("Arm", ".")]
+    [InlineData("unrecognized", ".")]
+    [InlineData("none", null)]
+    public async Task SendActionAsync_PreparesEquipmentHidesOnlyIntermediateListsAndSerializesInput(string kind, string? selection)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        using var connection = new PhiConnection();
+        var events = new ConcurrentQueue<ServerEvent>();
+        var ready = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var unequip = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var queued = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        connection.Received += item =>
+        {
+            events.Enqueue(item);
+            if (item is ConnectionReady) ready.TrySetResult();
+        };
+        var server = Task.Run(async () =>
+        {
+            using var peer = await listener.AcceptTcpClientAsync(timeout.Token);
+            var stream = peer.GetStream();
+            using var reader = new StreamReader(stream, PhiWire.Encoding, false, 1024, true);
+            for (var i = 0; i < 11; i++) await reader.ReadLineAsync(timeout.Token);
+            Assert.Equal("unequip", await reader.ReadLineAsync(timeout.Token));
+            unequip.SetResult();
+            await queued.Task.WaitAsync(timeout.Token);
+            // A sign's literal text must not be mistaken for an equipment response.
+            await stream.WriteAsync(PhiWire.Encode("#more\nCan not unequip.\n#end-more\n"), timeout.Token);
+            var reply = kind == "none" ? "Can not unequip.\n" :
+                $"#list\n     [/*color=cyan*/ 1/*.*/] Sword Wp : 5 [/*r*/{kind}/*.*/]\n[2] Armor [Wpn]\n#end-list\n";
+            await stream.WriteAsync(PhiWire.Encode(reply), timeout.Token);
+            if (selection is not null) Assert.Equal(selection, await reader.ReadLineAsync(timeout.Token));
+            Assert.Equal("cast", await reader.ReadLineAsync(timeout.Token));
+            Assert.Equal("detect", await reader.ReadLineAsync(timeout.Token));
+            Assert.Equal("go N", await reader.ReadLineAsync(timeout.Token));
+            await stream.WriteAsync(PhiWire.Encode("#list\n[1] detect\n#end-list\n" +
+                "#ex-list-mode-end\n#list\n[9] Choose target\n#end-list\n#close\n"), timeout.Token);
+        }, timeout.Token);
+        var running = connection.RunAsync("127.0.0.1", ((IPEndPoint)listener.LocalEndpoint).Port, "test-character", timeout.Token);
+        await ready.Task.WaitAsync(timeout.Token);
+        var casting = connection.SendActionAsync(GameInput.Spell("detect"), timeout.Token);
+        await unequip.Task.WaitAsync(timeout.Token);
+        var moving = connection.SendActionAsync(GameInput.Command("go N"), timeout.Token);
+        queued.SetResult();
+        await Task.WhenAll(server, running, casting, moving).WaitAsync(timeout.Token);
+        var displayed = Assert.Single(events.OfType<Choices>(), item => item.Complete);
+        Assert.Equal([new Choice("9", "Choose target")], displayed.Items);
+        Assert.Contains(new LogLine("Can not unequip."), events);
+    }
+
+    [Fact]
+    public async Task SendActionAsync_TimesOutWithoutCastingAndDoesNotHideTheNextUserList()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        using var connection = new PhiConnection();
+        var ready = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var lists = new ConcurrentQueue<Choices>();
+        connection.Received += item =>
+        {
+            if (item is ConnectionReady) ready.TrySetResult();
+            if (item is Choices list) lists.Enqueue(list);
+        };
+        var server = Task.Run(async () =>
+        {
+            using var peer = await listener.AcceptTcpClientAsync(timeout.Token);
+            var stream = peer.GetStream();
+            using var reader = new StreamReader(stream, PhiWire.Encoding, false, 1024, true);
+            for (var i = 0; i < 11; i++) await reader.ReadLineAsync(timeout.Token);
+            Assert.Equal("unequip", await reader.ReadLineAsync(timeout.Token));
+            Assert.Equal("get", await reader.ReadLineAsync(timeout.Token));
+            await stream.WriteAsync("#list\n[1] Potion\n#end-list\n#x\n"u8.ToArray(), timeout.Token);
+        }, timeout.Token);
+        var running = connection.RunAsync("127.0.0.1", ((IPEndPoint)listener.LocalEndpoint).Port, "test-character", timeout.Token);
+        await ready.Task.WaitAsync(timeout.Token);
+        var error = await Assert.ThrowsAsync<IOException>(() => connection.SendActionAsync(GameInput.Spell("wizard eye"), timeout.Token));
+        Assert.Contains("spell was not cast", error.Message);
+        await connection.SendActionAsync(GameInput.Command("get"), timeout.Token);
+        await Task.WhenAll(server, running).WaitAsync(timeout.Token);
+        Assert.Equal([new Choice("1", "Potion")], Assert.Single(lists).Items);
+    }
 }

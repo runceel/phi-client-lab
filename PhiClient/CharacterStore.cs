@@ -2,10 +2,9 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Runtime.InteropServices;
 using Windows.Security.Credentials;
+using PhiClient.Core;
 
 namespace PhiClient;
-
-public sealed record SavedCharacter(string Key, string Name, string Host, int Port);
 
 public sealed class CharacterStore
 {
