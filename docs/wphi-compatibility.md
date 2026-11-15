@@ -28,15 +28,22 @@ Model/Update/Viewと、通信・保存・native操作を分けています。
 nativeの選択範囲はReactor反映後に、同じ入力欄・revision・本文の場合だけ更新します。
 この処理からフォーカス移動は行いません。
 
+追加のソース照合で、非同期`TextChanged`より前にcontrolled描画が古い本文を再適用できる経路を確認しました。
+`TextChanging`で本文とrevisionを同期的にModel/hookへ取り込み、遅れた同文echoは既存の一致判定で除外します。
+この同期イベント内では純粋なModel更新とhookへの公開だけを行い、ログ/地図更新や直接のvisual tree操作を行いません。
+正式preview.17のhook更新は既存画面では描画をqueueへ送ります。Reactorの非公開APIは使っていません。
+この経路は実入力にも成立するため、先のnative失敗をdriver固有とは判定しません。
+
 `GameInputTests`は **Passed: 53, Failed: 0, Skipped: 0**、
 Core全体は **Passed: 269, Failed: 0, Skipped: 0**。packaged x64 buildは警告0/エラー0です。
-結果は `files\chat-send-regression\chat-input-targeted.trx` と `chat-core-all.trx` に保存しました。
+結果は `files\chat-send-regression\chat-input-targeted.trx`、`chat-core-all.trx`、同期化後の`chat-sync-core-all.trx`に保存しました。
 
 **新しい動作のnative受け入れは未完了です。**
 新規の試験専用identityと所有loopbackで、UIAによる下書き設定が送信前に空へ戻りました。
 直接ValuePatternと公式WinApp set-valueの両方で送信前条件を満たせず、追加の反復は止めました。
 `files\chat-send-20261115-203738\results.json`は失敗記録であり、送信後クリアの成功証拠ではありません。
 取消/送信失敗/prefix caretの後続native確認と、物理Enter/IME/focusは保留です。
+同期化後は指示どおり追加のUI試行を行っていません。以前の失敗との因果と修正後のnative動作は未確定です。
 合成登録の削除・試験前データの復元・製品データSHA不変・正常終了0は各バッチで確認し、
 所有mockも停止しました。以前の行保持native試験は変更後の合格へ読み替えません。
 
