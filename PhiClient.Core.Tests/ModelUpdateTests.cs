@@ -135,12 +135,12 @@ public sealed class ModelUpdateTests
     {
         var empty = new GameModel();
         var model = empty;
-        for (var i = 0; i < 510; i++) model = GameUpdate.Apply(model, new GameMessage.Logged($"{i}"));
-        Assert.Equal(500, model.Log.Length);
+        for (var i = 0; i < 2010; i++) model = GameUpdate.Apply(model, new GameMessage.Logged($"{i}"));
+        Assert.Equal(2000, model.Log.Length);
         Assert.Equal("10", model.Log[0]);
-        Assert.Equal("509", model.Log[^1]);
+        Assert.Equal("2009", model.Log[^1]);
         for (var i = 0; i < 20; i++) model = GameUpdate.Apply(model, new GameMessage.Logged(new string('x', 9000)));
-        Assert.True(model.LogCharacters <= 100000);
+        Assert.True(model.RawLogCharacters <= 2 * 1024 * 1024);
         Assert.Equal(model.Log.Sum(line => line.Length), model.LogCharacters);
         Assert.EndsWith(" [display truncated]", model.Log[^1]);
         Assert.Empty(empty.Log);

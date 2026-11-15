@@ -10,6 +10,9 @@ public sealed record ConnectionReady : ServerEvent;
 public sealed record LogLine(string Text) : ServerEvent
 {
     public bool Literal { get; init; }
+    public string? Raw { get; init; }
+    public LogChannel Channel { get; init; }
+    public string? From { get; init; }
 }
 public sealed record StatusLine(string Text) : ServerEvent;
 public sealed record Reply(string Command) : ServerEvent;
@@ -188,7 +191,7 @@ public sealed partial class ProtocolParser
                 more = false;
                 return [];
             }
-            return [new LogLine(PlainText(text)) { Literal = true }];
+            return [new LogLine(PlainText(text)) { Literal = true, Raw = text }];
         }
         if (raw.AsSpan().StartsWith("#m57 M"u8) || raw.AsSpan().StartsWith("#map M"u8))
         {
@@ -326,7 +329,13 @@ public sealed partial class ProtocolParser
                 choices.Add(new Choice(match.Groups[1].Value, match.Groups[2].Value));
             return [];
         }
-        return [new LogLine(plain)];
+        if (text.StartsWith('[') && text.IndexOf(']') is var close && close > 0 &&
+            text[(close + 1)..].TrimStart().StartsWith('>'))
+            return [new LogLine(plain) { Raw = text, Channel = LogChannel.Priv, From = text[1..close] }];
+        var nameEnd = text.IndexOf(" > ", StringComparison.Ordinal);
+        return [new LogLine(plain) { Raw = text,
+            Channel = nameEnd > 0 && users.ContainsKey(text[..nameEnd]) ? LogChannel.Talk : LogChannel.Log,
+            From = nameEnd > 0 && users.ContainsKey(text[..nameEnd]) ? text[..nameEnd] : null }];
     }
 
     private IReadOnlyList<ServerEvent> ParseEagle(byte[] raw, string text)

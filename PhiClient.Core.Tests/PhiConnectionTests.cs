@@ -86,7 +86,7 @@ public sealed class PhiConnectionTests
         await connection.SendAsync(["go N", "hello \U0001F600"], timeout.Token);
         await Task.WhenAll(server, running).WaitAsync(timeout.Token);
 
-        Assert.Contains(new LogLine("こんにちは"), events);
+        Assert.Contains(events.OfType<LogLine>(), line => line.Text == "こんにちは" && line.Raw == "こんにちは");
         Assert.Contains(events.OfType<LogLine>(), line => line.Text == "#lag" && line.Literal);
         Assert.Contains(events.OfType<LogLine>(), line => line.Text == "#ch-srv untrusted.invalid 2000" && line.Literal);
         Assert.Contains(new StatusLine("Alice : 10 : 20 : 3 : 5"), events);
@@ -127,9 +127,9 @@ public sealed class PhiConnectionTests
         }, timeout.Token);
         await Task.WhenAll(server, connection.RunAsync("127.0.0.1",
             ((IPEndPoint)listener.LocalEndpoint).Port, "test-character", timeout.Token));
-        Assert.Contains(new LogLine(new string('b', 65536)), events);
+        Assert.Contains(events.OfType<LogLine>(), line => line.Text == new string('b', 65536) && line.Raw == line.Text);
         Assert.DoesNotContain(events.OfType<LogLine>(), line => line.Text.StartsWith('a') || line.Text.StartsWith('c'));
-        Assert.Contains(new LogLine("recovered"), events);
+        Assert.Contains(events.OfType<LogLine>(), line => line.Text == "recovered");
         Assert.Contains(events.OfType<LogLine>(), line => line.Text.Contains("64 KiB"));
     }
 
@@ -386,9 +386,9 @@ public sealed class PhiConnectionTests
         await connection.SendAsync(["done"], timeout.Token);
         await Task.WhenAll(server, running);
         Assert.Contains(events.OfType<LogLine>(), line => line.Text == "本を装備した" && line.Literal);
-        Assert.Contains(new LogLine("鎧を装備した"), events);
-        Assert.Equal(!expectReequip, events.Contains(new LogLine("剣を装備した")));
-        Assert.DoesNotContain(new LogLine("Input item number to unequip."), events);
+        Assert.Contains(events.OfType<LogLine>(), line => line.Text == "鎧を装備した");
+        Assert.Equal(!expectReequip, events.OfType<LogLine>().Any(line => line.Text == "剣を装備した"));
+        Assert.DoesNotContain(events.OfType<LogLine>(), line => line.Text == "Input item number to unequip.");
         Assert.DoesNotContain(events.OfType<Choices>(), list => list.Complete);
     }
 }

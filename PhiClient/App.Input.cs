@@ -34,6 +34,8 @@ partial class App
         var focused = FocusManager.GetFocusedElement(root);
         if (focused is Microsoft.UI.Xaml.Controls.TextBox or Microsoft.UI.Xaml.Controls.PasswordBox or Microsoft.UI.Xaml.Controls.RichEditBox)
             return;
+        if (focused is Microsoft.UI.Xaml.Controls.RichTextBlock)
+            return;
         for (var parent = focused as DependencyObject; parent is not null; parent = VisualTreeHelper.GetParent(parent))
             if (parent is Microsoft.UI.Xaml.Controls.MenuBar or MenuFlyoutPresenter)
                 return;
@@ -228,6 +230,7 @@ partial class App
         {
             await DisconnectAsync(session);
             if (session.ConnectionTask is { } task) await task;
+            if (logStore is not null) await logStore.FlushAsync();
             var wasActive = active == session;
             session.Detach();
             sessions.Remove(session);
@@ -250,11 +253,8 @@ partial class App
         if (active is not { } session) return;
         _ = PerformAsync(async () =>
         {
-            var folder = Path.Combine(store.Folder, "Logs");
-            Directory.CreateDirectory(folder);
-            var file = $"phi-{DateTime.Now:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}.log";
-            await File.WriteAllTextAsync(Path.Combine(folder, file), string.Join(Environment.NewLine, session.Log));
-            notice = $"Log saved to Logs\\{file} in the settings folder.";
+            var file = await Logs.SaveBufferAsync(session.Character.Name, session.Model.LogEntries, model.Options);
+            notice = $"ログ欄の内容を保存しました: {file}";
         });
     }
 

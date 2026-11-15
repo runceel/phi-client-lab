@@ -42,10 +42,15 @@ partial class App
                     MenuItem(character.Name, () => _ = PerformAsync(() => OpenAsync(character)))).ToArray())),
             Menu("Operation",
                 ToggleMenuItem("Follow latest log", followLog, value => { followLog = value; refresh(); }),
+                session is null ? MenuItem("ログ自動保存（キャラクター未選択）", () => { }) with { IsEnabled = false } :
+                    ToggleMenuItem("このキャラクターのログを自動保存", session.Model.LogSaving,
+                        value => ToggleLogSaving(session, value)),
                 ToggleMenuItem("Full-key movement (789 UIO JKL M)", fullKeys, value => { fullKeys = value; refresh(); }),
                 MenuItem("Shout current line...", () => { if (session is not null) Submit(session, shout: true); })
                     with { IsEnabled = session?.Connected == true },
-                MenuItem("Save log to settings folder", SaveLog) with { IsEnabled = session is not null }),
+                MenuItem("ログ欄の内容をHTMLに保存", SaveLog) with { IsEnabled = session is not null },
+                MenuItem("ログの保存先を開く", () => { if (session is not null) OpenLogFolder(session); })
+                    with { IsEnabled = session is not null }),
             Menu("Action",
                 Key("Get  |  Z / numpad +", ConsoleKey.Z),
                 Key("Put  |  X / numpad -", ConsoleKey.X),
@@ -109,7 +114,8 @@ partial class App
                 MenuItem("About", () => _ = PerformAsync(async () => await SessionDialogAsync("PHI Client",
                     "C# / WinUI 3 with official Microsoft.UI.Reactor preview. " +
                     "Newly drawn schematic maps; no wphi image assets are bundled. " +
-                    "PHI uses unencrypted TCP. This is not yet a complete wphi replacement.")))));
+                    "PHI uses unencrypted TCP. This is not yet a complete wphi replacement.")))))
+            .WithKey($"menu-{session?.Character.Key ?? "offline"}");
     }
 
     private Element GameView(GameSession session)
@@ -137,11 +143,16 @@ partial class App
                 Button("All", () => Send(session, "-")),
                 Button("Cancel selection", () => Send(session, "."))));
 
-        var log = ScrollViewer(TextBlock(string.Join('\n', session.Log)).TextWrapping(TextWrapping.Wrap)
-            .IsTextSelectionEnabled(true).FontFamily("Consolas").AutomationId("game-log"))
+        var log = ScrollViewer(Empty())
             .OnMount(element =>
             {
                 var viewer = (Microsoft.UI.Xaml.Controls.ScrollViewer)element;
+                var presenter = new LogPresenter((rows, toInput) => CopyLog(session, rows, toInput), OpenLogLink);
+                presenter.Attach();
+                presenter.Update(session.Model.LogEntries, model.Options);
+                viewer.Content = presenter.Control;
+                viewer.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White);
+                session.LogPresenter = presenter;
                 var scrollQueued = false;
                 viewer.LayoutUpdated += (_, _) =>
                 {
@@ -158,7 +169,7 @@ partial class App
             }).Flex(grow: 1, basis: 0);
 
         var chat = FlexColumn(
-            HStack(8, SubHeading("Server log"),
+            HStack(8, SubHeading("世界からのログ"),
                 Caption($"{session.World} {session.Area}").AutomationId("world-location")).Flex(shrink: 0),
             log, choices.Flex(shrink: 0), SignEditor(session).Flex(shrink: 0),
             TextBox(session.Input, value =>

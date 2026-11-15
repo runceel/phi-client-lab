@@ -31,12 +31,16 @@ public sealed record GameModel
     public ImmutableArray<string> MapSets { get; init; } = ["default", "default", "default", "default"];
     public ChoiceSelection Selection { get; init; } = new();
     public ImmutableArray<string> Log { get; init; } = [];
+    public ImmutableArray<LogEntry> LogEntries { get; init; } = [];
+    public long NextLogId { get; init; }
+    public int RawLogCharacters { get; init; }
     public int LogCharacters { get; init; }
+    public bool LogSaving { get; init; }
 }
 
 public abstract record GameMessage
 {
-    public sealed record Received(ServerEvent Event, long At = 0) : GameMessage;
+    public sealed record Received(ServerEvent Event, long At = 0, DateTimeOffset? Time = null) : GameMessage;
     public sealed record CommandSent(string Text, long At) : GameMessage;
     public sealed record PredictionTick(long At) : GameMessage;
     public sealed record PredictionReset : GameMessage;
@@ -46,7 +50,8 @@ public abstract record GameMessage
     public sealed record EditingChanged(bool Value) : GameMessage;
     public sealed record PreparingChanged(bool Value) : GameMessage;
     public sealed record EagleToggled : GameMessage;
-    public sealed record Logged(string Text) : GameMessage;
+    public sealed record Logged(string Text, DateTimeOffset? Time = null) : GameMessage;
+    public sealed record LogSavingChanged(bool Value) : GameMessage;
     public sealed record SelectionMoved(int Delta) : GameMessage;
     public sealed record SelectionToggled(int Index) : GameMessage;
     public sealed record SelectionAdvanced : GameMessage;
@@ -75,13 +80,14 @@ public static class GameUpdate
 
     private static GameModel ApplyMessage(GameModel model, GameMessage message) => message switch
     {
-        GameMessage.Received received => Receive(model, received.Event, received.At),
+        GameMessage.Received received => Receive(model, received.Event, received.At, received.Time),
         GameMessage.CommandSent sent => model with { Prediction = model.Prediction.Sent(sent.Text, sent.At) },
         GameMessage.PredictionTick tick => model with { Prediction = model.Prediction.Tick(tick.At) },
         GameMessage.PredictionReset => model with { Prediction = model.Prediction.Reset() },
         GameMessage.PhaseChanged { Phase: ConnectionPhase.Connecting } =>
             Append(new GameModel { Input = model.Input, BoardText = model.BoardText, Log = model.Log,
-                LogCharacters = model.LogCharacters, Phase = ConnectionPhase.Connecting }, "[Connecting...]"),
+                LogEntries = model.LogEntries, NextLogId = model.NextLogId, RawLogCharacters = model.RawLogCharacters,
+                LogCharacters = model.LogCharacters, LogSaving = model.LogSaving, Phase = ConnectionPhase.Connecting }, "[Connecting...]"),
         GameMessage.PhaseChanged { Phase: ConnectionPhase.Offline } =>
             model with { Phase = ConnectionPhase.Offline, Selection = new(), Editing = false,
                 PreparingMagic = false, Transferring = false, Prediction = model.Prediction.Reset() },
@@ -91,7 +97,8 @@ public static class GameUpdate
         GameMessage.EditingChanged edit => model with { Editing = edit.Value },
         GameMessage.PreparingChanged prepare => model with { PreparingMagic = prepare.Value },
         GameMessage.EagleToggled => model with { ShowEagle = !model.ShowEagle },
-        GameMessage.Logged log => Append(model, log.Text),
+        GameMessage.Logged log => Append(model, log.Text, log.Time),
+        GameMessage.LogSavingChanged save => model with { LogSaving = save.Value },
         GameMessage.SelectionMoved move => Select(model, selection => selection.Move(move.Delta)),
         GameMessage.SelectionToggled toggle => Select(model, selection => selection.Toggle(toggle.Index)),
         GameMessage.SelectionAdvanced => Select(model, selection => selection.ToggleCursor()),
@@ -100,7 +107,7 @@ public static class GameUpdate
         _ => model
     };
 
-    private static GameModel Receive(GameModel model, ServerEvent item, long at) => item switch
+    private static GameModel Receive(GameModel model, ServerEvent item, long at, DateTimeOffset? time) => item switch
     {
         ConnectionReady when model.Phase != ConnectionPhase.Closing => model with { Phase = ConnectionPhase.Connected },
         PlayerName name => model with { PlayerName = name.Name },
@@ -110,8 +117,8 @@ public static class GameUpdate
             Users = [], Selection = new(), Editing = false, PreparingMagic = false, Prediction = model.Prediction.Reset() },
         LogLine { Literal: false } line when line.Text.StartsWith("DM > ", StringComparison.Ordinal) &&
             line.Text[5..] is "進めません." or "Can not go." =>
-            Append(model with { Prediction = model.Prediction.CannotGo(at) }, line.Text),
-        LogLine line => Append(model, line.Text),
+            Append(model with { Prediction = model.Prediction.CannotGo(at) }, line.Text, time, line),
+        LogLine line => Append(model, line.Text, time, line),
         StatusLine status => model with { Status = status.Text, Stats = PlayerStatus.Parse(status.Text) },
         MapFrame map => model with { Map = map, Prediction = map.Size == 7 && model.NorthUp && map.Position is { } pos
             ? model.Prediction.OnMap(pos, at) : model.Prediction.Reset() },
@@ -136,13 +143,23 @@ public static class GameUpdate
         return model with { Selection = selection };
     }
 
-    private static GameModel Append(GameModel model, string text)
+    private static GameModel Append(GameModel model, string text, DateTimeOffset? time = null, LogLine? received = null)
     {
         if (text.Length > 8192) text = text[..8192] + " [display truncated]";
         var log = model.Log.Add(text);
+        var entry = new LogEntry(model.NextLogId, text, received?.Raw, time,
+            received?.Channel ?? LogChannel.System, received?.From, received?.Literal ?? false);
+        var entries = model.LogEntries.Add(entry);
         var count = model.LogCharacters + text.Length;
+        var rawCount = model.RawLogCharacters + (entry.Raw?.Length ?? entry.Text.Length);
         var remove = 0;
-        while (log.Length - remove > 500 || count > 100000) count -= log[remove++].Length;
-        return model with { Log = log.RemoveRange(0, remove), LogCharacters = count };
+        while (log.Length - remove > 2000 || rawCount > 2 * 1024 * 1024)
+        {
+            count -= log[remove].Length;
+            rawCount -= entries[remove].Raw?.Length ?? entries[remove].Text.Length;
+            remove++;
+        }
+        return model with { Log = log.RemoveRange(0, remove), LogEntries = entries.RemoveRange(0, remove),
+            LogCharacters = count, RawLogCharacters = rawCount, NextLogId = model.NextLogId + 1 };
     }
 }

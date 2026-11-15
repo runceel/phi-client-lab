@@ -69,7 +69,8 @@ Alt+Gとフルキー移動も設定できます。自動装備を有効にする
 装備し直しません。自動装備・武器を外す操作はそれぞれ無効にできます。
 
 設定の保存・キー・自動装備・マップ倍率・拡張マップ・滑らかな移動は実装済みです。
-ログ表示・コピー・通知、独立マップ窓などの設定を各機能へ適用する作業と実UIでの確認は、互換性監査の後続作業です。
+ログの時刻・フォント・行コピーの設定も適用します。通知、独立マップ窓などの設定の適用と、
+全画面・全操作の実UI確認は、互換性監査の後続作業です。
 これらは対応範囲から除外していません。
 
 ## 拡張マップと位置予測
@@ -320,16 +321,29 @@ storage, not network transport.
 成功後は同じ登録キャラクターの接続先を保存します。保存に失敗した場合も実際の移動は取り消されないため、
 画面のエラーを確認してからアプリを終了してください。
 
-Logs render as native plain text: PHI formatting tags are stripped, and remote
-HTML, links and images are not executed or downloaded.
+ログはネイティブの `RichTextBlock` で表示します。PHI の色・文字サイズ・フォント・太字・
+斜体・下線・取消線・改行・タグの終了を解釈し、元のタグ付き行と受信時刻を別に保持します。
+右クリックの **行全体をコピー** / **行全体を入力欄へコピー** は、部分選択でも行全体を使います。
+タグ・時刻・名前の除去やタグの無効化は設定に従います。入力欄へのコピーだけでは送信しません。
+サーバーが送った HTML は文字として表示し、実行しません。画像は現段階ではリンク付きの
+`[画像]` 表示で、受信時の自動取得・埋め込み表示はまだ未対応です。外部リンクは確認後に
+ブラウザーで開きます。ローカル・非公開アドレスは拒否しますが、外部ブラウザーの通信まで
+アプリが固定・制御するものではありません。
+
+**Operation > このキャラクターのログを自動保存** で、タブ単位の自動保存を切り替えます。
+起動時は保存しません。有効にしてからの行を `Logs\<キャラクター名>\<日付>.html` に追記し、
+設定で HTML 保存を無効にした場合は `.txt` に追記します。自動保存には表示設定にかかわらず
+時刻を付けます。**ログ欄の内容をHTMLに保存** は現在の表示履歴を別ファイルへ保存します。
+**ログの保存先を開く** で保存先を開けます。書き込み失敗はログへ表示し、自動保存を停止します。
+保存した HTML からもスクリプトや画像を自動取得・実行しない制限を付けています。
 
 Connections use CP932, LF delimiters, a 10-second connect timeout, a 30-second
 send timeout and bounded 64 KiB incoming lines. Oversized lines are discarded
 until the next LF with a visible diagnostic. Keepalive starts after two minutes
 without receiving data; a three-minute warning is shown. `#lag` and `#remap` are
 answered automatically, except inside literal `#more` blocks. Display history
-is bounded to 500 rows / 100,000 characters, with individual displayed rows
-truncated at 8,192 characters.
+is bounded to 2,000 rows / 2 MiB of raw text, with individual displayed plain rows
+truncated at 8,192 characters. Raw rows remain available for styled display and copy within that history bound.
 
 ## Implemented and not yet implemented
 
@@ -339,17 +353,16 @@ named conditions, 7x7 and legacy 5x5 terrain, 15x15 EagleEye, user-supplied spri
 and tile-sheet rendering, full-key movement and common actions, system-magic
 preparation, checked/paged selections, controlled dialogs, and sign editing.
 
-Not yet implemented: full Philly folder/settings import,
-image selection previews, automatic asset downloads, configurable skins other
-than the Mine directory layout, rich speech styling, overlaid actor status
-decorations, legacy 5x5 actor decoding, configurable 50–400% map zoom,
-extended maps / movement prediction, automatic re-equipping, dedicated
-private-message UI, master-magic menus, configurable F8–F12 /
-Alt+G keymaps, window-layout persistence and updates. The map is integrated,
-not a separate floating window. The title/direction display remains textual,
-not wphi's compass. Extended maps and movement prediction remain requested
-wphi compatibility gaps, not features excluded because Philly lacks them.
-Raw commands can access server features, but do not add missing client-side UI.
+今回の互換性監査で、設定の保存・元のINI取り込み、F8–F12 / Alt+G、対象魔法の再装備、
+50–400% の倍率、方位表示、世界別の地形記録、移動予測、滑らかな移動、
+reserve/trans による世界移動、原典のパスワード生成とログ装飾・コピー・保存を追加しています。
+全体の実UI確認はまだ進行中です。
+
+未対応・確認中: Philly の登録情報取り込み、作成時の画像候補プレビュー、画像の自動表示、
+Mine 以外のスキン、actor の状態装飾、旧5×5 actor の全仕様、専用 priv UI、
+超魔法メニュー、入力欄のタグメニュー、通知・音、独立マップ窓、
+窓配置の保存と復帰、更新確認など。これらは要件から除外していません。
+生のコマンドを送れることを、対応するクライアント UI の実装済みとは扱いません。
 
 ## Layout and verification
 

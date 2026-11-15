@@ -8,7 +8,9 @@ partial class App
 
     private void Dispatch(ClientMessage message)
     {
+        var previous = model;
         model = ClientUpdate.Apply(model, message);
+        ObserveLogSaving(previous, message);
         refresh();
     }
 
@@ -60,6 +62,9 @@ partial class App
     private void Refresh()
     {
         if (disposed) return;
+        foreach (var game in sessions)
+            if (game.LogPresenter is { Control.IsLoaded: true } presenter)
+                presenter.Update(game.Model.LogEntries, model.Options);
         if (active is { } session) session.GraphicsImage = graphics.Draw(session,
             gameControl?.XamlRoot?.RasterizationScale ?? 1, DisplayMap(session), model.Options.MapZoom / 100.0,
             model.Options.SmoothMove && visualPreferences.AnimationsEnabled);

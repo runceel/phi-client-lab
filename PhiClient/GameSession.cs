@@ -13,7 +13,7 @@ internal sealed class GameSession(SavedCharacter character, Func<GameModel> read
         if (detachedModel is null) dispatch(message);
     }
     public void Detach() => detachedModel = read();
-    public void Append(string text) => Dispatch(new GameMessage.Logged(text));
+    public void Append(string text) => Dispatch(new GameMessage.Logged(text, DateTimeOffset.Now));
     public PhiConnection? Connection { get; set; }
     public Task? ConnectionTask { get; set; }
     public bool Connecting => Model.Phase == ConnectionPhase.Connecting;
@@ -36,6 +36,7 @@ internal sealed class GameSession(SavedCharacter character, Func<GameModel> read
     public IReadOnlyList<string> MapSets => Model.MapSets;
     public ChoiceSelection Selection => Model.Selection;
     public IReadOnlyList<string> Log => Model.Log;
+    public LogPresenter? LogPresenter { get; set; }
     public Microsoft.UI.Xaml.Media.Imaging.WriteableBitmap? GraphicsImage { get; set; }
     public (MapFrame?, EagleFrame?, ImmutableArray<string>, int, int, double, double, int, int) GraphicsKey { get; set; }
     public (MapFrame?, AutomapWorld?, MapPosition, int, bool) DisplayKey { get; set; }
