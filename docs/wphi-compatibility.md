@@ -22,6 +22,12 @@ REQ-057（#11）は、保持済みの世界ログの表示文字列検索、最�
 純粋テスト（関連するModel回帰も含め20件成功）と警告0/エラー0のx64 buildで確認しました。
 nativeの複数段落に対する強調位置、スクロール、実キー・IME・
 focusは未受け入れで、ビルド成功をその代替にはしません。#12/#22/#20の差分は含めません。
+初回nativeでは検索件数・新旧移動・新着時の現在位置/下書き保持、空欄/0件、
+メニュー/Ctrl+F/Enter/Shift+Enter/Escを観測しました。ただしcurrent040の強調が043/044へ
+ずれる不具合を発見し、合格にはしていません。`TextPointer.Offset`の書式位置を
+`TextHighlighter`の文字indexへ二重適用していたため、段落/Span/Runのマーカーを除いた
+実際のUTF-16文字数へ修正しています。修正後の実表示は再確認待ちです。
+当該fixtureは#18修正込みで自然exit0、WER一致0、合成登録・データ削除と製品hash不変を確認しました。
 
 原典は[s7k/wphi](https://github.com/s7k/wphi/tree/d8f11bf60c95d470fa14ca83bcc4c02d5c83fecc)
 の`d8f11bf60c95d470fa14ca83bcc4c02d5c83fecc`です。

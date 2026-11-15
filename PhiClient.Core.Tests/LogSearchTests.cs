@@ -5,6 +5,20 @@ namespace PhiClient.Core.Tests;
 public sealed class LogSearchTests
 {
     [Fact]
+    public void HighlightRangesUseVisibleUtf16TextWithoutParagraphMarkers()
+    {
+        (long Id, string Text)[] rows = [(1, "00:01 prefix"), (2, "00:02 猫😀 link"), (3, "00:03 wrapped\n猫")];
+        var result = LogSearch.Find(rows, "猫");
+        var ranges = LogSearch.HighlightRanges(rows, result).ToArray();
+        var plain = string.Concat(rows.Select(row => row.Text));
+        Assert.Equal([2L, 3L], ranges.Select(range => range.Id).ToArray());
+        Assert.Equal("00:02 猫😀 link", plain.Substring(ranges[0].Start, ranges[0].Length));
+        Assert.Equal("00:03 wrapped\n猫", plain.Substring(ranges[1].Start, ranges[1].Length));
+        Assert.Equal(rows[0].Text.Length, ranges[0].Start);
+        Assert.Equal(rows[0].Text.Length + rows[1].Text.Length, ranges[1].Start);
+    }
+
+    [Fact]
     public void SearchStartsAtNewestAndCyclesInBothDirections()
     {
         var result = LogSearch.Find([(1L, "HELLO"), (2L, "different"), (3L, "hello again")], "Hello");

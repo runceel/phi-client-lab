@@ -26,8 +26,6 @@ internal sealed partial class LogPresenter
                         case Run run: text.Append(run.Text); break;
                         case LineBreak: text.Append('\n'); break;
                         case Span span: Append(span.Inlines); break;
-                        case InlineUIContainer { Child: Microsoft.UI.Xaml.Controls.TextBlock label }:
-                            text.Append(label.Text); break;
                     }
             }
         }
@@ -42,9 +40,8 @@ internal sealed partial class LogPresenter
         Control.TextHighlighters.Clear();
         var accessible = new Windows.UI.ViewManagement.AccessibilitySettings().HighContrast;
         var colors = new Windows.UI.ViewManagement.UISettings();
-        foreach (var id in result.Hits)
+        foreach (var (id, start, length) in LogSearch.HighlightRanges(SearchRows(), result))
         {
-            if (!paragraphs.TryGetValue(id, out var paragraph)) continue;
             var highlight = new TextHighlighter
             {
                 Background = new SolidColorBrush(accessible
@@ -55,8 +52,8 @@ internal sealed partial class LogPresenter
             };
             highlight.Ranges.Add(new TextRange
             {
-                StartIndex = paragraph.ContentStart.Offset - Control.ContentStart.Offset,
-                Length = Math.Max(0, paragraph.ContentEnd.Offset - paragraph.ContentStart.Offset)
+                StartIndex = start,
+                Length = length
             });
             Control.TextHighlighters.Add(highlight);
         }
