@@ -40,7 +40,7 @@ internal static class GameViews
         var attributes = board?.Attributes ?? map?.Attributes;
         var selfX = eagle?.SelfX ?? width / 2;
         var selfY = eagle?.SelfY ?? height / 2;
-        var cell = 32 * (eagle is null ? zoom : 1);
+        var cell = 32 * zoom;
         var rows = new List<Element>();
         for (var y = 0; y < height; y++)
         {
@@ -96,7 +96,7 @@ internal static class GameViews
         return Border(VStack(0, rows.ToArray())).BorderBrush(Stroke).BorderThickness(1).AutomationId("map-surface");
     }
 
-    public static Element Status(GameSession session)
+    public static Element Status(GameSession session, double width)
     {
         var status = session.Stats;
         Element Bar(string label, long? now, long? max) => VStack(2,
@@ -104,10 +104,10 @@ internal static class GameViews
                 .TextWrapping(TextWrapping.Wrap).AutomationId($"{label.ToLowerInvariant()}-value"),
             Progress(now is null || max is null or <= 0 ? 0 : Math.Clamp((double)now / max.Value * 100, 0, 100))
                 .AutomationName($"{label}: {now?.ToString() ?? "unknown"} of {max?.ToString() ?? "unknown"}"));
-        return VStack(6,
+        return VStack(4,
             TextBlock(status?.Name ?? session.Character.Name).FontWeight(FontWeights.SemiBold).TextWrapping(TextWrapping.Wrap),
-            Bar("HP", status?.Hp, status?.MaxHp),
-            Bar("MP", status?.Mp, status?.MaxMp),
+            HStack(8, Bar("HP", status?.Hp, status?.MaxHp).Width((width - 8) / 2),
+                Bar("MP", status?.Mp, status?.MaxMp).Width((width - 8) / 2)),
             TextBlock($"F {status?.Fighter}   W {status?.Warrior}   M {status?.Magician}   C {status?.Cleric}\n" +
                 $"Gp {status?.Gold}   Exp {status?.Experience}").TextWrapping(TextWrapping.Wrap).AutomationId("game-status"),
             TextBlock(string.Join(" | ", session.Conditions.Active

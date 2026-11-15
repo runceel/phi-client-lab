@@ -24,7 +24,12 @@ partial class App
             return;
         }
         if (active is not { } session || model.Worlds.Visible || model.SettingsEditor is not null ||
-            dialogOpen || Down(VirtualKey.LeftWindows) || Down(VirtualKey.RightWindows))
+            dialogOpen ||
+            Down(VirtualKey.LeftWindows) || Down(VirtualKey.RightWindows))
+            return;
+        if (!Down(VirtualKey.Enter))
+            committingComposition = session.PrivCommitting = false;
+        if (composing || committingComposition || session.PrivComposing || session.PrivCommitting)
             return;
         var control = Down(VirtualKey.Control);
         var shift = Down(VirtualKey.Shift);
@@ -38,15 +43,16 @@ partial class App
         }
         if (((sender as FrameworkElement)?.XamlRoot ?? gameControl?.XamlRoot) is not { } root) return;
         var focused = FocusManager.GetFocusedElement(root);
-        if (focused is Microsoft.UI.Xaml.Controls.TextBox or Microsoft.UI.Xaml.Controls.PasswordBox or Microsoft.UI.Xaml.Controls.RichEditBox)
-            return;
-        if (focused is Microsoft.UI.Xaml.Controls.RichTextBlock)
-            return;
-        if (focused is MapPaneSplitter or Microsoft.UI.Xaml.Controls.Primitives.Thumb)
-            return;
+        // Log selection keeps its copy/select shortcuts; ordinary game keys work after clicking the log.
         for (var parent = focused as DependencyObject; parent is not null; parent = VisualTreeHelper.GetParent(parent))
-            if (parent is Microsoft.UI.Xaml.Controls.MenuBar or MenuFlyoutPresenter)
+        {
+            if (parent is RichTextBlock && control && args.Key is VirtualKey.C or VirtualKey.A or VirtualKey.Insert)
                 return;
+            if (parent is Microsoft.UI.Xaml.Controls.TextBox or Microsoft.UI.Xaml.Controls.PasswordBox or
+                Microsoft.UI.Xaml.Controls.RichEditBox or MapPaneSplitter or
+                Microsoft.UI.Xaml.Controls.Primitives.Thumb or Microsoft.UI.Xaml.Controls.MenuBar or MenuFlyoutPresenter)
+                return;
+        }
         // OEM virtual keys depend on the keyboard layout; scan codes identify the physical keys used by wphi.
         var key = args.KeyStatus.ScanCode switch
         {

@@ -5,6 +5,30 @@ namespace PhiClient.Core.Tests;
 public sealed class SettingsTests
 {
     [Fact]
+    public async Task MovementPadVisibilityAndZoomPersistAndLegacySettingsKeepThePadVisible()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "phi-pad-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        try
+        {
+            var path = Path.Combine(folder, "settings.json");
+            var store = new SettingsStore(path);
+            var imported = SettingsStore.ImportPhilly(new() { ShowMovementPad = false, MapZoom = 175 },
+                PhiWire.Encode("[Move]\nFullKeyMove=off\n"));
+            await store.SaveAsync(imported);
+            var loaded = await store.LoadAsync();
+            Assert.False(loaded.ShowMovementPad);
+            Assert.Equal(175, loaded.MapZoom);
+            Assert.False(loaded.FullKeys);
+            await File.WriteAllTextAsync(path, "{\"mapZoom\":125}");
+            var legacy = await store.LoadAsync();
+            Assert.True(legacy.ShowMovementPad);
+            Assert.Equal(125, legacy.MapZoom);
+        }
+        finally { Directory.Delete(folder, true); }
+    }
+
+    [Fact]
     public void IntegratedMapWidthReservesLogSpaceWithoutLosingTheSavedPreference()
     {
         var original = new ClientModel();

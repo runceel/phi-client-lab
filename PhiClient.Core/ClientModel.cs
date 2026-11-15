@@ -39,6 +39,7 @@ public sealed record ClientOptions(bool ShowCharacters = true, bool ShowMap = tr
     public bool SmoothMove { get; init; }
     public bool SingleWindow { get; init; }
     public int MapPaneWidth { get; init; } = 360;
+    public bool ShowMovementPad { get; init; } = true;
 }
 public sealed record DialogModel(string Title, string Text, string? Accept = null,
     string? InputLabel = null, string Value = "", string InputId = "action-answer",

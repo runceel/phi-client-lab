@@ -257,7 +257,7 @@ partial class App
                 chat, PrivView(session).Flex(shrink: 0));
         var connectionButton = Button(session.Connecting ? "接続しています…" : session.Connected ? "切断" : "再接続", ToggleConnection)
             .IsEnabled(!session.Connecting && !session.Closing).AutomationId("connection-toggle");
-        var movementButton = Button("Keyboard movement mode", () => gameControl?.Focus(FocusState.Programmatic))
+        var movementButton = Button("キーボード操作", () => gameControl?.Focus(FocusState.Programmatic))
             .OnMount(element => gameControl = (Microsoft.UI.Xaml.Controls.Button)element).AutomationId("movement-mode");
         var charactersButton = Button("キャラクター一覧", () => { showCharacters = !showCharacters; }).AutomationId("toggle-characters");
         var closeButton = Button("タブを閉じる", () => CloseTab(session)).IsEnabled(!session.Connecting && !session.Closing)
@@ -268,7 +268,7 @@ partial class App
             toolbar.Flex(shrink: 0),
             Caption(session.Model.Transferring ? "世界移動中です。操作は送信しません。「切断」で移動を中止できます。" :
                 session.PreparingMagic ? "Preparing magic: waiting for equipment response; other input is paused." :
-                $"Esc: movement  |  Tab: input  |  Ctrl+Tab: next character  |  {(fullKeys ? "Full-key movement on" : "Full-key movement off")}")
+                $"通常はゲームのキー操作 / Tab: チャット入力 / Esc: ゲーム操作 / Ctrl+Tab: 次のキャラクター / {(fullKeys ? "フルキー移動" : "テンキー・矢印移動")}")
                 .AutomationId("input-mode").Flex(shrink: 0),
             gameBody.Flex(grow: 1, basis: 0)
         ).Flex(grow: 1, basis: 0).FlexPadding(12, 8);

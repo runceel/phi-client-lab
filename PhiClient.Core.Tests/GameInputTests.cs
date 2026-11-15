@@ -223,4 +223,27 @@ public sealed class GameInputTests
         Assert.Equal(["go", "go r"], GameInput.MapMovement(2, -2, false));
         Assert.Equal(["check", "look"], GameInput.MapMovement(0, 0, true));
     }
+
+    [Theory]
+    [InlineData(-1, -1, "go N|go W", "go|go l")]
+    [InlineData(0, -1, "go N", "go")]
+    [InlineData(1, -1, "go N|go E", "go|go r")]
+    [InlineData(-1, 0, "go W", "go l")]
+    [InlineData(0, 0, "hit", "hit")]
+    [InlineData(1, 0, "go E", "go r")]
+    [InlineData(-1, 1, "go S|go W", "go b|go l")]
+    [InlineData(0, 1, "go S", "go b")]
+    [InlineData(1, 1, "go S|go E", "go b|go r")]
+    public void MovementPadKeepsScreenPositionsAndMapOrientation(int x, int y, string north, string rotating)
+    {
+        Assert.Equal(north.Split('|'), GameInput.MapPad(x, y, true).Commands);
+        Assert.Equal(rotating.Split('|'), GameInput.MapPad(x, y, false).Commands);
+    }
+
+    [Fact]
+    public void MovementPadRejectsCoordinatesOutsideItsThreeRowsAndColumns()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => GameInput.MapPad(-2, 0, true));
+        Assert.Throws<ArgumentOutOfRangeException>(() => GameInput.MapPad(0, 2, false));
+    }
 }

@@ -182,7 +182,6 @@ internal sealed class GraphicsStore
         var map = display?.Frame ?? session.Map;
         if (Folder.Length == 0 || map is null && eagle is null) return null;
         var frame = eagle is null ? AnimationFrame : 0;
-        if (eagle is not null) zoom = 1;
         var slide = eagle is null && smooth && session.NorthFixed ? session.Model.Motion.Offset : (0, 0);
         var key = (map, eagle, session.Model.MapSets, Revision, frame, rasterScale, zoom, slide.Item1, slide.Item2);
         if (session.GraphicsKey == key && session.GraphicsImage is not null) return session.GraphicsImage;

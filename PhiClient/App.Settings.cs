@@ -51,7 +51,9 @@ partial class App
                 Flag("移動を滑らかに表示する（原典の実験的機能）", value.SmoothMove,
                     (o, b) => o with { SmoothMove = b }, "settings-smooth"),
                 Flag("マップをログと同じ窓に表示する", value.SingleWindow,
-                    (o, b) => o with { SingleWindow = b }, "settings-single-window")),
+                    (o, b) => o with { SingleWindow = b }, "settings-single-window"),
+                Flag("移動・攻撃の操作パッドを表示する", value.ShowMovementPad,
+                    (o, b) => o with { ShowMovementPad = b }, "settings-movement-pad")),
             VStack(8, SubHeading("ショートカット"),
                 TextBlock(@"文字列中の \n は送信する行の区切りです。F8–F12は、リスト表示中の設定を別に使います。")
                     .TextWrapping(TextWrapping.Wrap),

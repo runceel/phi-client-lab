@@ -274,6 +274,13 @@ public static class GameInput
         return start == end ? (text.Insert(caret, prefix), caret + prefix.Length) : (text, caret);
     }
 
+    public static InputAction MapPad(int x, int y, bool northUp)
+    {
+        if (x is < -1 or > 1 || y is < -1 or > 1)
+            throw new ArgumentOutOfRangeException(nameof(x), "The movement pad has three rows and columns.");
+        return Command(x == 0 && y == 0 ? ["hit"] : MapMovement(x, y, northUp));
+    }
+
     public static string[] MapMovement(int x, int y, bool northUp)
     {
         if (x == 0 && y == 0) return ["check", "look"];
