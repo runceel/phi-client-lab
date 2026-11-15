@@ -37,6 +37,7 @@ public sealed record GameModel
     public MapFrame? Map { get; init; }
     public MovePrediction Prediction { get; init; } = new();
     public MapMotion Motion { get; init; } = new();
+    public MapEffectState MapEffects { get; init; } = new();
     public EagleFrame? Eagle { get; init; }
     public bool ShowEagle { get; init; }
     public ImmutableArray<string> MapSets { get; init; } = ["default", "default", "default", "default"];
@@ -92,6 +93,8 @@ public static class GameUpdate
     public static GameModel Apply(GameModel model, GameMessage message)
     {
         var next = ApplyMessage(model, message);
+        if (message is GameMessage.Received { Event: LogLine line } receivedLine)
+            next = next with { MapEffects = model.MapEffects.Receive(line, receivedLine.At, model.Map) };
         var now = message switch
         {
             GameMessage.Received received => received.At,
@@ -121,7 +124,7 @@ public static class GameUpdate
                 TalkPrefix = model.TalkPrefix }, "[Connecting...]"),
         GameMessage.PhaseChanged { Phase: ConnectionPhase.Offline } =>
             model with { Phase = ConnectionPhase.Offline, Selection = new(), Editing = false,
-                PreparingMagic = false, Transferring = false, Prediction = model.Prediction.Reset(),
+                PreparingMagic = false, Transferring = false, Prediction = model.Prediction.Reset(), MapEffects = new(),
                 UserRefresh = model.UserRefresh.Finish(), Priv = model.Priv with { SendStage = PrivSendStage.Idle }, Master = null },
         GameMessage.PhaseChanged phase => model with { Phase = phase.Phase },
         GameMessage.InputChanged input => input.Text == model.Input ? model :
@@ -171,7 +174,7 @@ public static class GameUpdate
         TransferProgress progress => model with { Transferring = progress.Active, Prediction = model.Prediction.Reset() },
         WorldMoved => model with { Map = null, Eagle = null, ShowEagle = false, World = "", Area = "",
             Users = [], Selection = new(), Editing = false, PreparingMagic = false, Prediction = model.Prediction.Reset(),
-            UserRefresh = new(), Priv = model.Priv with { SendStage = PrivSendStage.Idle }, Master = null },
+            UserRefresh = new(), Priv = model.Priv with { SendStage = PrivSendStage.Idle }, Master = null, MapEffects = new() },
         LogLine { Literal: false } line when line.Text.StartsWith("DM > ", StringComparison.Ordinal) &&
             line.Text[5..] is "進めません." or "Can not go." =>
             Append(model with { Prediction = model.Prediction.CannotGo(at) }, line.Text, time, line),
@@ -186,7 +189,8 @@ public static class GameUpdate
         EditMode edit => model with { Editing = edit.Active },
         Conditions conditions => model with { Conditions = conditions },
         EagleFrame eagle => model with { Eagle = eagle, ShowEagle = true },
-        LocationNotice { Kind: "world" } location => model with { World = location.Value },
+        LocationNotice { Kind: "world" } location => model with { World = location.Value,
+            MapEffects = model.World == location.Value ? model.MapEffects : new() },
         LocationNotice location => model with { Area = location.Value },
         ActionMode { Magic: true } mode => model with { MagicMode = mode.Active },
         ActionMode mode => model with { AttackMode = mode.Active },

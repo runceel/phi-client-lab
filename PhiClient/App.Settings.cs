@@ -50,6 +50,8 @@ partial class App
                     (o, b) => o with { Automap = b }, "settings-automap"),
                 Flag("移動を滑らかに表示する（原典の実験的機能）", value.SmoothMove,
                     (o, b) => o with { SmoothMove = b }, "settings-smooth"),
+                Flag("発言・HP/MPの増減と戦闘効果を地図に表示する", value.MapEffects,
+                    (o, b) => o with { MapEffects = b }, "settings-map-effects"),
                 Flag("マップをログと同じ窓に表示する", value.SingleWindow,
                     (o, b) => o with { SingleWindow = b }, "settings-single-window"),
                 Flag("移動・攻撃の操作パッドを表示する", value.ShowMovementPad,
