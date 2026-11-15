@@ -42,6 +42,31 @@ MSIX版WinApp CLIではAppData内への書き込みが転送されるため、�
 ビルド構成・CPUアーキテクチャごとに分けてください。
 登録エラーの回避を目的としたpackagingの無効化やシステムACLの変更は行わないでください。
 
+### GitHub Copilotアプリから手動起動する
+
+`.github\github-app.yml` を確認・承認すると、スクリプト一覧に **Start PHI Client (WinUI)** が表示されます。
+選ぶと `tools\Start-PhiClient.ps1` がpackaged x64をビルド・起動します。
+自動実行triggerとゲームへの自動接続は追加していません。Windows、PowerShell 7.4以降、
+.NET 11 SDK、WinApp CLIが必要で、WinApp 0.8.0で確認しています。
+初回は通常の依存復元・開発用パッケージ登録が必要です。OS設定や管理者権限の変更は自動化しません。
+
+作業フォルダーごとの `--unique-identity` を使い、通常の製品identityの登録・設定とは分けます。
+この起動先へ通常製品の登録が自動コピーされることはありません。同じ作業フォルダーでのデータは保持し、
+設定の初期化や既存appの強制終了は行いません。
+layoutはAppDataを避けた `%USERPROFILE%\PhiClientLayouts\<作業フォルダーのハッシュ>\Debug-x64` に置きます。
+作業フォルダー・CPU別に分け、起動後も削除しないでください。共有設定へユーザー固有の絶対パスは埋めていません。
+
+起動せずにコマンドを確認する場合と、ARM64/ビルド済み出力を使う場合は次のとおりです。
+
+```powershell
+.\tools\Start-PhiClient.ps1 -WhatIf
+.\tools\Start-PhiClient.ps1 -Architecture arm64
+.\tools\Start-PhiClient.ps1 -NoBuild
+```
+
+`COPILOT_WORKSPACE_PATH` が設定されている場合はスクリプトのworktreeと一致することを確認し、
+異なる場合は明示的に停止します。`GH_TOKEN` 等の環境変数を表示・保存しません。
+
 トリミングを有効にしたRelease発行では、通常の復元を含めて実行します。
 
 ```powershell
