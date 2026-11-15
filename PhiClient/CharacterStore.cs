@@ -88,6 +88,46 @@ public sealed class CharacterStore
         finally { writes.Release(); }
     }
 
+    public async Task<(List<SavedCharacter> Characters, int RetainedCredentials)> ImportAsync(
+        IReadOnlyList<PhillyProfile> profiles)
+    {
+        await writes.WaitAsync();
+        try
+        {
+            var existing = await LoadAsync();
+            var next = PhillyProfiles.Plan(existing, profiles);
+            var names = profiles.Select(profile => profile.Name).ToHashSet(StringComparer.Ordinal);
+            var added = new List<SavedCharacter>();
+            try
+            {
+                foreach (var profile in profiles)
+                {
+                    var character = next.Single(item => item.Name == profile.Name);
+                    AddId(character, profile.Id);
+                    added.Add(character);
+                }
+                await SaveCoreAsync(next);
+            }
+            catch (Exception saveError)
+            {
+                var errors = new List<Exception> { saveError };
+                foreach (var character in added)
+                    try { RemoveId(character); }
+                    catch (COMException rollbackError) { errors.Add(rollbackError); }
+                if (errors.Count > 1)
+                    throw new IOException("登録の保存に失敗し、取り込み用の資格情報の削除にも失敗しました。設定フォルダーとWindowsの資格情報を確認してください。",
+                        new AggregateException(errors));
+                throw;
+            }
+            var retained = 0;
+            foreach (var character in existing.Where(item => names.Contains(item.Name)))
+                try { RemoveId(character); }
+                catch (COMException) { retained++; }
+            return (next, retained);
+        }
+        finally { writes.Release(); }
+    }
+
     public Task UpdateEndpointAsync(SavedCharacter character) => ChangeAsync(list =>
     {
         PhiConnection.ValidateEndpoint(character.Host, character.Port);

@@ -108,9 +108,16 @@ IME変換中はこの操作を行いません。
 追加モードのnative UIA試験はメニュー項目の取得で中断しており、実キーとIMEの確認も
 前面化が可能になってから行う残確認です。
 
-1. Register an existing character: enter a display name, server hostname, TCP
-   port and character ID, then **Save character**. The first line of an existing
-   Philly/wphi `.phirc` contains its ID. Folder import is not implemented.
+1. 既存のキャラクターは表示名、接続先、TCPポート、IDを入力して **Save character** で保存します。
+   **Phillyの登録を取り込む…** はPhillyフォルダー直下の `表示名.chara\.phirc` を読み込みます。
+   `.Chara` も対象です。原典と同じCP932の1行目をID、2行目を `ホスト:ポート` または
+   `ホスト ポート` として扱い、表示名を順序付きで取り込みます。
+   確認後に同じ表示名の登録を置き換え、IDをWindowsの資格情報、接続先を `characters.json` に
+   保存します。別の表示名の登録と元のPhillyファイルは保持します。
+   読み取りに問題のあるファイルは件数を表示し、有効な登録だけを取り込みます。
+   同じ表示名のタブは閉じてから取り込んでください。取り込み後の接続はキャラクターの選択で行います。
+   1ファイル64 KiB・一度に1000件までとし、ローカルの通常フォルダーを対象にします。
+   原典の根拠は `src-tauri\src\characters.rs:138–175` です。
 2. 新規作成では **キャラグラの候補を取得** で、その世界が返す初期画像の一覧を取得できます。
    原典と同じ `#ex-get REGINFO IMG` を送り、`#ex-put REGINFO IMG` から `#ex-put .` までを
    0番から順番に表示します。この操作は指定したゲームサーバーへTCP接続しますが、

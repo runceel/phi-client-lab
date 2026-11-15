@@ -45,6 +45,8 @@ partial class App : Component
     private Element CharacterSidebar() => ScrollViewer(VStack(10,
         Heading("Characters"), Caption("Saved profiles"),
         VStack(6, characters.Select(CharacterRow).ToArray()),
+        Button("Phillyの登録を取り込む…", ImportPhillyProfiles)
+            .IsEnabled(loaded && !busy).AutomationId("import-philly-profiles"),
         SubHeading(creating ? "Create a new character" : "Register an existing ID"),
         Button("世界一覧から接続先を選ぶ", () => Dispatch(new ClientMessage.WorldVisibilityChanged(true)))
             .AutomationId("show-worlds"),

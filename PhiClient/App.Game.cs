@@ -51,6 +51,7 @@ partial class App
                     with { IsEnabled = session is not null },
                 MenuItem("設定…", OpenSettings) with { IsEnabled = !busy },
                 MenuItem("超魔法のXMLを読み込む…", ChooseMasterMenu) with { IsEnabled = !busy },
+                MenuItem("Phillyの登録を取り込む…", ImportPhillyProfiles) with { IsEnabled = loaded && !busy },
                 MenuItem("Characters / registration", () => { showCharacters = !showCharacters; refresh(); })),
             Menu("Character",
                 MenuItem("priv（内緒話）", () => { if (session is not null) TogglePriv(session); })
