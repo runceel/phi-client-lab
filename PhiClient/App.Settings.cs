@@ -25,11 +25,11 @@ partial class App
             CheckBox(selected, next => EditSettings(state => state with { Value = change(state.Value, next) }), label)
                 .AutomationId(key);
         var shortcuts = Enumerable.Range(0, 5).Select(index => (Element)VStack(6,
-            TextBox(value.Shortcuts[index], text => EditSettings(state => state with
+            InputBox(value.Shortcuts[index], text => EditSettings(state => state with
             {
                 Value = state.Value with { Shortcuts = state.Value.Shortcuts.SetItem(index, text) }
             }), header: $"F{index + 8}（通常）").AutomationId($"shortcut-{index + 8}"),
-            TextBox(value.ListShortcuts[index], text => EditSettings(state => state with
+            InputBox(value.ListShortcuts[index], text => EditSettings(state => state with
             {
                 Value = state.Value with { ListShortcuts = state.Value.ListShortcuts.SetItem(index, text) }
             }), header: $"F{index + 8}（リスト表示中）").AutomationId($"list-shortcut-{index + 8}")
@@ -44,7 +44,7 @@ partial class App
                 Flag("マスター判定に関係なく超魔法メニューを表示する", value.MasterMagicMenu,
                     (o, b) => o with { MasterMagicMenu = b }, "settings-master")),
             VStack(8, SubHeading("マップ"),
-                TextBox(editor.Zoom, text => EditSettings(state => state with { Zoom = text }),
+                InputBox(editor.Zoom, text => EditSettings(state => state with { Zoom = text }),
                     header: "拡大率（50–400%）").AutomationId("settings-map-zoom"),
                 Flag("通った地形を記録する拡張マップ・位置予測", value.Automap,
                     (o, b) => o with { Automap = b }, "settings-automap"),
@@ -58,13 +58,13 @@ partial class App
                 TextBlock(@"文字列中の \n は送信する行の区切りです。F8–F12は、リスト表示中の設定を別に使います。")
                     .TextWrapping(TextWrapping.Wrap),
                 VStack(12, shortcuts),
-                TextBox(value.AltGWord, text => EditSettings(state => state with
+                InputBox(value.AltGWord, text => EditSettings(state => state with
                     { Value = state.Value with { AltGWord = text } }), header: "Alt+Gで送る言葉").AutomationId("settings-alt-g")),
             VStack(8, SubHeading("ログ"),
-                TextBox(value.LogFontName, text => EditSettings(state => state with
+                InputBox(value.LogFontName, text => EditSettings(state => state with
                     { Value = state.Value with { LogFontName = text } }), header: "ログのフォント（空欄で既定）")
                     .AutomationId("settings-log-font"),
-                TextBox(editor.FontSize, text => EditSettings(state => state with { FontSize = text }),
+                InputBox(editor.FontSize, text => EditSettings(state => state with { FontSize = text }),
                     header: "ログの文字サイズ（0–64px・0で既定）").AutomationId("settings-log-font-size"),
                 Flag("ログに時刻を表示する", value.LogDispTime, (o, b) => o with { LogDispTime = b }, "settings-time"),
                 Flag("自動保存するログをHTML形式にする", value.LogSaveHtml,
@@ -94,7 +94,7 @@ partial class App
                 Flag("コピーしたタグを無効にする", value.LogTagCancel,
                     (o, b) => o with { LogTagCancel = b }, "settings-cancel-tags")),
             VStack(8, SubHeading("通知"),
-                TextBox(value.SoundFolder, text => EditSettings(state => state with
+                InputBox(value.SoundFolder, text => EditSettings(state => state with
                     { Value = state.Value with { SoundFolder = text } }),
                     header: "効果音を使うPhillyフォルダー（空欄で規則を解除）").AutomationId("settings-sound-folder"),
                 TextBlock("Config内のSoundRegexp.iniとSoundFile.iniを読み、指定したローカルWAVを使います。")
@@ -105,7 +105,7 @@ partial class App
             VStack(8, SubHeading("Phillyの設定を取り込む"),
                 TextBlock("Philly.iniの移動・ショートカット・ログ・自動装備の設定を、この編集画面に取り込みます。" +
                     "この操作は設定項目の取り込みだけを行います。「設定を保存」で適用します。").TextWrapping(TextWrapping.Wrap),
-                TextBox(editor.ImportPath, text => EditSettings(state => state with { ImportPath = text }),
+                InputBox(editor.ImportPath, text => EditSettings(state => state with { ImportPath = text }),
                     header: "このPCのPhilly.iniの絶対パス").AutomationId("settings-import-path"),
                 Button("設定を取り込む", () => _ = PerformAsync(ImportSettingsAsync))
                     .IsEnabled(!busy).AutomationId("settings-import")),

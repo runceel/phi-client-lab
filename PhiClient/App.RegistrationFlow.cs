@@ -27,9 +27,9 @@ partial class App
             form.Stage == RegistrationStage.World, form.CustomPassword);
         Element content = terminal ? RegistrationResultView() :
             !form.NewCharacter ? VStack(8, RegistrationWorldView(),
-                TextBox(name, value => name = value, header: "表示名（このPC用）").AutomationId("character-name"),
+                InputBox(name, value => name = value, header: "表示名（このPC用）").AutomationId("character-name"),
                 RegistrationError("character-name", errors),
-                PasswordBox(id, value => id = value, "キャラクターID").AutomationName("キャラクターID").AutomationId("character-id"),
+                SecretInputBox(id, value => id = value, "キャラクターID").AutomationName("キャラクターID").AutomationId("character-id"),
                 RegistrationError("character-id", errors),
                 Caption("IDをこのPCのWindows資格情報マネージャーに保存します。サーバーへの作成要求は送りません。")
                     .TextWrapping(TextWrapping.Wrap)) :
@@ -68,10 +68,10 @@ partial class App
                 RadioButton("手入力する", form.ManualEndpoint,
                     value => { if (value) EditRegistration(form with { ManualEndpoint = true }); }, "endpoint")),
             form.ManualEndpoint ? VStack(6,
-                TextBox(host, value => host = value, header: "ゲームサーバー（ホスト名 / IPアドレス）").AutomationId("server-host"),
-                TextBox(port, value => port = value, header: "TCPポート").AutomationId("server-port")) :
+                InputBox(host, value => host = value, header: "ゲームサーバー（ホスト名 / IPアドレス）").AutomationId("server-host"),
+                InputBox(port, value => port = value, header: "TCPポート").AutomationId("server-port")) :
             VStack(4,
-                TextBox(worlds.Filter, value => Dispatch(new ClientMessage.WorldFilterChanged(value)),
+                InputBox(worlds.Filter, value => Dispatch(new ClientMessage.WorldFilterChanged(value)),
                     header: "世界名・アドレスで絞り込み").AutomationId("world-filter"),
                 ListView(selected, index =>
                 {
@@ -89,7 +89,7 @@ partial class App
             RegistrationError("server-host", errors),
             Expander("世界一覧の更新・取り込み", VStack(6,
                 TextBlock(worlds.Message).TextWrapping(TextWrapping.Wrap).AutomationId("world-status"),
-                TextBox(worlds.Url, value => Dispatch(new ClientMessage.WorldUrlChanged(value)),
+                InputBox(worlds.Url, value => Dispatch(new ClientMessage.WorldUrlChanged(value)),
                     header: "一覧の配布URL（LZH / CP932 INI）").AutomationId("world-source-url"),
                 Button("HTTP 一覧を更新", () => _ = LoadWorldsAsync(false)).AutomationId("world-refresh"),
                 Button("INI ファイルから取り込む", () => _ = LoadWorldsAsync(true)).AutomationId("world-import"),
@@ -105,7 +105,7 @@ partial class App
         TextBlock($"作成先: {host}:{port}").TextWrapping(TextWrapping.Wrap),
         model.Registration.Stage == RegistrationStage.Rejected
             ? TextBlock(model.Registration.Message).TextWrapping(TextWrapping.Wrap) : Empty(),
-        TextBox(name, value => name = value, header: "名前（世界へ送る名前・このPCの表示名）").AutomationId("character-name"),
+        InputBox(name, value => name = value, header: "名前（世界へ送る名前・このPCの表示名）").AutomationId("character-name"),
         RegistrationError("character-name", errors),
         RegistrationForm.WireText(name) != name
             ? TextBlock($"この世界にはCP932で「{RegistrationForm.WireText(name)}」と送信されます。名前を確認してください。")
@@ -116,7 +116,7 @@ partial class App
             password = "";
         }, "パスワードを自分で指定する（6文字）").AutomationId("custom-password"),
         model.Registration.CustomPassword
-            ? PasswordBox(password, value => password = value, "パスワード").AutomationName("6文字のパスワード").AutomationId("new-password")
+            ? SecretInputBox(password, value => password = value, "パスワード").AutomationName("6文字のパスワード").AutomationId("new-password")
             : Caption("最後に「この世界に作成する」を押したとき、6文字のパスワードを自動生成します。")
                 .TextWrapping(TextWrapping.Wrap),
         RegistrationError("new-password", errors),
@@ -124,9 +124,9 @@ partial class App
             ? Caption("このパスワードにはCP932で表せない文字があります。対応する文字で入力するか、自動生成を選んでください。")
                 .TextWrapping(TextWrapping.Wrap) : Empty(),
         Expander("メールアドレス（任意）", VStack(4,
-            TextBox(email, value => email = value, header: "メールアドレス").AutomationId("registration-email"),
+            InputBox(email, value => email = value, header: "メールアドレス").AutomationId("registration-email"),
             RegistrationError("registration-email", errors))),
-        TextBox(image, value => { image = value; _ = PrepareRegistrationPreviewAsync(); },
+        InputBox(image, value => { image = value; _ = PrepareRegistrationPreviewAsync(); },
             header: "キャラクター画像の番号（0から）").AutomationId("initial-image"),
         RegistrationError("initial-image", errors),
         RegistrationGraphicsView());
