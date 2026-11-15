@@ -124,6 +124,25 @@ internal sealed class GraphicsStore
         finally { gate.Release(); }
     }
 
+    public async Task<PixelImage> RegistrationPreviewAsync(string graphic)
+    {
+        await gate.WaitAsync();
+        try
+        {
+            if (Folder.Length == 0)
+                throw new InvalidOperationException("素材フォルダーを設定すると、候補の実際のキャラグラを確認できます。");
+            if (!GraphicsNames.Allowed(graphic))
+                throw new ArgumentException("この候補の素材名は安全なローカルファイル名として扱えません。");
+            var path = Path.Combine("chara", graphic + ".bmp");
+            await LoadAsync(path, 0);
+            if (images.GetValueOrDefault(path) is not { } image)
+                throw new IOException($"「{graphic}」の素材が見つからないか、画像形式が一致しません。素材フォルダーを確認してください。");
+            var frame = MapGraphics.CharacterFrame(new(0, 0, "", Direction: 'F', Size: '*'), 0);
+            return image.Crop(frame.X, frame.Y, frame.Width, 32);
+        }
+        finally { gate.Release(); }
+    }
+
     private async Task LoadAsync(string relative, int kind)
     {
         if (images.ContainsKey(relative)) return;

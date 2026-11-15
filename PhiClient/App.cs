@@ -53,9 +53,14 @@ partial class App : Component
         TextBox(port, value => port = value, header: "TCP port").AutomationId("server-port"),
         creating
             ? VStack(8,
+                RegistrationGraphicsView(),
                 PasswordBox(password, value => password = value, "パスワード（6文字・空欄で自動生成）")
                     .AutomationName("パスワード。空欄の場合は作成時に6文字を自動生成").AutomationId("new-password"),
-                TextBox(image, value => image = value, header: "Initial image number").AutomationId("initial-image"),
+                TextBox(image, value =>
+                {
+                    image = value;
+                    _ = PrepareRegistrationPreviewAsync();
+                }, header: "初期画像の番号（一覧の0番から）").AutomationId("initial-image"),
                 TextBox(email, value => email = value, header: "メールアドレス（任意）").AutomationId("registration-email"),
                 Caption("Creates a character on the specified server."))
             : PasswordBox(id, value => id = value, "Character ID")

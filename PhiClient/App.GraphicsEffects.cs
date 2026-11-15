@@ -14,6 +14,7 @@ partial class App
         await graphics.SetFolderAsync(folder);
         graphicsFolder = graphics.Folder;
         foreach (var session in sessions) await graphics.PrepareAsync(session);
+        await PrepareRegistrationPreviewAsync();
         Directory.CreateDirectory(store.Folder);
         var path = Path.Combine(store.Folder, "graphics-folder.txt");
         await File.WriteAllTextAsync(path + ".tmp", graphicsFolder);

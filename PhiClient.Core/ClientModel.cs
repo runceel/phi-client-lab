@@ -37,6 +37,10 @@ public sealed record DialogModel(string Title, string Text, string? Accept = nul
 public sealed record DialogAnswer(bool Accepted, string Value);
 public sealed record SettingsEditorModel(ClientOptions Value, string Zoom, string FontSize,
     string ImportPath = "", string Message = "");
+public sealed record RegistrationGraphicsModel(long Request = 0, bool Loading = false, string Message = "")
+{
+    public ImmutableArray<string> Names { get; init; } = [];
+}
 
 public sealed record ClientModel
 {
@@ -55,6 +59,7 @@ public sealed record ClientModel
     public int GraphicsRevision { get; init; }
     public string GraphicsNotice { get; init; } = "";
     public WorldDirectoryModel Worlds { get; init; } = new();
+    public RegistrationGraphicsModel RegistrationGraphics { get; init; } = new();
     public ImmutableDictionary<string, AutomapWorld> Automaps { get; init; } =
         ImmutableDictionary<string, AutomapWorld>.Empty;
 }
@@ -73,6 +78,10 @@ public abstract record ClientMessage
     public sealed record NoticeChanged(string Value) : ClientMessage;
     public sealed record DeleteMarked(string? Key) : ClientMessage;
     public sealed record CreatingChanged(bool Value) : ClientMessage;
+    public sealed record RegistrationGraphicsLoading(long Request) : ClientMessage;
+    public sealed record RegistrationGraphicsLoaded(long Request, IReadOnlyList<string> Names) : ClientMessage;
+    public sealed record RegistrationGraphicsFailed(long Request, string Error) : ClientMessage;
+    public sealed record RegistrationGraphicSelected(int Index) : ClientMessage;
     public sealed record LoadedChanged(bool Value) : ClientMessage;
     public sealed record BusyChanged(bool Value) : ClientMessage;
     public sealed record GameOpened(string Key) : ClientMessage;
@@ -96,7 +105,9 @@ public static class ClientUpdate
 {
     public static ClientModel Apply(ClientModel model, ClientMessage message) => message switch
     {
-        ClientMessage.DraftChanged edit => model with { Draft = edit.Value },
+        ClientMessage.DraftChanged edit => model with { Draft = edit.Value,
+            RegistrationGraphics = edit.Value.Host != model.Draft.Host || edit.Value.Port != model.Draft.Port
+                ? new() : model.RegistrationGraphics },
         ClientMessage.OptionsChanged edit => model with { Options = edit.Value,
             Games = edit.Value.Automap != model.Options.Automap ? ResetPredictions(model.Games) :
                 edit.Value.SmoothMove != model.Options.SmoothMove ? model.Games.SetItems(model.Games.Select(pair =>
@@ -121,6 +132,20 @@ public static class ClientUpdate
         ClientMessage.NoticeChanged edit => model with { Notice = edit.Value },
         ClientMessage.DeleteMarked edit => model with { PendingDelete = edit.Key },
         ClientMessage.CreatingChanged edit => model with { Creating = edit.Value },
+        ClientMessage.RegistrationGraphicsLoading load => model with
+            { RegistrationGraphics = new(load.Request, true, "指定したサーバーから初期画像の候補を取得しています…") },
+        ClientMessage.RegistrationGraphicsLoaded load when load.Request == model.RegistrationGraphics.Request =>
+            model with { RegistrationGraphics = new(load.Request, false,
+                load.Names.Count == 0 ? "サーバーから初期画像の候補は返されませんでした。画像番号を手動で入力できます。" :
+                    $"初期画像の候補を{load.Names.Count}件取得しました。") { Names = load.Names.ToImmutableArray() },
+                Draft = model.Draft with { Image = "0" } },
+        ClientMessage.RegistrationGraphicsFailed failed when failed.Request == model.RegistrationGraphics.Request =>
+            model with { RegistrationGraphics = model.RegistrationGraphics with
+                { Loading = false, Message = $"初期画像の候補を取得できませんでした: {failed.Error}" } },
+        ClientMessage.RegistrationGraphicSelected select when select.Index >= 0 &&
+            select.Index < model.RegistrationGraphics.Names.Length =>
+            model with { Draft = model.Draft with
+                { Image = select.Index.ToString(System.Globalization.CultureInfo.InvariantCulture) } },
         ClientMessage.LoadedChanged edit => model with { Loaded = edit.Value },
         ClientMessage.BusyChanged edit => model with { Busy = edit.Value },
         ClientMessage.DialogChanged edit => model with { Dialog = edit.Value },
@@ -148,6 +173,7 @@ public static class ClientUpdate
         ClientMessage.WorldSelected select when !model.Busy && !model.Worlds.Loading && model.Worlds.Items.Contains(select.Value) => model with
         {
             Draft = model.Draft with { Host = select.Value.Host, Port = select.Value.Port.ToString(System.Globalization.CultureInfo.InvariantCulture) },
+            RegistrationGraphics = new(),
             Worlds = model.Worlds with { Visible = false },
             Options = model.Options with { ShowCharacters = true },
             Notice = $"「{select.Value.Name}」の接続先を入力しました。選択だけでは接続・キャラ作成しません。"

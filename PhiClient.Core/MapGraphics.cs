@@ -19,6 +19,16 @@ public sealed class PixelImage
         return ScaleNearest(checked(Width * factor), checked(Height * factor));
     }
 
+    public PixelImage Crop(int x, int y, int width, int height)
+    {
+        if (x < 0 || y < 0 || width <= 0 || height <= 0 || x > Width - width || y > Height - height)
+            throw new ArgumentOutOfRangeException(nameof(width), "Crop must fit inside the source image.");
+        var pixels = new byte[width * height * 4];
+        for (var row = 0; row < height; row++)
+            Pixels.AsSpan(((y + row) * Width + x) * 4, width * 4).CopyTo(pixels.AsSpan(row * width * 4));
+        return new(width, height, pixels);
+    }
+
     public PixelImage ScaleNearest(int width, int height)
     {
         if (width is < 1 or > 4096 || height is < 1 or > 4096)

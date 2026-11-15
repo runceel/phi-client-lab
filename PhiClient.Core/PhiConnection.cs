@@ -309,6 +309,44 @@ public sealed partial class PhiConnection : IDisposable
         }
     }
 
+    public static async Task<IReadOnlyList<string>> RegistrationGraphicsAsync(string host, int port,
+        CancellationToken token = default)
+    {
+        using var connection = new PhiConnection();
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
+        timeout.CancelAfter(TimeSpan.FromSeconds(30));
+        await connection.OpenAsync(host, port, timeout.Token);
+        await connection.SendAsync(["#ex-get REGINFO IMG"], timeout.Token);
+        var framer = new LineFramer();
+        var bytes = new byte[4096];
+        var started = false;
+        var names = new List<string>();
+        var total = 0;
+        while (true)
+        {
+            var count = await connection.stream!.ReadAsync(bytes, timeout.Token);
+            if (count == 0)
+                throw new IOException("初期画像の一覧を受け取る前にサーバーから切断されました。");
+            var lines = framer.Push(bytes.AsSpan(0, count));
+            if (framer.DroppedLines > 0)
+                throw new IOException("初期画像の候補に64KiBを超える行が含まれています。番号のずれを防ぐため取得を中止しました。");
+            foreach (var raw in lines)
+            {
+                var line = PhiWire.Encoding.GetString(raw).Trim();
+                if (!started)
+                {
+                    started = line == "#ex-put REGINFO IMG";
+                    continue;
+                }
+                if (line == "#ex-put .") return names;
+                total += line.Length;
+                if (names.Count >= 4096 || total > 1024 * 1024)
+                    throw new IOException("初期画像の候補が4096件または1Mi文字を超えました。");
+                names.Add(line);
+            }
+        }
+    }
+
     public static async Task<string> RegisterAsync(string host, int port, string name, string password,
         string image, string email, CancellationToken token = default)
     {
