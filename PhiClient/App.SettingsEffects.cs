@@ -36,6 +36,6 @@ partial class App
         var imported = SettingsStore.ImportPhilly(editor.Value, await File.ReadAllBytesAsync(editor.ImportPath));
         Dispatch(new ClientMessage.SettingsEdited(editor with { Value = imported,
             FontSize = imported.LogFontSize.ToString(CultureInfo.InvariantCulture),
-            Message = "設定を編集画面へ取り込みました。「保存」で適用します。" }));
+            Message = "設定を編集画面へ取り込みました。「設定を保存」で適用します。" }));
     }
 }

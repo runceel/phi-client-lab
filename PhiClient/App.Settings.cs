@@ -87,8 +87,8 @@ partial class App
                 Flag("背面時に発言・privをタスクバーで知らせる", value.TaskBarFlash,
                     (o, b) => o with { TaskBarFlash = b }, "settings-taskbar")),
             VStack(8, SubHeading("Phillyの設定を取り込む"),
-                TextBlock("Philly.iniの移動・ショートカット・ログ・自動装備の項目を編集画面へ取り込みます。" +
-                    "キャラクターIDは読み込まず、接続もしません。「保存」で適用します。").TextWrapping(TextWrapping.Wrap),
+                TextBlock("Philly.iniの移動・ショートカット・ログ・自動装備の設定を、この編集画面に取り込みます。" +
+                    "この操作は設定項目の取り込みだけを行います。「設定を保存」で適用します。").TextWrapping(TextWrapping.Wrap),
                 TextBox(editor.ImportPath, text => EditSettings(state => state with { ImportPath = text }),
                     header: "このPCのPhilly.iniの絶対パス").AutomationId("settings-import-path"),
                 Button("設定を取り込む", () => _ = PerformAsync(ImportSettingsAsync))
