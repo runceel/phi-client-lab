@@ -5,6 +5,22 @@ namespace PhiClient.Core.Tests;
 public sealed class ModelUpdateTests
 {
     [Fact]
+    public void CompletedPasswordIsHiddenReadOnlyAndRemovedOnDialogClose()
+    {
+        var initial = new ClientModel
+        {
+            Dialog = new("Created", "", InputLabel: "Password", Value: "synthetic-only", Secret: true)
+        };
+        var edited = ClientUpdate.Apply(initial, new ClientMessage.DialogEdited("must-not-change"));
+        Assert.True(edited.Dialog?.Value == initial.Dialog.Value);
+        Assert.False(edited.Dialog!.Reveal);
+        var revealed = ClientUpdate.Apply(edited, new ClientMessage.DialogRevealChanged(true));
+        Assert.True(revealed.Dialog!.Reveal);
+        Assert.False(initial.Dialog.Reveal);
+        Assert.Null(ClientUpdate.Apply(revealed, new ClientMessage.DialogChanged(null)).Dialog);
+    }
+
+    [Fact]
     public void MagnifiedMapsAndMapsetChangesRemainIsolatedWithoutMutatingPriorRenderInputs()
     {
         var initial = ClientUpdate.Apply(ClientUpdate.Apply(new(), new ClientMessage.GameOpened("alpha")),

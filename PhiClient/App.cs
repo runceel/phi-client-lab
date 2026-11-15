@@ -52,10 +52,10 @@ partial class App : Component
         TextBox(port, value => port = value, header: "TCP port").AutomationId("server-port"),
         creating
             ? VStack(8,
-                PasswordBox(password, value => password = value, "Six-character password")
-                    .AutomationName("Six-character password").AutomationId("new-password"),
+                PasswordBox(password, value => password = value, "パスワード（6文字・空欄で自動生成）")
+                    .AutomationName("パスワード。空欄の場合は作成時に6文字を自動生成").AutomationId("new-password"),
                 TextBox(image, value => image = value, header: "Initial image number").AutomationId("initial-image"),
-                TextBox(email, value => email = value, header: "Email").AutomationId("registration-email"),
+                TextBox(email, value => email = value, header: "メールアドレス（任意）").AutomationId("registration-email"),
                 Caption("Creates a character on the specified server."))
             : PasswordBox(id, value => id = value, "Character ID")
                 .AutomationName("Character ID").AutomationId("character-id"),

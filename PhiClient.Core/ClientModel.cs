@@ -8,7 +8,8 @@ public sealed record CharacterDraft(string Name = "", string Host = "", string P
 public sealed record ClientOptions(bool ShowCharacters = true, bool ShowMap = true,
     bool FullKeys = true, bool FollowLog = true);
 public sealed record DialogModel(string Title, string Text, string? Accept = null,
-    string? InputLabel = null, string Value = "", string InputId = "action-answer");
+    string? InputLabel = null, string Value = "", string InputId = "action-answer",
+    bool Secret = false, bool Reveal = false);
 public sealed record DialogAnswer(bool Accepted, string Value);
 
 public sealed record ClientModel
@@ -45,6 +46,7 @@ public abstract record ClientMessage
     public sealed record GameChanged(string Key, GameMessage Message) : ClientMessage;
     public sealed record DialogChanged(DialogModel? Value) : ClientMessage;
     public sealed record DialogEdited(string Value) : ClientMessage;
+    public sealed record DialogRevealChanged(bool Value) : ClientMessage;
     public sealed record GraphicsChanged(int Revision, string Notice) : ClientMessage;
     public sealed record WorldUrlChanged(string Value) : ClientMessage;
     public sealed record WorldFilterChanged(string Value) : ClientMessage;
@@ -68,7 +70,10 @@ public static class ClientUpdate
         ClientMessage.LoadedChanged edit => model with { Loaded = edit.Value },
         ClientMessage.BusyChanged edit => model with { Busy = edit.Value },
         ClientMessage.DialogChanged edit => model with { Dialog = edit.Value },
-        ClientMessage.DialogEdited edit when model.Dialog is { } dialog => model with { Dialog = dialog with { Value = edit.Value } },
+        ClientMessage.DialogEdited edit when model.Dialog is { Secret: false } dialog =>
+            model with { Dialog = dialog with { Value = edit.Value } },
+        ClientMessage.DialogRevealChanged edit when model.Dialog is { Secret: true } dialog =>
+            model with { Dialog = dialog with { Reveal = edit.Value } },
         ClientMessage.GraphicsChanged graphics => model with { GraphicsRevision = graphics.Revision, GraphicsNotice = graphics.Notice },
         ClientMessage.WorldUrlChanged edit => model with { Worlds = model.Worlds with { Url = edit.Value } },
         ClientMessage.WorldFilterChanged edit => model with { Worlds = model.Worlds with { Filter = edit.Value } },

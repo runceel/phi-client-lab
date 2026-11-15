@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Globalization;
+using System.Security.Cryptography;
 
 namespace PhiClient.Core;
 
@@ -23,6 +24,7 @@ public sealed record MapStyle(bool NorthUp) : ServerEvent;
 
 public static class PhiWire
 {
+    public const string PasswordAlphabet = "abcdefghijkmnpqrstuvwxyz23456789";
     public const int MaximumLineBytes = 65536;
     public static Encoding Encoding { get; } = CreateEncoding();
 
@@ -70,16 +72,29 @@ public static class PhiWire
     {
         foreach (var value in new[] { name, password, image, email })
             ValidateLine(value);
-        if (string.IsNullOrWhiteSpace(name) || name.Contains('"') || name.Contains('\\'))
-            throw new ArgumentException("Enter a name without quotes or backslashes.");
-        if (password.Length != 6 || password.Any(c => !char.IsAsciiLetterOrDigit(c)))
-            throw new ArgumentException("The password must contain exactly six ASCII letters or digits.");
-        if (!int.TryParse(image, out var number) || number < 0)
-            throw new ArgumentException("The initial image must be a non-negative number.");
-        if (string.IsNullOrWhiteSpace(email) || email.Any(char.IsWhiteSpace))
-            throw new ArgumentException("Enter an email address without spaces.");
+        if (name.EnumerateRunes().Count() < 2 || HasControl(name) || name.Contains('"'))
+            throw new ArgumentException("名前は2文字以上で入力し、引用符や制御文字を含めないでください。");
+        if (password.EnumerateRunes().Count() != 6 || HasControl(password) ||
+            password.EnumerateRunes().Any(Rune.IsWhiteSpace))
+            throw new ArgumentException("パスワードは空白や制御文字を含まない6文字で入力してください。");
+        if (!uint.TryParse(image, NumberStyles.None, CultureInfo.InvariantCulture, out var number))
+            throw new ArgumentException("初期画像の番号は0以上の整数で入力してください。");
+        if (HasControl(email) || email.EnumerateRunes().Any(Rune.IsWhiteSpace))
+            throw new ArgumentException("メールアドレスは空白や制御文字を含めないでください。未入力でも作成できます。");
         return ["#ex-register start", $"name=\"{name}\" pass={password} image={number} mail={email}", "#ex-register end"];
     }
+
+    public static string CreatePassword()
+    {
+        Span<byte> bytes = stackalloc byte[6];
+        RandomNumberGenerator.Fill(bytes);
+        Span<char> chars = stackalloc char[6];
+        for (var i = 0; i < bytes.Length; i++)
+            chars[i] = PasswordAlphabet[bytes[i] % PasswordAlphabet.Length];
+        return new string(chars);
+    }
+
+    private static bool HasControl(string value) => value.Any(c => c < 0x20 || c == 0x7f);
 }
 
 public sealed class LineFramer

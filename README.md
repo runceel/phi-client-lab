@@ -61,10 +61,13 @@ verify that the trimmed package activates.
 1. Register an existing character: enter a display name, server hostname, TCP
    port and character ID, then **Save character**. The first line of an existing
    Philly/wphi `.phirc` contains its ID. Folder import is not implemented.
-2. Alternatively, select **Create a new character instead**, provide a name,
-   six ASCII letter/digit password, initial image number and email. This sends a
-   real registration request to the server you specify; there is no default
-   public endpoint and no automatic registration.
+2. 新規作成では名前（2文字以上）と初期画像番号を入力します。メールアドレスは任意です。
+   パスワードが空欄なら、**作成ボタンを押した時点**で原典と同じ文字集合
+   `abcdefghijkmnpqrstuvwxyz23456789` から暗号学的乱数で6文字を生成します。
+   入力済みならその6文字を使い、空白・制御文字を拒否します。CP932で表現できない文字は
+   原典と同じく送信時に `?` へ変換されるため、パスワードには上記の文字集合を推奨します。
+   作成後の確認画面で本人がパスワードを表示して控えられます。ログや設定ファイルには保存しません。
+   指定した世界に実際の作成要求を送る操作なので、接続先を確認してください。自動作成は行いません。
 3. Choose **Connect**. Each connected character gets its own tab and independent
    connection, status, map, log and command input.
 4. Enter or **Send** sends the current line and keeps it for reuse.

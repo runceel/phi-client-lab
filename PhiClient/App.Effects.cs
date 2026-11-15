@@ -105,25 +105,38 @@ partial class App
             throw new ArgumentException("Enter a display name.");
         var character = new SavedCharacter(Guid.NewGuid().ToString("N"), name.Trim(), host.Trim(), portNumber);
         var characterId = id;
+        var createdPassword = password;
         if (creating)
         {
-            notice = "Creating character on server...";
+            if (password.Length == 0) password = PhiWire.CreatePassword();
+            createdPassword = password;
+            notice = "指定した世界にキャラクターを作成しています…";
             refresh();
             characterId = await PhiConnection.RegisterAsync(character.Host, portNumber, character.Name, password, image, email);
             // Keep the new ID available for retry if local persistence fails.
             id = characterId;
             creating = false;
-            password = "";
-            notice = "Character created on server. Saving the local profile...";
+            notice = "世界での作成が完了しました。接続情報をこのPCに保存しています…";
             refresh();
         }
         PhiWire.Login(characterId);
         var updated = characters.Append(character).ToList();
-        await store.AddAsync(character, characterId, updated);
+        try { await store.AddAsync(character, characterId, updated); }
+        catch (Exception ex) when (createdPassword.Length > 0 && IsExpected(ex))
+        {
+            throw new IOException("世界での作成は完了していますが、このPCへの保存に失敗しました。" +
+                "IDを入力欄に保持しています。保存先を確認して「保存」を再試行し、新規作成を繰り返さないでください。", ex);
+        }
         characters = updated;
         id = "";
         password = "";
-        notice = "Character saved. Choose Connect.";
+        notice = "接続情報を保存しました。「接続」でゲームを開始できます。";
+        if (createdPassword.Length > 0)
+            await RequestDialogAsync(new("キャラクターを作成しました",
+                "作成時のパスワードを安全な場所に控えてください。この確認画面を閉じると、アプリはパスワードを保持しません。" +
+                "\nキャラクターIDはWindows資格情報マネージャーに保存しました。まだゲームには接続していません。",
+                InputLabel: "作成時のパスワード", Value: createdPassword,
+                InputId: "created-password", Secret: true));
     }
 
     private Task OpenAsync(SavedCharacter character)

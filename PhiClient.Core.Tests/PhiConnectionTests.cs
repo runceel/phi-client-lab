@@ -9,6 +9,25 @@ namespace PhiClient.Core.Tests;
 public sealed class PhiConnectionTests
 {
     [Fact]
+    public void RegistrationUsesOriginalUnicodeValidationAndCryptographicAlphabet()
+    {
+        for (var i = 0; i < 64; i++)
+        {
+            var generated = PhiWire.CreatePassword();
+            Assert.True(generated.Length == 6 && generated.All(PhiWire.PasswordAlphabet.Contains));
+        }
+        var commands = PhiWire.Registration("勇者", "あいうえおか", "2", "");
+        Assert.StartsWith("name=\"勇者\" ", commands[1], StringComparison.Ordinal);
+        Assert.EndsWith(" image=2 mail=", commands[1], StringComparison.Ordinal);
+        Assert.Throws<ArgumentException>(() => PhiWire.Registration("あ", "abc123", "0", ""));
+        Assert.Throws<ArgumentException>(() => PhiWire.Registration("a\"b", "abc123", "0", ""));
+        Assert.Throws<ArgumentException>(() => PhiWire.Registration("勇者", "abc 12", "0", ""));
+        Assert.Throws<ArgumentException>(() => PhiWire.Registration("勇者", "abc12\u007f", "0", ""));
+        Assert.Throws<ArgumentException>(() => PhiWire.Registration("勇者", "abc123", "0", "x y"));
+        Assert.True(PhiWire.Registration("a\\b", "abc123", "0", "").Length == 3);
+    }
+
+    [Fact]
     public async Task RunAsync_ExchangesLoginAndGameFrames()
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
