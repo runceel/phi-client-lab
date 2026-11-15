@@ -46,6 +46,7 @@ partial class App
             refresh();
         };
         animation.Start();
+        StartMapEffectAnimation(dispatcher);
         predictionTimer = dispatcher.CreateTimer();
         predictionTimer.Interval = TimeSpan.FromMilliseconds(20);
         predictionTimer.Tick += (_, _) =>
@@ -73,6 +74,7 @@ partial class App
             logImageClient?.Dispose();
             worldLifetime.Dispose();
             animation?.Stop();
+            mapEffectTimer?.Stop();
             predictionTimer?.Stop();
             mapSaveTimer?.Stop();
             if (mainWindow is not null) mainWindow.Closing -= OnWindowClosing;

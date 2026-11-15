@@ -18,8 +18,8 @@ partial class App
     {
         public override Element Render()
         {
-            var (_, update) = UseReducer(owner.model);
-            owner.refreshMapWindow = () => update(_ => owner.model);
+            var (_, update) = UseReducer(0L);
+            owner.refreshMapWindow = () => update(frame => frame + 1);
             return owner.DetachedMapView();
         }
     }

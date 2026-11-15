@@ -37,6 +37,7 @@ public sealed record ClientOptions(bool ShowCharacters = true, bool ShowMap = tr
     public int MapZoom { get; init; }
     public bool Automap { get; init; } = true;
     public bool SmoothMove { get; init; }
+    public bool MapEffects { get; init; } = true;
     public bool SingleWindow { get; init; }
     public int MapPaneWidth { get; init; } = 360;
     public bool ShowMovementPad { get; init; }
@@ -193,10 +194,7 @@ public static class ClientUpdate
             RegistrationGraphics = edit.Value.Host != model.Draft.Host || edit.Value.Port != model.Draft.Port
                 ? new(0, false, "接続先を変更しました。画像番号を0に戻しました。候補は取得し直してください。")
                 : model.RegistrationGraphics },
-        ClientMessage.OptionsChanged edit => model with { Options = edit.Value,
-            Games = edit.Value.Automap != model.Options.Automap ? ResetPredictions(model.Games) :
-                edit.Value.SmoothMove != model.Options.SmoothMove ? model.Games.SetItems(model.Games.Select(pair =>
-                    KeyValuePair.Create(pair.Key, pair.Value with { Motion = pair.Value.Motion.Stop() }))) : model.Games },
+        ClientMessage.OptionsChanged edit => UpdateOptions(model, edit.Value),
         ClientMessage.SettingsEdited edit => model with { SettingsEditor = edit.Value },
         ClientMessage.LogImageLoading image when !model.LogImages.ContainsKey(image.Url) &&
             model.LogImages.Count < LogImages.MaximumEntries &&
@@ -306,11 +304,25 @@ public static class ClientUpdate
 
     private static ImmutableDictionary<string, GameModel> ResetPredictions(ImmutableDictionary<string, GameModel> games) =>
         games.SetItems(games.Select(pair => KeyValuePair.Create(pair.Key,
-            pair.Value with { Prediction = pair.Value.Prediction.Reset(), Motion = pair.Value.Motion.Stop() })));
+            pair.Value with { Prediction = pair.Value.Prediction.Reset(), Motion = pair.Value.Motion.Stop(),
+                MapEffects = pair.Value.MapEffects with { Items = [] } })));
+
+    private static ClientModel UpdateOptions(ClientModel model, ClientOptions options)
+    {
+        var games = options.Automap != model.Options.Automap ? ResetPredictions(model.Games) :
+            options.SmoothMove != model.Options.SmoothMove ? model.Games.SetItems(model.Games.Select(pair =>
+                KeyValuePair.Create(pair.Key, pair.Value with { Motion = pair.Value.Motion.Stop() }))) : model.Games;
+        if (options.MapEffects != model.Options.MapEffects)
+            games = games.SetItems(games.Select(pair => KeyValuePair.Create(pair.Key,
+                pair.Value with { MapEffects = pair.Value.MapEffects with { Items = [] } })));
+        return model with { Options = options, Games = games };
+    }
 
     private static ClientModel UpdateGame(ClientModel model, string key, GameModel game, GameMessage message)
     {
         var next = GameUpdate.Apply(game, message);
+        if ((!model.Options.MapEffects || model.ActiveKey != key) && !next.MapEffects.Items.IsEmpty)
+            next = next with { MapEffects = next.MapEffects with { Items = [] } };
         var result = model with { Games = model.Games.SetItem(key, next) };
         if (message is not GameMessage.Received { Event: MapFrame frame } || !next.NorthFixed ||
             next.Conditions.Flags.Length > 6 && next.Conditions.Flags[6] == '*' ||

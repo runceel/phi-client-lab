@@ -5,6 +5,27 @@ namespace PhiClient.Core.Tests;
 public sealed class SettingsTests
 {
     [Fact]
+    public async Task MapEffectVisibilityPersistsWithoutResettingOtherSettings()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "phi-effects-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var path = Path.Combine(folder, "settings.json");
+            var store = new SettingsStore(path);
+            await store.SaveAsync(new() { MapEffects = false, MapZoom = 175, ShowMovementPad = true });
+            var loaded = await store.LoadAsync();
+            Assert.False(loaded.MapEffects);
+            Assert.Equal(175, loaded.MapZoom);
+            Assert.True(loaded.ShowMovementPad);
+            await File.WriteAllTextAsync(path, "{\"mapZoom\":125}");
+            var legacy = await store.LoadAsync();
+            Assert.True(legacy.MapEffects);
+            Assert.Equal(125, legacy.MapZoom);
+        }
+        finally { if (Directory.Exists(folder)) Directory.Delete(folder, true); }
+    }
+
+    [Fact]
     public async Task MissingZoomStartsAutoAndExplicitLegacyManualSurvivesRoundTrip()
     {
         var folder = Path.Combine(Path.GetTempPath(), "phi-auto-" + Guid.NewGuid().ToString("N"));

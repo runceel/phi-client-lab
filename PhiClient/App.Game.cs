@@ -323,6 +323,8 @@ partial class App
                     layers.Add(Label(label, dx, dy, "#000000"));
             layers.Add(Label(label, 0, 0, label.Missing ? "#FFFF00" : "#FFFFFF"));
         }
+        if (model.Options.MapEffects && !session.ShowEagle)
+            layers.Add(MapEffectLayer(session).Canvas(0, 0));
         return Canvas(layers.ToArray()).Width(session.GraphicsWidth).Height(session.GraphicsHeight)
             .WithKey($"map-surface-{session.GraphicsWidth}-{session.GraphicsHeight}")
             .AutomationId("sprite-map").AutomationName("Character sprites and map chips: " +
