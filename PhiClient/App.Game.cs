@@ -214,7 +214,12 @@ partial class App
                     session.Dispatch(new GameMessage.InputChanged(value));
                 }, header: "Message or raw PHI command")
                 .AcceptsReturn(true).Height(82).AutomationId("command-input")
-                .OnMount(element => AttachInput((Microsoft.UI.Xaml.Controls.TextBox)element, session))
+                .OnMount(element =>
+                {
+                    var input = (Microsoft.UI.Xaml.Controls.TextBox)element;
+                    AttachInput(input, session);
+                    AttachTagInput(input, session);
+                })
                 .OnPreviewKeyDown((_, args) => OnInputKeyDown(session, args))
                 .OnKeyUp((_, args) =>
                 {
@@ -223,6 +228,7 @@ partial class App
             HStack(8,
                 Button("Send", () => Submit(session)).IsEnabled(session.Connected && session.Model.Master is null).AutomationId("send-command"),
                 Button("Party", () => Submit(session, party: true)).IsEnabled(session.Connected),
+                Button("タグ…", () => ShowInputTags(session)).AutomationId("chat-tags"),
                 Caption("Enter: current line  |  Shift+Enter: newline  |  Ctrl+Enter: party"))
                 .Flex(shrink: 0)
         ).Flex(grow: 1, basis: 0);
@@ -344,8 +350,10 @@ partial class App
             {
                 if (session.BoardText == text) return;
                 session.Dispatch(new GameMessage.BoardChanged(text));
-            }, header: "Sign text").AcceptsReturn(true).Height(120).AutomationId("sign-text"),
+            }, header: "Sign text").AcceptsReturn(true).Height(120).AutomationId("sign-text")
+                .OnMount(element => AttachTagInput((Microsoft.UI.Xaml.Controls.TextBox)element, session, true)),
         HStack(6,
             Button("Send sign", () => SendSign(session)),
-            Button("Cancel sign", () => Send(session, ".!"))));
+            Button("Cancel sign", () => Send(session, ".!")),
+            Button("タグ…", () => ShowInputTags(session, true)).AutomationId("sign-tags")));
 }

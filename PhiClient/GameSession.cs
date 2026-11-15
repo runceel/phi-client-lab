@@ -39,6 +39,7 @@ internal sealed class GameSession(SavedCharacter character, Func<GameModel> read
     public LogPresenter? LogPresenter { get; set; }
     public LogPresenter? PrivPresenter { get; set; }
     public Microsoft.UI.Xaml.Controls.TextBox? PrivInput { get; set; }
+    public Microsoft.UI.Xaml.Controls.TextBox? SignInput { get; set; }
     public bool PrivComposing { get; set; }
     public bool PrivCommitting { get; set; }
     public Task? UsersRefreshTask { get; set; }
