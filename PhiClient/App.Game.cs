@@ -13,7 +13,7 @@ partial class App
         System.Collections.Immutable.ImmutableArray<SavedCharacter> Characters, bool Connected, bool Transferring,
         bool PreparingMagic, bool MasterRunning, bool LogSaving, bool HasTransport, bool KnownWorld,
         bool HasEagle, bool NorthFixed, PhiClient.Core.MasterMenu? Master, bool MasterVisible,
-        int ConnectedTabs, int DisconnectedTabs, bool Loud, bool AllTabSpeech);
+        int ConnectedTabs, int DisconnectedTabs, bool Loud, bool AllTabSpeech, bool CheckingRelease, bool TraceRecording);
     private MenuInputs? menuInputs;
     private Element? menuElement;
 
@@ -26,7 +26,7 @@ partial class App
             session?.World is not null and not "" and not "???", session?.Eagle is not null,
             session?.NorthFixed ?? true, model.MasterMenu, MasterMagic.Visible(session?.Stats, model.Options),
             sessions.Count(item => item.Connection is not null), sessions.Count(item => item.Connection is null),
-            session?.Model.Loud == true, session?.Model.AllTabSpeech == true);
+            session?.Model.Loud == true, session?.Model.AllTabSpeech == true, model.CheckingRelease, model.TraceRecording);
         // Preserve open native flyouts when only map animation or unrelated log content changes.
         if (inputs == menuInputs && menuElement is not null) return menuElement;
         MenuFlyoutItemData Action(string label, InputAction action) =>
@@ -140,10 +140,12 @@ partial class App
                 Action("Refresh", GameInput.Command("see"))),
             Menu("Help",
                 MenuItem("Keyboard controls", ShowKeyboardHelp),
-                MenuItem("About", () => _ = PerformAsync(async () => await SessionDialogAsync("PHI Client",
-                    "C# / WinUI 3 with official Microsoft.UI.Reactor preview. " +
-                    "Newly drawn schematic maps; no wphi image assets are bundled. " +
-                    "PHI uses unencrypted TCP. This is not yet a complete wphi replacement."))))
+                MenuItem("窓の位置を元に戻す…", () => _ = PerformAsync(ResetWindowLayoutAsync)),
+                MenuItem(model.CheckingRelease ? "公開リリースを確認しています…" : "新しい版を確認する…",
+                    () => _ = PerformAsync(CheckReleaseAsync)) with { IsEnabled = !model.CheckingRelease },
+                MenuItem(model.TraceRecording ? "時刻の記録を停止する" : "時刻の記録を開始する",
+                    () => _ = PerformAsync(() => { ToggleDiagnosticTrace(); return Task.CompletedTask; })),
+                MenuItem("バージョン情報", () => _ = PerformAsync(ShowVersionAsync)))
         };
         if (MasterMenu(session) is { } master) menus = [.. menus, master];
         menuInputs = inputs;

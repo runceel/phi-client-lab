@@ -64,6 +64,8 @@ public sealed record ClientModel
     public bool Creating { get; init; }
     public bool Loaded { get; init; }
     public bool Busy { get; init; }
+    public bool TraceRecording { get; init; }
+    public bool CheckingRelease { get; init; }
     public DialogModel? Dialog { get; init; }
     public SettingsEditorModel? SettingsEditor { get; init; }
     public int GraphicsRevision { get; init; }
@@ -80,6 +82,8 @@ public sealed record ClientModel
 
 public abstract record ClientMessage
 {
+    public sealed record TraceRecordingChanged(bool Value) : ClientMessage;
+    public sealed record CheckingReleaseChanged(bool Value) : ClientMessage;
     public sealed record DraftChanged(CharacterDraft Value) : ClientMessage;
     public sealed record WindowSizeChanged(double Width, double Height) : ClientMessage;
     public sealed record OptionsChanged(ClientOptions Value) : ClientMessage;
@@ -125,6 +129,8 @@ public static class ClientUpdate
 {
     public static ClientModel Apply(ClientModel model, ClientMessage message) => message switch
     {
+        ClientMessage.TraceRecordingChanged trace => model with { TraceRecording = trace.Value },
+        ClientMessage.CheckingReleaseChanged release => model with { CheckingRelease = release.Value },
         ClientMessage.WindowSizeChanged size => model with { WindowWidth = size.Width, WindowHeight = size.Height },
         ClientMessage.DraftChanged edit => model with { Draft = edit.Value,
             RegistrationGraphics = edit.Value.Host != model.Draft.Host || edit.Value.Port != model.Draft.Port

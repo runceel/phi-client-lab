@@ -58,6 +58,7 @@ partial class App
         }
         if (!mapWindow.IsVisible) mapWindow.Show();
         refreshMapWindow?.Invoke();
+        TraceDiagnostic(DiagnosticEvent.MapWindowRefresh);
     }
 
     private Element DetachedMapView() => FlexColumn(
@@ -113,5 +114,5 @@ partial class App
             Button("攻撃", () => Send(session, "hit")),
             Button("右へ", () => Move(session, "E")),
             Button("後ろへ", () => Move(session, "S")))
-    ).Width(344);
+    ).Width(344).IsEnabled(!busy && !dialogOpen && !closingApplication && model.SettingsEditor is null);
 }

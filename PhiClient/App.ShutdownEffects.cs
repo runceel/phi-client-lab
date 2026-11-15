@@ -38,6 +38,7 @@ partial class App
 
     private async Task FinishClosingAsync(AppWindow window)
     {
+        var stoppingTrace = false;
         try
         {
             foreach (var session in sessions)
@@ -67,6 +68,9 @@ partial class App
             }
             await Logs.FlushAsync();
             await FlushAutomapsAsync(failOnError: true);
+            stoppingTrace = true;
+            StopDiagnosticTrace();
+            stoppingTrace = false;
             window.Closing -= OnWindowClosing;
             window.Destroy();
             Application.Current.Exit();
@@ -78,7 +82,10 @@ partial class App
             animation?.Start();
             predictionTimer?.Start();
             mapSaveTimer?.Start();
-            notice = error is TimeoutException
+            notice = stoppingTrace
+                ? "終了前の時刻記録の保存に失敗しました。書き込み済みのファイルは保持しています。" +
+                    "保存先を確認してから、終了を再試行してください。詳細: " + error.Message
+                : error is TimeoutException
                 ? "終了前の処理が待機期限を超えました。記録は画面とメモリに残っています。状態を確認してから、終了を再試行してください。詳細: " + error.Message
                 : "終了前のログ・記録地図の保存に失敗しました。記録は画面とメモリに残っています。" +
                     "保存先を確認してから、終了を再試行してください。詳細: " + error.Message;

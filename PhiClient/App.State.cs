@@ -10,6 +10,10 @@ partial class App
     {
         var previous = model;
         model = ClientUpdate.Apply(model, message);
+        if (message is ClientMessage.GameChanged { Message: GameMessage.Received })
+            TraceDiagnostic(DiagnosticEvent.Received);
+        else if (message is ClientMessage.GameChanged { Message: GameMessage.CommandSent })
+            TraceDiagnostic(DiagnosticEvent.CommandSent);
         ObserveLogSaving(previous, message);
         ObserveLogImages(message);
         refresh();
@@ -74,6 +78,7 @@ partial class App
             (model.Options.SingleWindow ? gameControl?.XamlRoot?.RasterizationScale : mapWindow?.DipScale) ?? 1,
             DisplayMap(session), model.Options.MapZoom / 100.0,
             model.Options.SmoothMove && visualPreferences.AnimationsEnabled);
+        if (active is not null) TraceDiagnostic(DiagnosticEvent.MapRefresh);
         model = ClientUpdate.Apply(model, new ClientMessage.GraphicsChanged(graphics.Revision, graphics.Notice));
         publish?.Invoke(model);
         UpdateMapWindow();

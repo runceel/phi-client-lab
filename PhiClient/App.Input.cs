@@ -33,6 +33,7 @@ partial class App
         {
             if (!args.KeyStatus.WasKeyDown) CycleTab(shift ? -1 : 1);
             args.Handled = true;
+            TraceDiagnostic(DiagnosticEvent.InputHandled);
             return;
         }
         if (((sender as FrameworkElement)?.XamlRoot ?? gameControl?.XamlRoot) is not { } root) return;
@@ -77,6 +78,7 @@ partial class App
                 line.Length == 4 && line.StartsWith("go ", StringComparison.Ordinal)))
             return;
         Execute(session, action);
+        TraceDiagnostic(DiagnosticEvent.InputHandled);
     }
 
     private void AttachInput(Microsoft.UI.Xaml.Controls.TextBox box, GameSession session)
@@ -116,6 +118,7 @@ partial class App
             if (!args.KeyStatus.WasKeyDown) Submit(session, Down(VirtualKey.Control));
             args.Handled = true;
         }
+        if (args.Handled) TraceDiagnostic(DiagnosticEvent.InputHandled);
     }
 
     private void Execute(GameSession session, InputAction action)
