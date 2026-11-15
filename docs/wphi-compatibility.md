@@ -105,7 +105,35 @@ callback再利用、PasswordPropertyの同期とecho抑止の**9項目を確認*
 結果は入力同期セッションの`files\input-native-summary.json`と`native-probe-results.json`、
 回帰結果は`files\regression`に保存しています。
 実アプリのチャット送信wire、Enter/IME/focus/caret、priv/看板/設定のnative統合は未確認です。
-このため[#4](https://github.com/runceel/phi-client-lab/issues/4)は未完了で、修正PRはDraftとします。
+この時点では[#4](https://github.com/runceel/phi-client-lab/issues/4)は未完了で、修正PRをDraftとして提出しました。
+
+### 製品統合受け入れの追加記録（`94d81b7`）
+
+入力同期の[#10](https://github.com/runceel/phi-client-lab/pull/10)統合後、製品コードをコピーした
+独立identityと所有loopbackだけで確認しました。以下は`94d81b7`の実測であり、
+その後のmain全体を確認した記録ではありません。旧controlledプローブの反例未再現によるFAILと、
+製品に不具合が残っているかどうかは区別します。
+
+登録フォームのhost/port/nameとModel由来の接続先が一致し、承認済みの合成ID1件を保存して接続できました。
+受信ログ・地図の再描画中も複数行下書きが残り、送信ボタンでは現在行だけがwireへ1回届き、
+未送信行が入力欄に残りました。続く送信ではprefixへ戻り、大声確認を取り消すと下書きが残り、
+取消本文が送られないことを確認しました。privの開閉を跨ぐ下書き、看板下書きの再描画保持、
+独立設定の倍率147%・滑らかな移動の実保存も確認しています。priv/看板本文の送信確認ではありません。
+通常幅の移動パッドは↓が下中央で、下段左右は非操作領域でした。
+
+実Enterと狭幅化はCUAが許可された操作経路を確保できず、`no_viable_candidate`で止まりました。
+この結果をアプリのキー処理の不具合とも合格とも扱いません。実Enter/Tab/Shift+Tab/IME/focus/caret、
+nativeボタンのSpace、長押し、狭幅、秘密の保存待ち/結果不明時の破棄確認は未確認です。
+送信失敗・非同期送信中の新下書きについても、今回の製品統合経路では未確認です。
+[#4](https://github.com/runceel/phi-client-lab/issues/4)と
+[#5](https://github.com/runceel/phi-client-lab/issues/5)はOpenのままです。
+
+切断・合成登録削除後のCloseでは、exit `0xC000027B`と同一試験PIDのWERイベントを観測しました。
+これは正常終了ではなく、原因調査を[#18](https://github.com/runceel/phi-client-lab/issues/18)へ分離しました。
+所有プロセス・mock停止、独立登録解除、製品登録と3データのSHA不変は確認済みです。
+永続backupとprivate証拠は入力同期セッションの`files\acceptance-recovery`、
+`acceptance-exit.json`、`acceptance-crash-events.json`、`acceptance-cleanup.json`に保存しました。
+今回のfocused回帰は86件合格、x64 buildは警告0/エラー0です。これらを未確認の実キーの代用にはしません。
 
 ## 追加の操作性改善
 
