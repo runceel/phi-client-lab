@@ -26,6 +26,32 @@ public sealed class SettingsTests
     }
 
     [Fact]
+    public async Task MissingZoomStartsAutoAndExplicitLegacyManualSurvivesRoundTrip()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "phi-auto-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        try
+        {
+            var path = Path.Combine(folder, "settings.json");
+            var store = new SettingsStore(path);
+            Assert.Equal(0, (await store.LoadAsync()).MapZoom);
+            await File.WriteAllTextAsync(path, "{}");
+            var auto = await store.LoadAsync();
+            Assert.Equal(0, auto.MapZoom);
+            await store.SaveAsync(auto);
+            Assert.Equal(0, (await store.LoadAsync()).MapZoom);
+            await File.WriteAllTextAsync(path, "{\"mapZoom\":137}");
+            var legacy = await store.LoadAsync();
+            Assert.Equal(137, legacy.MapZoom);
+            await store.SaveAsync(legacy);
+            Assert.Equal(137, (await store.LoadAsync()).MapZoom);
+            await store.SaveAsync(legacy with { MapZoom = 0 });
+            Assert.Equal(0, (await store.LoadAsync()).MapZoom);
+        }
+        finally { Directory.Delete(folder, true); }
+    }
+
+    [Fact]
     public async Task MovementPadVisibilityAndZoomPersistAndUnspecifiedPadStartsHidden()
     {
         var folder = Path.Combine(Path.GetTempPath(), "phi-pad-" + Guid.NewGuid().ToString("N"));

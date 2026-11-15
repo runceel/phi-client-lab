@@ -130,6 +130,18 @@ internal sealed class LogViewport
         Schedule();
     }
 
+    public void SetSearching(bool enabled)
+    {
+        state.Searching = enabled;
+        ContentChanged();
+    }
+
+    public void ScrollToSearch(long id)
+    {
+        state.Anchor = new(id, 0, 0);
+        ContentChanged();
+    }
+
     private (double, double, double) Metrics() =>
         (Viewer.ViewportWidth, Viewer.ViewportHeight, Viewer.ExtentHeight);
 

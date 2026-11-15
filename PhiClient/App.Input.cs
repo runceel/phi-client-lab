@@ -27,7 +27,7 @@ partial class App
         {
             var id = Microsoft.UI.Xaml.Automation.AutomationProperties.GetAutomationId(parent);
             if (id == "command-input") { chat = true; break; }
-            if (id == "map-viewport" || id.StartsWith("map-zoom-", StringComparison.Ordinal) ||
+            if (id == "log-search" || id == "map-viewport" || id.StartsWith("map-zoom-", StringComparison.Ordinal) ||
                 parent is Microsoft.UI.Xaml.Controls.TextBox or Microsoft.UI.Xaml.Controls.PasswordBox or
                 Microsoft.UI.Xaml.Controls.RichEditBox or MapPaneSplitter or
                 Microsoft.UI.Xaml.Controls.Primitives.Thumb or Microsoft.UI.Xaml.Controls.DropDownButton or MenuFlyoutPresenter)
@@ -53,7 +53,8 @@ partial class App
             return;
         if (!Down(VirtualKey.Enter))
             committingComposition = session.PrivCommitting = false;
-        if (composing || committingComposition || session.PrivComposing || session.PrivCommitting)
+        if (composing || committingComposition || session.PrivComposing || session.PrivCommitting ||
+            session.LogSearchPanel?.IsComposing == true)
             return;
         var control = Down(VirtualKey.Control);
         var shift = Down(VirtualKey.Shift);
@@ -67,6 +68,17 @@ partial class App
         }
         if (((sender as FrameworkElement)?.XamlRoot ?? gameControl?.XamlRoot) is not { } root) return;
         var focused = FocusManager.GetFocusedElement(root);
+        if (args.Key == VirtualKey.F && control && !shift && !alt)
+        {
+            for (var parent = focused as DependencyObject; parent is not null; parent = VisualTreeHelper.GetParent(parent))
+                if (ReferenceEquals(parent, inputControl) || ReferenceEquals(parent, gameControl) ||
+                    ReferenceEquals(parent, session.LogSearchPanel?.Query))
+                {
+                    if (!args.KeyStatus.WasKeyDown) OpenLogSearch(session);
+                    args.Handled = true;
+                    return;
+                }
+        }
         if (args.Key == VirtualKey.Tab && !control)
         {
             var chat = ReferenceEquals(focused, inputControl);
@@ -95,7 +107,8 @@ partial class App
                 GameInput.NativeControlOwnsKey((ConsoleKey)args.Key, navigation: true))
                 return;
             var automationId = Microsoft.UI.Xaml.Automation.AutomationProperties.GetAutomationId(parent);
-            if (automationId == "map-viewport" || automationId.StartsWith("map-zoom-", StringComparison.Ordinal))
+            if (automationId == "log-search" || automationId == "map-viewport" ||
+                automationId.StartsWith("map-zoom-", StringComparison.Ordinal))
                 return;
             if (parent is Microsoft.UI.Xaml.Controls.TextBox or Microsoft.UI.Xaml.Controls.PasswordBox or
                 Microsoft.UI.Xaml.Controls.RichEditBox or MapPaneSplitter or
@@ -364,6 +377,7 @@ partial class App
         "T / Shift+T: rotate / north-up; Shift+7 / Shift+5: 7x7 / 5x5; Shift+F5: map pane.\n" +
         "F1-F7 / Alt+1-7: numbered spells. Alt magic is listed in the Magic menu.\n" +
         "Ctrl+Tab / Ctrl+Shift+Tab: next / previous character; Pause / Shift+F1: force disconnect.\n" +
+        "Ctrl+F: search retained world log; Enter / Shift+Enter: older / newer match; Esc: close search.\n" +
         "Lists: 1-9 current page; arrows cursor; Space check; Enter send; 0/Esc/./left/right cancel; -/+ all.\n\n" +
         "Text field: Enter sends and clears the current line; Shift+Enter inserts a newline;\n" +
         "Ctrl+Enter sends to party. Tab switches between chat and log/game mode; Esc also returns to the log.\n" +

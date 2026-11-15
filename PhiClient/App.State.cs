@@ -82,7 +82,7 @@ partial class App
         }
         if (active is { } session) session.GraphicsImage = graphics.Draw(session,
             (model.Options.SingleWindow ? gameControl?.XamlRoot?.RasterizationScale : mapWindow?.DipScale) ?? 1,
-            DisplayMap(session), model.Options.MapZoom / 100.0,
+            DisplayMap(session), EffectiveMapZoom(session),
             model.Options.SmoothMove && visualPreferences.AnimationsEnabled);
         if (active is not null) TraceDiagnostic(DiagnosticEvent.MapRefresh);
         model = ClientUpdate.Apply(model, new ClientMessage.GraphicsChanged(graphics.Revision, graphics.Notice));

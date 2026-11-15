@@ -8,7 +8,7 @@ using static Microsoft.UI.Reactor.Factories;
 partial class App
 {
     private void OpenSettings() => Dispatch(new ClientMessage.SettingsEdited(new(model.Options,
-        model.Options.MapZoom.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        model.Options.MapZoom == 0 ? "Auto" : model.Options.MapZoom.ToString(System.Globalization.CultureInfo.InvariantCulture),
         model.Options.LogFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture))));
 
     private void EditSettings(Func<SettingsEditorModel, SettingsEditorModel> change)
@@ -45,7 +45,7 @@ partial class App
                     (o, b) => o with { MasterMagicMenu = b }, "settings-master")),
             VStack(8, SubHeading("マップ"),
                 InputBox(editor.Zoom, text => EditSettings(state => state with { Zoom = text }),
-                    header: "拡大率（50–400%）").AutomationId("settings-map-zoom"),
+                    header: "拡大率（Auto または50–400%）").AutomationId("settings-map-zoom"),
                 Flag("通った地形を記録する拡張マップ・位置予測", value.Automap,
                     (o, b) => o with { Automap = b }, "settings-automap"),
                 Flag("移動を滑らかに表示する（原典の実験的機能）", value.SmoothMove,
@@ -122,7 +122,7 @@ partial class App
             HStack(12, Button(busy ? "保存しています…" : "設定を保存", () => _ = PerformAsync(SaveSettingsAsync))
                     .IsEnabled(!busy).AutomationId("settings-save"),
                 Button("既定値に戻して編集", () => Dispatch(new ClientMessage.SettingsEdited(
-                    new(new(), "100", "0")))).IsEnabled(!busy).AutomationId("settings-defaults")).Flex(shrink: 0)
+                    new(new(), "Auto", "0")))).IsEnabled(!busy).AutomationId("settings-defaults")).Flex(shrink: 0)
         ).AutomationId("settings-view").FlexPadding(12);
     }
 }

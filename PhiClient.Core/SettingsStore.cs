@@ -51,7 +51,7 @@ public sealed class SettingsStore(string path)
         foreach (var macro in options.Shortcuts.Concat(options.ListShortcuts).Append(options.AltGWord))
             foreach (var line in macro.Replace("\\n", "\n", StringComparison.Ordinal).Split('\n'))
                 PhiWire.ValidateLine(line.TrimEnd('\r'));
-        return options with { MapZoom = Math.Clamp(options.MapZoom, 50, 400),
+        return options with { MapZoom = options.MapZoom == 0 ? 0 : Math.Clamp(options.MapZoom, 50, 400),
             MapPaneWidth = Math.Clamp(options.MapPaneWidth, MapPaneLayout.Minimum, MapPaneLayout.Maximum),
             LogFontSize = Math.Min(options.LogFontSize, 64) };
     }

@@ -4,6 +4,35 @@ namespace PhiClient.Core.Tests;
 
 public class LogScrollStateTests
 {
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void SearchPinsTheSelectedRowAcrossArrivalAndRestoresConfiguredFollow(bool enabled)
+    {
+        var state = new LogScrollState();
+        state.Configure(enabled);
+        state.Searching = true;
+        state.Anchor = new(7, 0, 0);
+        Assert.Equal(120, state.Target(500, _ => 120));
+        Assert.Equal(140, state.Target(700, _ => 140));
+        Assert.Equal(enabled, state.Enabled);
+        state.Searching = false;
+        Assert.Equal(enabled ? 700 : 140, state.Target(700, _ => 140));
+    }
+
+    [Fact]
+    public void EnablingFollowDuringSearchKeepsMatchUntilSearchCloses()
+    {
+        var state = new LogScrollState();
+        state.Configure(false);
+        state.Searching = true;
+        state.Anchor = new(7, 0, 0);
+        state.Configure(true);
+        Assert.Equal(140, state.Target(700, _ => 140));
+        state.Searching = false;
+        Assert.Equal(700, state.Target(700, _ => 140));
+    }
+
     [Fact]
     public void BrowsingKeepsAnchorUntilUserReturnsToLatest()
     {

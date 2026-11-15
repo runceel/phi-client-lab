@@ -34,7 +34,7 @@ public sealed record ClientOptions(bool ShowCharacters = true, bool ShowMap = tr
     public bool AutoUnequipSystemMagic { get; init; } = true;
     public bool AutoEquipSystemMagic { get; init; }
     public bool MasterMagicMenu { get; init; }
-    public int MapZoom { get; init; } = 100;
+    public int MapZoom { get; init; }
     public bool Automap { get; init; } = true;
     public bool SmoothMove { get; init; }
     public bool MapEffects { get; init; } = true;
@@ -65,6 +65,10 @@ public sealed record ClientModel
     public double WindowHeight { get; init; } = 850;
     public double GameBodyHeight { get; init; } = 400;
     public int DetachedMapWidth { get; init; } = 344;
+    public double DetachedMapHeight { get; init; } = 440;
+    public double MapFooterHeight { get; init; } = 128;
+    public double MapViewportWidth { get; init; } = 344;
+    public double MapViewportHeight { get; init; } = 240;
     public string? PendingDelete { get; init; }
     public bool Creating { get; init; }
     public bool Loaded { get; init; }
@@ -105,6 +109,9 @@ public abstract record ClientMessage
     public sealed record GameBodyHeightChanged(double Height) : ClientMessage;
     public sealed record MapPaneWidthChanged(int Width) : ClientMessage;
     public sealed record DetachedMapWidthChanged(int Width) : ClientMessage;
+    public sealed record DetachedMapHeightChanged(double Height) : ClientMessage;
+    public sealed record MapFooterHeightChanged(double Height) : ClientMessage;
+    public sealed record MapViewportSizeChanged(double Width, double Height) : ClientMessage;
     public sealed record OptionsChanged(ClientOptions Value) : ClientMessage;
     public sealed record LogImageLoading(string Url, long Request) : ClientMessage;
     public sealed record LogImageLoaded(string Url, long Request, int Width, int Height,
@@ -175,6 +182,10 @@ public static class ClientUpdate
         ClientMessage.MapPaneWidthChanged size => model with { Options = model.Options with
             { MapPaneWidth = Math.Clamp(size.Width, MapPaneLayout.Minimum, MapPaneLayout.Maximum) } },
         ClientMessage.DetachedMapWidthChanged size => model with { DetachedMapWidth = Math.Clamp(size.Width, 184, 1600) },
+        ClientMessage.DetachedMapHeightChanged size => model with { DetachedMapHeight = size.Height },
+        ClientMessage.MapFooterHeightChanged size => model with { MapFooterHeight = size.Height },
+        ClientMessage.MapViewportSizeChanged size => model with
+            { MapViewportWidth = size.Width, MapViewportHeight = size.Height },
         ClientMessage.DraftChanged when model.Registration.Stage is RegistrationStage.Creating or
             RegistrationStage.SavePending or RegistrationStage.Unknown => model,
         ClientMessage.DraftChanged edit => model with { Draft = model.Registration.Stage != RegistrationStage.None &&

@@ -61,8 +61,11 @@ partial class App
         var title = (Microsoft.UI.Xaml.Controls.TextBlock)chrome.Children[1];
         void Layout(object? sender, object args)
         {
-            if (chrome.XamlRoot is not { } root || bar.Content is not FrameworkElement actions) return;
-            var window = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(root.ContentIslandEnvironment.AppWindowId);
+            // Shutdown can clear the content island before Unloaded removes this handler.
+            if (!chrome.IsLoaded ||
+                chrome.XamlRoot is not { ContentIslandEnvironment: { } environment } root ||
+                bar.Content is not FrameworkElement actions) return;
+            if (Microsoft.UI.Windowing.AppWindow.GetFromWindowId(environment.AppWindowId) is not { } window) return;
             var actionRight = actions.TransformToVisual(chrome).TransformPoint(new Point(actions.ActualWidth, 0)).X;
             // Mirror the larger occupied edge, not the remaining space between toolbar and caption.
             var width = PhiClient.TitleBarLayout.AvailableTitleWidth(chrome.ActualWidth, actionRight,

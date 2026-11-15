@@ -11,7 +11,7 @@ using PhiClient.Core;
 
 namespace PhiClient;
 
-internal sealed class LogPresenter(Action<IReadOnlyList<LogEntry>, bool> copy, Action<Uri> openLink,
+internal sealed partial class LogPresenter(Action<IReadOnlyList<LogEntry>, bool> copy, Action<Uri> openLink,
     Action<Uri, long, string> reportImageFailure)
 {
     public RichTextBlock Control { get; } = new()
@@ -189,6 +189,7 @@ internal sealed class LogPresenter(Action<IReadOnlyList<LogEntry>, bool> copy, A
             paragraphs.Add(row.Id, paragraph);
             Control.Blocks.Add(paragraph);
         }
+        ContentUpdated?.Invoke();
     }
 
     private void AddImage(Paragraph paragraph, long row, LogPart part, Uri uri)

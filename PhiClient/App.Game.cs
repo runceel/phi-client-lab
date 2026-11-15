@@ -65,6 +65,8 @@ partial class App
                     MenuItem(character.Name, () => _ = PerformAsync(() => OpenAsync(character)))).ToArray())),
             Menu("Operation",
                 ToggleMenuItem("Follow latest log", followLog, value => { followLog = value; refresh(); }),
+                MenuItem("ログを検索  |  Ctrl+F", () => { if (session is not null) OpenLogSearch(session); })
+                    with { IsEnabled = session is not null },
                 session is null ? MenuItem("ログ自動保存（キャラクター未選択）", () => { }) with { IsEnabled = false } :
                     ToggleMenuItem("このキャラクターのログを自動保存", session.Model.LogSaving,
                         value => ToggleLogSaving(session, value)),
@@ -220,7 +222,7 @@ partial class App
                 HStack(8, TextBlock("超魔法の手順を実行しています…").AutomationId("master-status"),
                     Button("残りの手順を中止", () => CancelMaster(session)).AutomationId("master-cancel")).Flex(shrink: 0),
             Caption($"{session.World} {session.Area}").AutomationId("world-location").Flex(shrink: 0),
-            log, choices.Flex(shrink: 0), SignEditor(session).Flex(shrink: 0),
+            log, LogSearchView(session).Flex(shrink: 0), choices.Flex(shrink: 0), SignEditor(session).Flex(shrink: 0),
             FlexRow(InputBox(session.Input, value =>
                 {
                     if (session.Input == value) return;
@@ -253,8 +255,7 @@ partial class App
         var integratedMap = showMap && model.Options.SingleWindow && !showCharacters;
         var compact = windowWidth < 760;
         var replaceChatWithPriv = session.Model.Priv.Visible && windowWidth < 1100;
-        var mapWidth = compact ? Math.Min(model.Options.MapPaneWidth, Math.Max(200, windowWidth - 48)) :
-            MapPaneLayout.Width(model.Options.MapPaneWidth, MapAvailableWidth);
+        var mapWidth = IntegratedMapWidth;
         var map = MapPane(session, mapWidth - 16);
         var mapHeight = Math.Max(120, model.GameBodyHeight);
         var gameBody = compact
@@ -299,7 +300,7 @@ partial class App
     {
         var bitmap = session.GraphicsImage;
         if (bitmap is null) return GameViews.Map(session, (x, y) => MapClick(session, x, y), () => Send(session, "hit"),
-            DisplayMap(session), model.Options.MapZoom / 100.0)
+            DisplayMap(session), EffectiveMapZoom(session))
                 .OnMount(element => AttachMapSurface((FrameworkElement)element, session));
         // The preview's Image descriptor requires a URI even when OnMount supplies a live bitmap.
         var picture = Image("ms-appx:///Assets/Square44x44Logo.scale-200.png")

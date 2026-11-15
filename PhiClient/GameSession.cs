@@ -37,6 +37,7 @@ internal sealed class GameSession(SavedCharacter character, Func<GameModel> read
     public ChoiceSelection Selection => Model.Selection;
     public IReadOnlyList<string> Log => Model.Log;
     public LogPresenter? LogPresenter { get; set; }
+    public LogSearchPanel? LogSearchPanel { get; set; }
     public LogPresenter? PrivPresenter { get; set; }
     public LogScrollState LogScroll { get; } = new();
     public Dictionary<string, LogScrollState> PrivScroll { get; } = [];
