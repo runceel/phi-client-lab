@@ -144,6 +144,8 @@ partial class App
                 Action("Refresh", GameInput.Command("see"))),
             Menu("Help",
                 MenuItem("Keyboard controls", ShowKeyboardHelp),
+                MenuItem("wphiの利用者ガイド（ブラウザー）",
+                    () => OpenLogLink(new Uri("https://s7k.github.io/wphi/guide/"))),
                 MenuItem("窓の位置を元に戻す…", () => _ = PerformAsync(ResetWindowLayoutAsync)),
                 MenuItem(model.CheckingRelease ? "公開リリースを確認しています…" : "新しい版を確認する…",
                     () => _ = PerformAsync(CheckReleaseAsync)) with { IsEnabled = !model.CheckingRelease },
@@ -190,20 +192,16 @@ partial class App
                 Button("All", () => Send(session, "-")),
                 Button("Cancel selection", () => Send(session, "."))));
 
-        var log = ScrollViewer(Empty())
+        var log = Border(Empty())
             .OnMount(element =>
             {
-                var viewer = (Microsoft.UI.Xaml.Controls.ScrollViewer)element;
-                viewer.HorizontalScrollMode = Microsoft.UI.Xaml.Controls.ScrollMode.Disabled;
-                viewer.HorizontalScrollBarVisibility = Microsoft.UI.Xaml.Controls.ScrollBarVisibility.Disabled;
-                viewer.HorizontalContentAlignment = HorizontalAlignment.Stretch;
                 var presenter = new LogPresenter((rows, toInput) => CopyLog(session, rows, toInput),
                     OpenLogLink, ReportLogImageFailure);
                 presenter.Attach();
+                var viewport = presenter.CreateViewport(session.LogScroll, "world-log");
+                var viewer = viewport.Viewer;
                 presenter.Update(session.Model.LogEntries, model.Options, model.LogImages);
-                viewer.Content = presenter.Surface;
-                viewer.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White);
-                viewer.IsTabStop = true;
+                ((Microsoft.UI.Xaml.Controls.Border)element).Child = viewport.Surface;
                 Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(viewer, "世界ログ・ゲーム操作");
                 Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(viewer,
                     "矢印・テンキーでゲーム操作。Tabでチャット入力へ。Shift+Tabで通常のUIフォーカス移動。");
@@ -215,20 +213,7 @@ partial class App
                     viewer.Focus(FocusState.Programmatic);
                 };
                 session.LogPresenter = presenter;
-                var scrollQueued = false;
-                viewer.LayoutUpdated += (_, _) =>
-                {
-                    if (scrollQueued || !followLog || active != session || !viewer.IsLoaded ||
-                        viewer.ScrollableHeight - viewer.VerticalOffset <= 1) return;
-                    scrollQueued = true;
-                    dispatcher?.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
-                    {
-                        scrollQueued = false;
-                        if (followLog && active == session && viewer.IsLoaded && viewer.XamlRoot is not null)
-                            viewer.ChangeView(null, viewer.ScrollableHeight, null);
-                    });
-                };
-            }).MinHeight(80).AutomationId("world-log-scroll").Flex(grow: 1, basis: 0);
+            }).MinHeight(80).Flex(grow: 1, basis: 0);
 
         var chat = FlexColumn(
             session.Model.Master is null ? Empty() :
