@@ -252,6 +252,27 @@ partial class App
         }
     }
 
+    private void ConnectAll()
+    {
+        foreach (var session in sessions.Where(item => item.Connection is null).ToArray())
+            _ = SessionOperationAsync(session, () => StartAsync(session));
+    }
+
+    private void DisconnectAll()
+    {
+        foreach (var session in sessions.Where(item => item.Connection is not null).ToArray())
+            _ = SessionOperationAsync(session, () => DisconnectAsync(session));
+    }
+
+    private void ForceDisconnectAll()
+    {
+        foreach (var session in sessions.ToArray())
+        {
+            session.MasterCancellation?.Cancel();
+            session.Connection?.Dispose();
+        }
+    }
+
     private static async Task DisconnectAsync(GameSession session)
     {
         var connection = session.Connection;

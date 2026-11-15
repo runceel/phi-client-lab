@@ -12,7 +12,8 @@ partial class App
     private sealed record MenuInputs(GameSession? Session, bool Busy, bool Follow, bool FullKeys, bool ShowMap,
         System.Collections.Immutable.ImmutableArray<SavedCharacter> Characters, bool Connected, bool Transferring,
         bool PreparingMagic, bool MasterRunning, bool LogSaving, bool HasTransport, bool KnownWorld,
-        bool HasEagle, bool NorthFixed, PhiClient.Core.MasterMenu? Master, bool MasterVisible);
+        bool HasEagle, bool NorthFixed, PhiClient.Core.MasterMenu? Master, bool MasterVisible,
+        int ConnectedTabs, int DisconnectedTabs);
     private MenuInputs? menuInputs;
     private Element? menuElement;
 
@@ -23,7 +24,8 @@ partial class App
             session?.Connected == true, session?.Model.Transferring == true, session?.PreparingMagic == true,
             session?.Model.Master is not null, session?.Model.LogSaving == true, session?.Connection is not null,
             session?.World is not null and not "" and not "???", session?.Eagle is not null,
-            session?.NorthFixed ?? true, model.MasterMenu, MasterMagic.Visible(session?.Stats, model.Options));
+            session?.NorthFixed ?? true, model.MasterMenu, MasterMagic.Visible(session?.Stats, model.Options),
+            sessions.Count(item => item.Connection is not null), sessions.Count(item => item.Connection is null));
         // Preserve open native flyouts when only map animation or unrelated log content changes.
         if (inputs == menuInputs && menuElement is not null) return menuElement;
         MenuFlyoutItemData Action(string label, InputAction action) =>
@@ -36,13 +38,13 @@ partial class App
         {
             Menu("File",
                 MenuItem("Connect / disconnect", ToggleConnection) with { IsEnabled = session is not null },
-                MenuItem("Disconnect all", () =>
-                {
-                    foreach (var s in sessions.ToArray())
-                        _ = SessionOperationAsync(s, () => DisconnectAsync(s));
-                }),
                 MenuItem("Force disconnect  |  Pause", () => session?.Connection?.Dispose())
                     with { IsEnabled = session?.Connection is not null },
+                MenuSeparator(),
+                MenuItem("全タブを接続", ConnectAll) with { IsEnabled = inputs.DisconnectedTabs > 0 },
+                MenuItem("全タブを切断", DisconnectAll) with { IsEnabled = inputs.ConnectedTabs > 0 },
+                MenuItem("全タブを強制切断  |  Alt+Pause", ForceDisconnectAll)
+                    with { IsEnabled = inputs.ConnectedTabs > 0 },
                 MenuSeparator(),
                 MenuItem("Close tab", () => { if (session is not null) CloseTab(session); })
                     with { IsEnabled = session is not null },

@@ -119,7 +119,7 @@ partial class App
             case InputIntent.ToggleMap: showMap = !showMap; refresh(); return;
             case InputIntent.ForceDisconnect: session.Connection?.Dispose(); return;
             case InputIntent.ForceDisconnectAll:
-                foreach (var s in sessions) s.Connection?.Dispose();
+                ForceDisconnectAll();
                 return;
             case InputIntent.ListUp: session.Dispatch(new GameMessage.SelectionMoved(-1)); break;
             case InputIntent.ListDown: session.Dispatch(new GameMessage.SelectionMoved(1)); break;
