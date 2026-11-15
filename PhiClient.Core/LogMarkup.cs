@@ -6,7 +6,8 @@ namespace PhiClient.Core;
 public sealed record LogStyle(string? Color = null, double? Size = null, string? Font = null,
     bool Bold = false, bool Italic = false, bool Underline = false, bool Strike = false,
     bool Overline = false, int Baseline = 0, double Scale = 1);
-public sealed record LogPart(string Text, LogStyle Style, Uri? Link = null, Uri? Image = null);
+public sealed record LogPart(string Text, LogStyle Style, Uri? Link = null, Uri? Image = null,
+    int? Width = null, int? Height = null, string? Align = null);
 
 public static partial class LogMarkup
 {
@@ -56,12 +57,18 @@ public static partial class LogMarkup
         return true;
     }
 
-    public static IReadOnlyList<LogPart> Parse(string raw, bool allowLargeShout = false)
+    public static IReadOnlyList<LogPart> Parse(string raw, bool allowLargeShout = false) =>
+        Parse(raw, new ClientOptions { LogLargeDispLoud = allowLargeShout });
+
+    public static IReadOnlyList<LogPart> Parse(string raw, ClientOptions options)
     {
         var parts = new List<LogPart>();
         var stack = new Stack<LogStyle>();
         var style = new LogStyle();
         var loud = raw.StartsWith('(');
+        var imageDisplay = options.LogImageDisp && (!loud || options.LogImageDispLoud);
+        var explicitImage = imageDisplay && raw.Contains("/*img=", StringComparison.OrdinalIgnoreCase);
+        Uri? lastImage = null;
         var position = 0;
         void Text(string text)
         {
@@ -75,7 +82,16 @@ public static partial class LogMarkup
                 foreach (Match match in Links().Matches(fragment))
                 {
                     if (match.Index > offset) parts.Add(new(fragment[offset..match.Index], style));
-                    parts.Add(new(match.Value, style, PublicHttpUrl(match.Value, out var link) ? link : null));
+                    var valid = PublicHttpUrl(match.Value, out var link);
+                    var imageUrl = valid && imageDisplay && options.LogImageDispURL && !explicitImage &&
+                        new[] { ".png", ".jpg", ".jpeg", ".gif", ".bmp" }.Any(extension =>
+                            link!.AbsolutePath.EndsWith(extension, StringComparison.OrdinalIgnoreCase));
+                    if (imageUrl)
+                    {
+                        parts.Add(new("[画像]", style, Image: link));
+                        lastImage = link;
+                    }
+                    else parts.Add(new(match.Value, style, options.LogUrlLink && !explicitImage ? link : null));
                     offset = match.Index + match.Length;
                 }
                 if (offset < fragment.Length) parts.Add(new(fragment[offset..], style));
@@ -105,13 +121,29 @@ public static partial class LogMarkup
             else if (tag.StartsWith("img=", StringComparison.OrdinalIgnoreCase))
             {
                 var url = tag[4..].Split(' ', 2)[0];
-                if (PublicHttpUrl(url, out var image))
-                    parts.Add(new("[画像]", style, image, image));
+                if (imageDisplay && PublicHttpUrl(url, out var image))
+                {
+                    var attributes = tag.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                        .Select(field => field.Split('=', 2)).Where(field => field.Length == 2).ToArray();
+                    string? Value(string key) => attributes.FirstOrDefault(field =>
+                        field[0].Equals(key, StringComparison.OrdinalIgnoreCase))?[1];
+                    int? Dimension(string key) => Value(key) is { } value
+                        ? int.TryParse(value, System.Globalization.NumberStyles.Integer,
+                            System.Globalization.CultureInfo.InvariantCulture, out var number) ? Math.Clamp(number, 0, 1000) : 0
+                        : null;
+                    parts.Add(new("[画像]", style, Image: image, Width: Dimension("width"),
+                        Height: Dimension("height"), Align: Value("align")));
+                }
+                else if (options.NotInterpretedTagDisp) Text("/*" + tag + "*/");
             }
             else
             {
                 var fields = Attributes().Matches(tag);
-                if (fields.Count == 0 || fields[0].Index != 0) continue;
+                if (fields.Count == 0 || fields[0].Index != 0)
+                {
+                    if (options.NotInterpretedTagDisp) Text("/*" + tag + "*/");
+                    continue;
+                }
                 if (tag[(fields[0].Index + fields[0].Length)..] == ".")
                 {
                     if (stack.TryPop(out var previous)) style = previous;
@@ -137,7 +169,7 @@ public static partial class LogMarkup
                                     System.Globalization.CultureInfo.InvariantCulture, out var number) &&
                                      number is >= -9 and <= 9 ? number >= 0 ? Sizes[number] : 14 + number : (double?)null
                             };
-                            if (size is { } fontSize && (!loud || allowLargeShout || fontSize < 14))
+                            if (size is { } fontSize && (!loud || options.LogLargeDispLoud || fontSize < 14))
                                 style = style with { Size = fontSize };
                             break;
                         case "font" or "ft":
@@ -157,6 +189,8 @@ public static partial class LogMarkup
                 }
             }
         }
+        if (lastImage is not null && options.LogImageLinkDisp)
+            parts.Add(new("\n" + lastImage.AbsoluteUri, style, lastImage));
         return parts;
     }
 }

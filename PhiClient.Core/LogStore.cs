@@ -20,7 +20,7 @@ public sealed class LogStore(string folder)
         if (row.Time is null) throw new ArgumentException("保存するログには受信時刻が必要です。", nameof(row));
         var date = row.Time.Value.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
         var path = Path.Combine(Folder(label), date + (options.LogSaveHtml ? ".html" : ".txt"));
-        var data = Encoding.UTF8.GetBytes(options.LogSaveHtml ? LogFormat.Html(row) : LogFormat.Text(row) + "\n");
+        var data = Encoding.UTF8.GetBytes(options.LogSaveHtml ? LogFormat.Html(row, options: options) : LogFormat.Text(row, options: options) + "\n");
         if (Interlocked.Add(ref pendingBytes, data.Length) > 8 * 1024 * 1024)
         {
             Interlocked.Add(ref pendingBytes, -data.Length);
@@ -50,7 +50,7 @@ public sealed class LogStore(string folder)
         var path = Path.Combine(Folder(label), $"LogBuffer-{Guid.NewGuid():N}.html");
         var temporary = path + ".tmp";
         var data = Encoding.UTF8.GetBytes(LogFormat.Header(label, options) +
-            string.Concat(rows.Select(row => LogFormat.Html(row, options.LogDispTime))));
+            string.Concat(rows.Select(row => LogFormat.Html(row, options.LogDispTime, options))));
         await writes.WaitAsync(cancellationToken);
         try
         {

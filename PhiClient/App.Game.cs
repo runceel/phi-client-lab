@@ -185,7 +185,7 @@ partial class App
                 viewer.HorizontalContentAlignment = HorizontalAlignment.Stretch;
                 var presenter = new LogPresenter((rows, toInput) => CopyLog(session, rows, toInput), OpenLogLink);
                 presenter.Attach();
-                presenter.Update(session.Model.LogEntries, model.Options);
+                presenter.Update(session.Model.LogEntries, model.Options, model.LogImages);
                 viewer.Content = presenter.Surface;
                 viewer.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White);
                 session.LogPresenter = presenter;

@@ -1,9 +1,11 @@
 using System.Collections.Immutable;
+using System.Runtime.InteropServices.WindowsRuntime;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Documents;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI.Xaml.Shapes;
 using PhiClient.Core;
 
@@ -28,7 +30,9 @@ internal sealed class LogPresenter(Action<IReadOnlyList<LogEntry>, bool> copy, A
     private int layoutVersion;
     private (double Width, double Height, double Scale, int Version)? decoratedLayout;
     private ImmutableArray<LogEntry> entries = [];
-    private (bool, string, uint)? presentation;
+    private ClientOptions? presentation;
+    private ImmutableDictionary<string, LogImageState>? images;
+    private readonly Dictionary<string, WriteableBitmap> bitmaps = [];
     private long? pressedRow;
 
     public Grid Surface
@@ -76,16 +80,17 @@ internal sealed class LogPresenter(Action<IReadOnlyList<LogEntry>, bool> copy, A
         }), true);
     }
 
-    public void Update(ImmutableArray<LogEntry> value, ClientOptions options)
+    public void Update(ImmutableArray<LogEntry> value, ClientOptions options,
+        ImmutableDictionary<string, LogImageState>? imageStates = null)
     {
-        var key = (options.LogDispTime, options.LogFontName, options.LogFontSize);
-        if (presentation != key)
+        if (presentation != options || !ReferenceEquals(images, imageStates))
         {
             Control.Blocks.Clear();
             paragraphs.Clear();
             owners.Clear();
             overlines.Clear();
-            presentation = key;
+            presentation = options;
+            images = imageStates;
             Control.FontFamily = new(options.LogFontName.Length == 0 ? "ＭＳ ゴシック, Consolas" : options.LogFontName);
             Control.FontSize = options.LogFontSize == 0 ? 14 : options.LogFontSize;
         }
@@ -115,9 +120,14 @@ internal sealed class LogPresenter(Action<IReadOnlyList<LogEntry>, bool> copy, A
                 paragraph.Inlines.Add(stamp);
                 owners.Add(stamp, row.Id);
             }
-            var parts = LogFormat.Parts(row);
+            var parts = LogFormat.Parts(row, options);
             foreach (var part in parts)
             {
+                if (part.Image is { } imageUri)
+                {
+                    AddImage(paragraph, row.Id, part, imageUri);
+                    continue;
+                }
                 var run = new Run { Text = part.Text, FontWeight = part.Style.Bold ? FontWeights.Bold : FontWeights.Normal,
                     FontStyle = part.Style.Italic ? Windows.UI.Text.FontStyle.Italic : Windows.UI.Text.FontStyle.Normal };
                 if (part.Style.Size is { } size) run.FontSize = size;
@@ -143,6 +153,44 @@ internal sealed class LogPresenter(Action<IReadOnlyList<LogEntry>, bool> copy, A
             paragraphs.Add(row.Id, paragraph);
             Control.Blocks.Add(paragraph);
         }
+    }
+
+    private void AddImage(Paragraph paragraph, long row, LogPart part, Uri uri)
+    {
+        var state = images?.GetValueOrDefault(uri.AbsoluteUri);
+        if (state is { Loading: false, Error.Length: 0 } &&
+            LogImages.ValidPixels(state.Width, state.Height, state.Pixels))
+        {
+            if (!bitmaps.TryGetValue(uri.AbsoluteUri, out var bitmap))
+            {
+                bitmap = new(state.Width, state.Height);
+                using var buffer = bitmap.PixelBuffer.AsStream();
+                buffer.Write(state.Pixels.AsSpan());
+                bitmap.Invalidate();
+                bitmaps.Add(uri.AbsoluteUri, bitmap);
+            }
+            var image = new Image { Source = bitmap,
+                Stretch = part.Width is not null && part.Height is not null ? Stretch.Fill : Stretch.Uniform,
+                MaxWidth = 1000, MaxHeight = 1000,
+                VerticalAlignment = part.Align?.ToLowerInvariant() switch
+                {
+                    "top" => VerticalAlignment.Top,
+                    "middle" => VerticalAlignment.Center,
+                    _ => VerticalAlignment.Bottom
+                } };
+            if (part.Width is { } width) image.Width = width;
+            if (part.Height is { } height) image.Height = height;
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(image, "ログの画像");
+            var inline = new InlineUIContainer { Child = image };
+            paragraph.Inlines.Add(inline);
+            owners.Add(inline, row);
+            return;
+        }
+        var message = state is null ? "画像の表示上限に達しました（16件）。" :
+            state.Loading ? "画像を読み込んでいます…" : state.Error;
+        var placeholder = new Run { Text = "[" + message + "]" };
+        owners.Add(placeholder, row);
+        paragraph.Inlines.Add(placeholder);
     }
 
     private void DrawOverlines()

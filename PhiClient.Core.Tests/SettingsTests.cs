@@ -5,6 +5,24 @@ namespace PhiClient.Core.Tests;
 public sealed class SettingsTests
 {
     [Fact]
+    public void PhillyLogOptionsAndFontNameImportWithoutChangingUnspecifiedOptions()
+    {
+        var options = SettingsStore.ImportPhilly(new(), PhiWire.Encode(
+            "[Font]\nLogFontName=ＭＳ 明朝\n[Log]\nLogUrlLink=off\nLogImageDisp=off\n" +
+            "LogImageDispURL=off\nLogImageLinkDisp=off\nLogImageDispLoud=off\n" +
+            "LogLargeDispLoud=on\nNotInterpretedTagDisp=on\n"));
+        Assert.Equal("ＭＳ 明朝", options.LogFontName);
+        Assert.False(options.LogUrlLink);
+        Assert.False(options.LogImageDisp);
+        Assert.False(options.LogImageDispURL);
+        Assert.False(options.LogImageLinkDisp);
+        Assert.False(options.LogImageDispLoud);
+        Assert.True(options.LogLargeDispLoud);
+        Assert.True(options.NotInterpretedTagDisp);
+        Assert.True(options.LogDispTime);
+    }
+
+    [Fact]
     public void EditingSettingsKeepsLiveOptionsUntilAppliedAndSpellOptionsRespectTargetLists()
     {
         var original = new ClientModel();

@@ -35,7 +35,7 @@ partial class App
                     viewer.HorizontalContentAlignment = HorizontalAlignment.Stretch;
                     var presenter = new LogPresenter((rows, toInput) => CopyLog(session, rows, toInput, privateInput: true), OpenLogLink);
                     presenter.Attach("priv-log", "選択した相手との内緒話");
-                    presenter.Update(current?.Entries ?? [], model.Options);
+                    presenter.Update(current?.Entries ?? [], model.Options, model.LogImages);
                     viewer.Content = presenter.Surface;
                     viewer.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White);
                     session.PrivPresenter = presenter;

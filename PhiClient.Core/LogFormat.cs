@@ -6,18 +6,18 @@ namespace PhiClient.Core;
 
 public static class LogFormat
 {
-    public static IReadOnlyList<LogPart> Parts(LogEntry row) =>
-        row.Raw is { } raw && !row.Literal ? LogMarkup.Parse(raw) : new LogPart[] { new(row.Text, new()) };
+    public static IReadOnlyList<LogPart> Parts(LogEntry row, ClientOptions? options = null) =>
+        row.Raw is { } raw && !row.Literal ? LogMarkup.Parse(raw, options ?? new()) : new LogPart[] { new(row.Text, new()) };
 
-    public static string Text(LogEntry row, bool time = true) =>
-        Time(row, time) + string.Concat(Parts(row).Select(part => part.Text)).Replace('\n', ' ').Replace('\r', ' ');
+    public static string Text(LogEntry row, bool time = true, ClientOptions? options = null) =>
+        Time(row, time) + string.Concat(Parts(row, options).Select(part => part.Text)).Replace('\n', ' ').Replace('\r', ' ');
 
-    public static string Html(LogEntry row, bool time = true)
+    public static string Html(LogEntry row, bool time = true, ClientOptions? options = null)
     {
         var output = new StringBuilder("<div>");
         if (Time(row, time) is { Length: > 0 } stamp)
             output.Append("<span class=\"time\">").Append(stamp).Append("</span>");
-        foreach (var part in Parts(row))
+        foreach (var part in Parts(row, options))
         {
             var css = new StringBuilder();
             var style = part.Style;

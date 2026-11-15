@@ -11,6 +11,7 @@ partial class App
         var previous = model;
         model = ClientUpdate.Apply(model, message);
         ObserveLogSaving(previous, message);
+        ObserveLogImages(message);
         refresh();
     }
 
@@ -65,9 +66,9 @@ partial class App
         foreach (var game in sessions)
         {
             if (game.LogPresenter is { Control.IsLoaded: true } presenter)
-                presenter.Update(game.Model.LogEntries, model.Options);
+                presenter.Update(game.Model.LogEntries, model.Options, model.LogImages);
             if (game.PrivPresenter is { Control.IsLoaded: true } privPresenter)
-                privPresenter.Update(game.Model.Priv.Current?.Entries ?? [], model.Options);
+                privPresenter.Update(game.Model.Priv.Current?.Entries ?? [], model.Options, model.LogImages);
         }
         if (active is { } session) session.GraphicsImage = graphics.Draw(session,
             gameControl?.XamlRoot?.RasterizationScale ?? 1, DisplayMap(session), model.Options.MapZoom / 100.0,

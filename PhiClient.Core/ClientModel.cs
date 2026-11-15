@@ -19,6 +19,13 @@ public sealed record ClientOptions(bool ShowCharacters = true, bool ShowMap = tr
     public bool LogDispTime { get; init; } = true;
     public string LogFontName { get; init; } = "";
     public uint LogFontSize { get; init; }
+    public bool LogUrlLink { get; init; } = true;
+    public bool LogImageDisp { get; init; } = true;
+    public bool LogImageDispURL { get; init; } = true;
+    public bool LogImageLinkDisp { get; init; } = true;
+    public bool LogImageDispLoud { get; init; } = true;
+    public bool LogLargeDispLoud { get; init; }
+    public bool NotInterpretedTagDisp { get; init; }
     public bool LogTagDeleteCopy { get; init; }
     public bool LogTagDeleteAlways { get; init; }
     public bool LogTimeDelete { get; init; } = true;
@@ -65,6 +72,8 @@ public sealed record ClientModel
     public RegistrationGraphicsModel RegistrationGraphics { get; init; } = new();
     public MasterMenu? MasterMenu { get; init; }
     public string MasterMessage { get; init; } = "";
+    public ImmutableDictionary<string, LogImageState> LogImages { get; init; } =
+        ImmutableDictionary<string, LogImageState>.Empty;
     public ImmutableDictionary<string, AutomapWorld> Automaps { get; init; } =
         ImmutableDictionary<string, AutomapWorld>.Empty;
 }
@@ -74,6 +83,10 @@ public abstract record ClientMessage
     public sealed record DraftChanged(CharacterDraft Value) : ClientMessage;
     public sealed record WindowSizeChanged(double Width, double Height) : ClientMessage;
     public sealed record OptionsChanged(ClientOptions Value) : ClientMessage;
+    public sealed record LogImageLoading(string Url, long Request) : ClientMessage;
+    public sealed record LogImageLoaded(string Url, long Request, int Width, int Height,
+        ImmutableArray<byte> Pixels) : ClientMessage;
+    public sealed record LogImageFailed(string Url, long Request, string Error) : ClientMessage;
     public sealed record SettingsEdited(SettingsEditorModel? Value) : ClientMessage;
     public sealed record AutomapLoaded(string World, AutomapWorld Value) : ClientMessage;
     public sealed record AutomapFailed(string World, string Error) : ClientMessage;
@@ -121,6 +134,17 @@ public static class ClientUpdate
                 edit.Value.SmoothMove != model.Options.SmoothMove ? model.Games.SetItems(model.Games.Select(pair =>
                     KeyValuePair.Create(pair.Key, pair.Value with { Motion = pair.Value.Motion.Stop() }))) : model.Games },
         ClientMessage.SettingsEdited edit => model with { SettingsEditor = edit.Value },
+        ClientMessage.LogImageLoading image when !model.LogImages.ContainsKey(image.Url) &&
+            model.LogImages.Count < LogImages.MaximumEntries &&
+            LogMarkup.PublicHttpUrl(image.Url, out _) =>
+            model with { LogImages = model.LogImages.Add(image.Url, new(image.Request)) },
+        ClientMessage.LogImageLoaded image when model.LogImages.GetValueOrDefault(image.Url) is { Loading: true } pending &&
+            pending.Request == image.Request && LogImages.ValidPixels(image.Width, image.Height, image.Pixels) =>
+            model with { LogImages = model.LogImages.SetItem(image.Url,
+                new(image.Request, false, Width: image.Width, Height: image.Height, Pixels: image.Pixels)) },
+        ClientMessage.LogImageFailed image when model.LogImages.GetValueOrDefault(image.Url) is { Loading: true } pending &&
+            pending.Request == image.Request =>
+            model with { LogImages = model.LogImages.SetItem(image.Url, new(image.Request, false, image.Error)) },
         ClientMessage.AutomapLoaded loaded => model with
         {
             Automaps = model.Automaps.SetItem(loaded.World,

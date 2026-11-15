@@ -67,6 +67,7 @@ partial class App
             disposed = true;
             worldLifetime.Cancel();
             worldClient?.Dispose();
+            logImageClient?.Dispose();
             worldLifetime.Dispose();
             animation?.Stop();
             predictionTimer?.Stop();

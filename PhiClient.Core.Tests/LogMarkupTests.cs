@@ -63,9 +63,35 @@ public sealed class LogMarkupTests
     {
         var parts = LogMarkup.Parse("<script>ignored()</script> https://example.invalid/a /*img=https://example.invalid/a.png*/");
         Assert.Contains("<script>ignored()</script>", string.Concat(parts.Select(part => part.Text)));
-        Assert.Equal("https://example.invalid/a", Assert.Single(parts, part => part.Link is not null && part.Image is null).Link!.AbsoluteUri);
+        Assert.DoesNotContain(parts, part => part.Link is not null);
         Assert.Equal("https://example.invalid/a.png", Assert.Single(parts, part => part.Image is not null).Image!.AbsoluteUri);
         var badFont = Assert.Single(LogMarkup.Parse("/*font=bad;url(file)*/text"));
         Assert.Null(badFont.Style.Font);
+        Assert.Equal("https://example.invalid/a",
+            Assert.Single(LogMarkup.Parse("https://example.invalid/a")).Link!.AbsoluteUri);
+    }
+
+    [Fact]
+    public void OriginalLogOptionsControlImagesLinksShoutsUnknownTagsAndDimensions()
+    {
+        var image = Assert.Single(LogMarkup.Parse("/*img=https://example.invalid/a.png width=5000 height=bad align=top*/"));
+        Assert.Equal(1000, image.Width);
+        Assert.Equal(0, image.Height);
+        Assert.Equal("top", image.Align);
+        Assert.Empty(LogMarkup.Parse("/*img=https://example.invalid/a.png*/", new ClientOptions { LogImageDisp = false }));
+        Assert.DoesNotContain(LogMarkup.Parse("( /*img=https://example.invalid/a.png*/",
+            new ClientOptions { LogImageDispLoud = false }), part => part.Image is not null);
+        Assert.All(LogMarkup.Parse("https://example.invalid/a", new ClientOptions { LogUrlLink = false }),
+            part => Assert.Null(part.Link));
+        Assert.Equal("/*unknown*/", Assert.Single(LogMarkup.Parse("/*unknown*/",
+            new ClientOptions { NotInterpretedTagDisp = true })).Text);
+        var urlParts = LogMarkup.Parse("https://example.invalid/a.png");
+        Assert.Single(urlParts, part => part.Image is not null);
+        Assert.Equal("\nhttps://example.invalid/a.png", urlParts[^1].Text);
+        Assert.Single(LogMarkup.Parse("https://example.invalid/a.png", new ClientOptions { LogImageLinkDisp = false }));
+        Assert.Null(Assert.Single(LogMarkup.Parse("https://example.invalid/a.png",
+            new ClientOptions { LogImageDispURL = false })).Image);
+        Assert.NotNull(Assert.Single(LogMarkup.Parse("( /*size=9*/大",
+            new ClientOptions { LogLargeDispLoud = true }), part => part.Text == "大").Style.Size);
     }
 }
