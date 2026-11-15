@@ -4,6 +4,23 @@ namespace PhiClient.Core.Tests;
 
 public sealed class RegistrationFormTests
 {
+    [Theory]
+    [InlineData(RegistrationStage.SavePending, true)]
+    [InlineData(RegistrationStage.Unknown, true)]
+    [InlineData(RegistrationStage.Review, false)]
+    public void OnlyUnresolvedRegistrationSecretsMakeDiscardConfirmationCancelByDefault(
+        RegistrationStage stage, bool cancelDefault)
+    {
+        var model = new ClientModel { Registration = new(stage), Draft = new() { Id = "private", Password = "secret" } };
+        var dialog = model.Registration.DiscardConfirmation();
+        Assert.Equal(cancelDefault, dialog.CancelDefault);
+        var closed = ClientUpdate.Apply(ClientUpdate.Apply(model, new ClientMessage.DialogChanged(dialog)),
+            new ClientMessage.DialogChanged(null));
+        Assert.Same(model.Draft, closed.Draft);
+        Assert.Same(model.Registration, closed.Registration);
+        Assert.False(new DialogModel("Send", "Confirm", "Send").CancelDefault);
+    }
+
     [Fact]
     public void WorldStepOnlyValidatesEndpointWithoutGeneratingCredentials()
     {

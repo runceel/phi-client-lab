@@ -11,6 +11,14 @@ public sealed record RegistrationForm(
         RegistrationStage.Review or RegistrationStage.Rejected;
     public bool NeedsDiscardWarning => Stage is RegistrationStage.SavePending or RegistrationStage.Unknown;
 
+    public DialogModel DiscardConfirmation() => new("登録画面を閉じますか",
+        Stage == RegistrationStage.SavePending
+            ? "世界では作成済みですが、このPCには保存されていません。IDとパスワードを控えずに閉じると、接続できなくなるおそれがあります。" :
+        Stage == RegistrationStage.Unknown
+            ? "作成済みの可能性があります。結果が不明なまま再作成しないでください。閉じると下書きと秘密情報を消去します。" :
+            "入力した内容を破棄します。サーバーへ作成要求は送りません。", "破棄して閉じる",
+        CancelDefault: NeedsDiscardWarning);
+
     public static IReadOnlyDictionary<string, string> Errors(CharacterDraft draft, bool newCharacter,
         bool worldOnly = false, bool customPassword = false)
     {

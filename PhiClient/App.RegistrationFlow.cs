@@ -256,12 +256,7 @@ partial class App
             model.Registration.Stage != RegistrationStage.Complete &&
             new[] { name, host, id, password, email }.Any(value => value.Length > 0))
         {
-            var answer = await RequestDialogAsync(new("登録画面を閉じますか",
-                model.Registration.Stage == RegistrationStage.SavePending
-                    ? "世界では作成済みですが、このPCには保存されていません。IDとパスワードを控えずに閉じると、接続できなくなるおそれがあります。" :
-                model.Registration.Stage == RegistrationStage.Unknown
-                    ? "作成済みの可能性があります。結果が不明なまま再作成しないでください。閉じると下書きと秘密情報を消去します。" :
-                    "入力した内容を破棄します。サーバーへ作成要求は送りません。", "破棄して閉じる"));
+            var answer = await RequestDialogAsync(model.Registration.DiscardConfirmation());
             if (!answer.Accepted) return false;
         }
         registrationGraphicsCancellation?.Cancel();

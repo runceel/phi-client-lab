@@ -190,7 +190,8 @@ partial class App
         {
             var x = index % 3 - 1;
             var y = index / 3 - 1;
-            if (index is 6 or 8) return (Element)Empty().Width((width - 12) / 3).Height(36);
+            if (index is 6 or 8) return (Element)Canvas().Width((width - 12) / 3).Height(36)
+                .IsHitTestVisible(false).AccessibilityHidden();
             var name = $"{directions[index]}（{keys[index]}）";
             return (Element)Button(arrows[index], () => Execute(session, GameInput.MapPad(x, y, session.NorthFixed)))
                 .Width((width - 12) / 3).Height(36).ToolTip(name).AutomationName(name)

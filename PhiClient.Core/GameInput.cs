@@ -3,7 +3,7 @@ namespace PhiClient.Core;
 public enum InputIntent
 {
     Send, FocusInput, NextTab, PreviousTab, ToggleMap, WriteSign,
-    ForceDisconnect, ForceDisconnectAll, ListNumber, ListUp, ListDown, ListToggle, ListAccept
+    ForceDisconnect, ForceDisconnectAll, ListNumber, ListUp, ListDown, ListToggle, ListAccept, FocusLog
 }
 
 public sealed record InputAction(string[] Commands)
@@ -25,6 +25,15 @@ public static class GameInput
     private static InputAction Intent(InputIntent intent) => new([]) { Intent = intent };
     public static InputAction Spell(string name, bool unequip = true) =>
         new(["cast", name]) { HiddenLists = 1, AutoUnequip = unequip };
+
+    public static InputAction? TabAction(bool chatFocused, bool shift = false, bool control = false, bool alt = false) =>
+        alt ? null : control ? Intent(shift ? InputIntent.PreviousTab : InputIntent.NextTab) :
+        shift ? null : Intent(chatFocused ? InputIntent.FocusLog : InputIntent.FocusInput);
+
+    public static bool NativeControlOwnsKey(ConsoleKey key, bool navigation = false) =>
+        key is ConsoleKey.Spacebar or ConsoleKey.Enter ||
+        navigation && key is ConsoleKey.UpArrow or ConsoleKey.DownArrow or ConsoleKey.LeftArrow or ConsoleKey.RightArrow or
+            ConsoleKey.Home or ConsoleKey.End or ConsoleKey.PageUp or ConsoleKey.PageDown or ConsoleKey.Escape;
 
     public static InputAction ApplyOptions(InputAction action, ClientOptions options) => action with
     {
@@ -63,8 +72,8 @@ public static class GameInput
                 return Command(lines);
             }
         }
-        if (key == ConsoleKey.Tab && control && !alt)
-            return Intent(shift ? InputIntent.PreviousTab : InputIntent.NextTab);
+        if (key == ConsoleKey.Tab)
+            return TabAction(false, shift, control, alt);
         if (control && (shift || alt))
             return null;
         if (alt)
@@ -164,7 +173,6 @@ public static class GameInput
         return key switch
         {
             ConsoleKey.Pause => Intent(InputIntent.ForceDisconnect),
-            ConsoleKey.Tab => Intent(InputIntent.FocusInput),
             ConsoleKey.A => Command("read"),
             ConsoleKey.B => Command("board"),
             ConsoleKey.C or ConsoleKey.Multiply => Command("use"),

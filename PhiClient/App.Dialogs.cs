@@ -62,7 +62,8 @@ partial class App
             IsOpen = dialog is not null,
             CloseButtonText = dialog?.Accept is null ? "閉じる" : "キャンセル",
             SecondaryButtonText = dialog?.Alternative ?? "",
-            DefaultButton = dialog?.Accept is null ? ContentDialogButton.Close : ContentDialogButton.Primary,
+            DefaultButton = dialog?.Accept is null || dialog.CancelDefault
+                ? ContentDialogButton.Close : ContentDialogButton.Primary,
             OnClosed = CompleteDialog
         };
     }

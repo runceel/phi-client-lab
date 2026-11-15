@@ -200,6 +200,9 @@ partial class App
                 viewer.Content = presenter.Surface;
                 viewer.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White);
                 viewer.IsTabStop = true;
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(viewer, "世界ログ・ゲーム操作");
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(viewer,
+                    "矢印・テンキーでゲーム操作。Tabでチャット入力へ。Shift+Tabで通常のUIフォーカス移動。");
                 gameControl = viewer;
                 viewer.Loaded += (_, _) =>
                 {
@@ -290,9 +293,9 @@ partial class App
             model.GameGuideVisible || session.Model.Transferring || session.PreparingMagic ?
             Caption(session.Model.Transferring ? "世界移動中です。操作は送信しません。「切断」で移動を中止できます。" :
                 session.PreparingMagic ? "Preparing magic: waiting for equipment response; other input is paused." :
-                model.ChatFocused ? "チャット入力中 / Enter: 送信 / Esc: ゲーム操作" :
+                model.ChatFocused ? "チャット入力中 / Enter: 送信 / Tab・Esc: ログでゲーム操作 / Shift+Tab: UI移動" :
                 model.NativeInputFocused ? "文字入力・UI操作中 / 入力欄やメニューの操作が優先されます" :
-                model.GameGuideVisible ? "移動: 矢印・テンキー / Tab: チャット / Esc: ゲーム操作 / Ctrl+Tab: 次のキャラクター" :
+                model.GameGuideVisible ? "ログでゲーム操作: 矢印・テンキー / Tab: チャット / Shift+Tab: UI移動 / Ctrl+Tab: 次のキャラクター" :
                 "ゲーム操作 / Tab: チャット")
                 .AutomationId("input-mode").Flex(shrink: 0) : Empty(),
             gameBody.Flex(grow: 1, basis: 0).OnSizeChanged((_, args) =>

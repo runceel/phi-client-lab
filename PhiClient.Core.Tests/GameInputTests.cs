@@ -4,6 +4,40 @@ namespace PhiClient.Core.Tests;
 
 public sealed class GameInputTests
 {
+    [Fact]
+    public void TabSwitchesChatAndLogWithoutSendingAndLeavesAnEscapeToNativeFocusNavigation()
+    {
+        var chat = Assert.IsType<InputAction>(GameInput.TabAction(false));
+        var log = Assert.IsType<InputAction>(GameInput.TabAction(true));
+        Assert.Equal(InputIntent.FocusInput, chat.Intent);
+        Assert.Equal(InputIntent.FocusLog, log.Intent);
+        Assert.Empty(chat.Commands);
+        Assert.Empty(log.Commands);
+        foreach (var chatFocused in new[] { false, true })
+        {
+            Assert.Null(GameInput.TabAction(chatFocused, shift: true));
+            Assert.Null(GameInput.TabAction(chatFocused, alt: true));
+            Assert.Equal(InputIntent.NextTab, GameInput.TabAction(chatFocused, control: true)!.Intent);
+            Assert.Equal(InputIntent.PreviousTab, GameInput.TabAction(chatFocused, shift: true, control: true)!.Intent);
+        }
+        Assert.Equal(chat.Intent, GameInput.Resolve(ConsoleKey.Tab, true)!.Intent);
+        Assert.Null(GameInput.Resolve(ConsoleKey.Tab, true, shift: true));
+    }
+
+    [Theory]
+    [InlineData(ConsoleKey.Spacebar, false, true)]
+    [InlineData(ConsoleKey.Enter, false, true)]
+    [InlineData(ConsoleKey.UpArrow, false, false)]
+    [InlineData(ConsoleKey.Z, false, false)]
+    [InlineData(ConsoleKey.Spacebar, true, true)]
+    [InlineData(ConsoleKey.LeftArrow, true, true)]
+    [InlineData(ConsoleKey.Home, true, true)]
+    [InlineData(ConsoleKey.Escape, true, true)]
+    [InlineData(ConsoleKey.Z, true, false)]
+    public void NativeControlsRetainOnlyTheirActivationOrNavigationKeys(
+        ConsoleKey key, bool navigation, bool expected) =>
+        Assert.Equal(expected, GameInput.NativeControlOwnsKey(key, navigation));
+
     [Theory]
     [InlineData(ConsoleKey.D8, true, false, false, "go N")]
     [InlineData(ConsoleKey.K, false, false, false, "go b")]

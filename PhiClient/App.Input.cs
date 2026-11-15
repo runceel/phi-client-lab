@@ -67,11 +67,32 @@ partial class App
         }
         if (((sender as FrameworkElement)?.XamlRoot ?? gameControl?.XamlRoot) is not { } root) return;
         var focused = FocusManager.GetFocusedElement(root);
-        if (args.Key == VirtualKey.Tab && !control && !ReferenceEquals(focused, gameControl)) return;
+        if (args.Key == VirtualKey.Tab && !control)
+        {
+            var chat = ReferenceEquals(focused, inputControl);
+            var log = ReferenceEquals(focused, gameControl) || ReferenceEquals(focused, session.LogPresenter?.Control);
+            if ((!chat && !log) || GameInput.TabAction(chat, shift, control, alt) is not { } tab) return;
+            var target = tab.Intent == InputIntent.FocusLog ? gameControl : inputControl;
+            if (target is not { IsLoaded: true } || target.XamlRoot != root ||
+                !args.KeyStatus.WasKeyDown && !target.Focus(FocusState.Keyboard)) return;
+            args.Handled = true;
+            TraceDiagnostic(DiagnosticEvent.InputHandled);
+            return;
+        }
         // Log selection keeps its copy/select shortcuts; ordinary game keys work after clicking the log.
         for (var parent = focused as DependencyObject; parent is not null; parent = VisualTreeHelper.GetParent(parent))
         {
             if (parent is RichTextBlock && control && args.Key is VirtualKey.C or VirtualKey.A or VirtualKey.Insert)
+                return;
+            var navigation = parent is Microsoft.UI.Xaml.Controls.Primitives.Selector or
+                Microsoft.UI.Xaml.Controls.Primitives.RangeBase or Microsoft.UI.Xaml.Controls.Expander or TabViewItem or
+                Microsoft.UI.Xaml.Controls.RadioButton or Microsoft.UI.Xaml.Controls.ToggleSwitch;
+            if ((navigation || parent is Microsoft.UI.Xaml.Controls.Primitives.ButtonBase or
+                    Microsoft.UI.Xaml.Documents.Hyperlink) &&
+                GameInput.NativeControlOwnsKey((ConsoleKey)args.Key, navigation))
+                return;
+            if (parent is RichTextBlock && (control || shift) &&
+                GameInput.NativeControlOwnsKey((ConsoleKey)args.Key, navigation: true))
                 return;
             var automationId = Microsoft.UI.Xaml.Automation.AutomationProperties.GetAutomationId(parent);
             if (automationId == "map-viewport" || automationId.StartsWith("map-zoom-", StringComparison.Ordinal))
@@ -143,6 +164,8 @@ partial class App
     {
         inputControl = box;
         composing = committingComposition = false;
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(box,
+            "Tabでログへ切り替えてゲーム操作。Shift+Tabで通常のUIフォーカス移動。");
         box.TextChanging += (input, _) =>
         {
             if (disposed || active != session || inputControl != input || !input.IsLoaded || session.Input == input.Text) return;
@@ -193,12 +216,13 @@ partial class App
             return;
         if (session.Model.Transferring && action.Intent is not
             (InputIntent.ForceDisconnect or InputIntent.ForceDisconnectAll or InputIntent.NextTab or
-                InputIntent.PreviousTab or InputIntent.FocusInput))
+                InputIntent.PreviousTab or InputIntent.FocusInput or InputIntent.FocusLog))
             return;
         var selection = session.Selection;
         switch (action.Intent)
         {
             case InputIntent.FocusInput: inputControl?.Focus(FocusState.Programmatic); return;
+            case InputIntent.FocusLog: gameControl?.Focus(FocusState.Programmatic); return;
             case InputIntent.NextTab: CycleTab(1); return;
             case InputIntent.PreviousTab: CycleTab(-1); return;
             case InputIntent.ToggleMap: showMap = !showMap; refresh(); return;
@@ -350,6 +374,7 @@ partial class App
         "Ctrl+Tab / Ctrl+Shift+Tab: next / previous character; Pause / Shift+F1: force disconnect.\n" +
         "Lists: 1-9 current page; arrows cursor; Space check; Enter send; 0/Esc/./left/right cancel; -/+ all.\n\n" +
         "Text field: Enter sends and clears the current line; Shift+Enter inserts a newline;\n" +
-        "Ctrl+Enter sends to party. Esc enters movement mode; Tab returns to input.\n" +
+        "Ctrl+Enter sends to party. Tab switches between chat and log/game mode; Esc also returns to the log.\n" +
+        "Shift+Tab uses normal UI focus navigation; Space/Enter activate focused native controls.\n" +
         "IME composition Enter confirms text only. Shout requires confirmation via Operation."));
 }
