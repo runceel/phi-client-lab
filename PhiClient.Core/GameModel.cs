@@ -123,7 +123,8 @@ public static class GameUpdate
         MapFrame map => model with { Map = map, Prediction = map.Size == 7 && model.NorthUp && map.Position is { } pos
             ? model.Prediction.OnMap(pos, at) : model.Prediction.Reset() },
         MapSetNotice mapset => model with { MapSets = model.MapSets.SetItem(mapset.Index, mapset.Name) },
-        Choices choices => Select(model, selection => selection.Receive(choices.Items)),
+        Choices { Complete: false } => model with { Selection = new() },
+        Choices choices when choices.Items.Count > 0 => Select(model, selection => selection.Receive(choices.Items)),
         MapStyle style => model with { NorthUp = style.NorthUp, Prediction = model.Prediction.Reset() },
         EditMode edit => model with { Editing = edit.Active },
         Conditions conditions => model with { Conditions = conditions },

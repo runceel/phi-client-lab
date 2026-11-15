@@ -66,7 +66,7 @@ public sealed class ModelUpdateTests
         var listed = GameUpdate.Apply(initial, new GameMessage.Received(
             new Choices(Enumerable.Range(1, 9).Select(i => new Choice($"{i}", $"Item {i}")).ToArray())));
         var checkedFirst = GameUpdate.Apply(listed, new GameMessage.SelectionToggled(0));
-        var waiting = GameUpdate.Apply(checkedFirst, new GameMessage.SelectionBegan(checkedFirst.Selection.Number(9)));
+        var waiting = GameUpdate.Apply(checkedFirst, new GameMessage.SelectionBegan(checkedFirst.Selection.Number(9)!));
         var next = GameUpdate.Apply(waiting, new GameMessage.Received(new Choices([new("9", "Last item")])));
         var checkedLast = GameUpdate.Apply(next, new GameMessage.SelectionToggled(8));
         Assert.Empty(initial.Selection.Items);

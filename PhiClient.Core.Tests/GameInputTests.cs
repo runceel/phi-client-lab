@@ -70,20 +70,78 @@ public sealed class GameInputTests
         var selection = new ChoiceSelection();
         selection.Receive(Enumerable.Range(1, 9).Select(n => new Choice(n.ToString(), $"Item {n}")).ToArray());
         selection.ToggleCursor();
-        var next = selection.Number(9);
+        var next = Assert.IsType<SelectionCommand>(selection.Number(9));
         Assert.Equal(new SelectionCommand("9", true), next);
         selection.Begin(next);
         Assert.True(selection.Waiting);
         selection.Receive(Enumerable.Range(9, 3).Select(n => new Choice(n.ToString(), $"Item {n}")).ToArray());
         Assert.False(selection.Waiting);
         Assert.Equal(8, selection.PageStart);
-        Assert.Equal("9", selection.Number(1).Text);
-        Assert.Equal(".", selection.Number(4).Text);
+        Assert.Equal("9", selection.Number(1)!.Text);
+        Assert.Equal(".", selection.Number(4)!.Text);
         selection.ToggleCursor();
         Assert.Equal("1 9", selection.Confirm().Text);
         selection.Begin(selection.Confirm());
         Assert.False(selection.Active);
         Assert.Empty(selection.Checked);
+    }
+
+    [Fact]
+    public void ListsPreserveUnnumberedRowsAndUseTheFirstRowOffsetForEveryWireNumber()
+    {
+        var parser = new ProtocolParser();
+        parser.Feed("#list"u8.ToArray());
+        parser.Feed(PhiWire.Encode("説明"));
+        parser.Feed(PhiWire.Encode("[8] /*r*/Item/*.*/"));
+        parser.Feed(PhiWire.Encode("備考"));
+        var list = Assert.IsType<Choices>(Assert.Single(parser.Feed("#end-list"u8.ToArray())));
+        Assert.Equal(new[] { "1", "2", "3" }, list.Items.Select(item => item.Number));
+        Assert.Equal(new[] { "説明", "[8] /*r*/Item/*.*/", "備考" }, list.Items.Select(item => item.Raw));
+        var selection = new ChoiceSelection();
+        selection.Receive(list.Items);
+        Assert.Equal("2", selection.Number(2)!.Text);
+        Assert.Null(selection.Number(9));
+        parser.Feed("#list"u8.ToArray());
+        parser.Feed(PhiWire.Encode("Page /*r*/12/*.*/"));
+        parser.Feed(PhiWire.Encode("not numbered"));
+        list = Assert.IsType<Choices>(Assert.Single(parser.Feed("#end-list"u8.ToArray())));
+        Assert.Equal(new[] { "12", "13" }, list.Items.Select(item => item.Number));
+    }
+
+    [Fact]
+    public void OnlyMatchingPagesExtendAndOnlyTheNineKeyRequestsContinuation()
+    {
+        var selection = new ChoiceSelection();
+        selection.Receive(Enumerable.Range(1, 9).Select(number => new Choice($"{number}", "row")).ToArray());
+        Assert.False(selection.Pick(8).NextPage);
+        selection.Toggle(8);
+        Assert.Equal(new SelectionCommand("9"), selection.Confirm());
+        selection.Begin(selection.Number(9)!);
+        Assert.Null(selection.Number(9));
+        selection.Receive([new("4", "unrelated")]);
+        Assert.Single(selection.Items);
+        Assert.Empty(selection.Checked);
+        Assert.Equal(0, selection.PageStart);
+        selection.Receive(Enumerable.Range(1, 9).Select(number => new Choice($"{number}", "row")).ToArray());
+        selection.Toggle(0);
+        selection.Receive([new("9", "matching without a wait flag")]);
+        Assert.Equal(9, selection.Items.Count);
+        Assert.Contains("1", selection.Checked);
+        Assert.Equal(8, selection.PageStart);
+    }
+
+    [Fact]
+    public void EmptyCompletedListsDoNotEraseSelectionButExplicitEndAndInvalidOffsetsDo()
+    {
+        var model = GameUpdate.Apply(new(), new GameMessage.Received(new Choices([new("1", "row")])));
+        Assert.True(GameUpdate.Apply(model, new GameMessage.Received(new Choices([]))).Selection.Active);
+        Assert.False(GameUpdate.Apply(model, new GameMessage.Received(new Choices([], false))).Selection.Active);
+        var parser = new ProtocolParser();
+        parser.Feed("#list"u8.ToArray());
+        Assert.IsType<LogLine>(Assert.Single(parser.Feed(PhiWire.Encode("[" + new string('9', 100) + "] bad"))));
+        var rejected = Assert.IsType<Choices>(Assert.Single(parser.Feed("#end-list"u8.ToArray())));
+        Assert.False(rejected.Complete);
+        Assert.Empty(rejected.Items);
     }
 
     [Theory]

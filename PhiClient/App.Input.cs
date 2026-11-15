@@ -123,7 +123,7 @@ partial class App
             case InputIntent.ListDown: session.Dispatch(new GameMessage.SelectionMoved(1)); break;
             case InputIntent.ListToggle: session.Dispatch(new GameMessage.SelectionAdvanced()); break;
             case InputIntent.ListNumber:
-                if (!selection.Waiting) Choose(session, selection.Number(action.Number));
+                if (selection.Number(action.Number) is { } number) Choose(session, number);
                 return;
             case InputIntent.ListAccept:
                 if (!selection.Waiting) Choose(session, selection.Confirm());

@@ -97,7 +97,8 @@ public sealed class PhiConnectionTests
         Assert.Equal((byte)'#', map.Tiles[0]);
         Assert.All(map.Attributes, value => Assert.Equal(0x81, value));
         var list = Assert.Single(events.OfType<Choices>());
-        Assert.Equal(new[] { new Choice("9", "Potion"), new Choice("10", "Next page") }, list.Items);
+        Assert.Equal(new[] { new Choice("9", "Potion") { Raw = " [/*r*/ 9/*.*/] Potion" },
+            new Choice("10", "Next page") { Raw = "[10] Next page" } }, list.Items);
         Assert.Single(events.OfType<Closed>());
     }
 
@@ -301,7 +302,7 @@ public sealed class PhiConnectionTests
         queued.SetResult();
         await Task.WhenAll(server, running, casting, moving).WaitAsync(timeout.Token);
         var displayed = Assert.Single(events.OfType<Choices>(), item => item.Complete);
-        Assert.Equal([new Choice("9", "Choose target")], displayed.Items);
+        Assert.Equal([new Choice("9", "Choose target") { Raw = "[9] Choose target" }], displayed.Items);
         Assert.Contains(events.OfType<LogLine>(), line => line.Text == "Can not unequip." && line.Literal);
     }
 
@@ -335,7 +336,7 @@ public sealed class PhiConnectionTests
         Assert.Contains("spell was not cast", error.Message);
         await connection.SendActionAsync(GameInput.Command("get"), timeout.Token);
         await Task.WhenAll(server, running).WaitAsync(timeout.Token);
-        Assert.Equal([new Choice("1", "Potion")], Assert.Single(lists).Items);
+        Assert.Equal([new Choice("1", "Potion") { Raw = "[1] Potion" }], Assert.Single(lists).Items);
     }
 
     [Theory]

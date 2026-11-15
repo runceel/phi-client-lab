@@ -134,7 +134,8 @@ partial class App
                         session.Dispatch(new GameMessage.SelectionToggled(index));
                     }, ""),
                     TextBlock($"{(index >= selection.PageStart ? $"({index - selection.PageStart + 1}) " : "")}" +
-                        $"[{choice.Number}] {choice.Text}").TextWrapping(TextWrapping.Wrap))).ToArray())
+                        (choice.Raw is { } raw ? ProtocolParser.PlainText(raw) : $"[{choice.Number}] {choice.Text}"))
+                        .TextWrapping(TextWrapping.Wrap))).ToArray())
                 .ItemClick(index => Choose(session, selection.Pick(index)))
                 .MaxHeight(220).IsEnabled(!selection.Waiting).AutomationId("selection-list")
                 .OnMount(element => listControl = (Microsoft.UI.Xaml.Controls.ListView)element),

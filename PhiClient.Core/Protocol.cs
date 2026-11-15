@@ -19,7 +19,10 @@ public sealed record Reply(string Command) : ServerEvent;
 public sealed record Closed : ServerEvent;
 public sealed record EditMode(bool Active) : ServerEvent;
 public sealed record InputRequested : ServerEvent;
-public sealed record Choice(string Number, string Text);
+public sealed record Choice(string Number, string Text)
+{
+    public string? Raw { get; init; }
+}
 public sealed record Choices(IReadOnlyList<Choice> Items, bool Complete = true) : ServerEvent;
 public sealed record Actor(int X, int Y, string Name, string Graphic = "", char Direction = 'F',
     char Size = '#', int Layer = 0, int DefaultGraphic = 1, int Status = 0, Magnify? Magnify = null);
@@ -160,6 +163,8 @@ public sealed partial class ProtocolParser
     private bool more;
     internal bool InLiteralBlock => more;
     private bool listing;
+    private long listBase;
+    private bool invalidList;
     private readonly List<Choice> choices = [];
     private byte[]? tiles;
     private byte[]? attributes;
@@ -178,6 +183,8 @@ public sealed partial class ProtocolParser
     private static partial Regex TagPattern();
     [GeneratedRegex(@"\[\s*(\d+)\]\s*(.*)", RegexOptions.CultureInvariant | RegexOptions.NonBacktracking)]
     private static partial Regex ChoicePattern();
+    [GeneratedRegex(@"\d+", RegexOptions.CultureInvariant | RegexOptions.NonBacktracking)]
+    private static partial Regex ListNumberPattern();
 
     public static string PlainText(string text) => TagPattern().Replace(text.Replace("/*br*/", "\n"), "");
 
@@ -264,8 +271,8 @@ public sealed partial class ProtocolParser
             case "#lag": return [new Reply("#end-lag")];
             case "#remap": return [new Reply("#map")];
             case "#close" or "#x": return [new Closed()];
-            case "#list": listing = true; choices.Clear(); return [];
-            case "#end-list": listing = false; return [new Choices(choices.ToArray())];
+            case "#list": listing = true; invalidList = false; listBase = 0; choices.Clear(); return [];
+            case "#end-list": listing = false; return [new Choices(choices.ToArray(), !invalidList)];
             case "#ex-list-mode-end": listing = false; return [new Choices([], false)];
             case "#m-edit": return [new EditMode(true)];
             case "#s-edit": return [new InputRequested()];
@@ -324,9 +331,24 @@ public sealed partial class ProtocolParser
         var plain = PlainText(text);
         if (listing)
         {
+            if (raw.Length == 0 || invalidList || choices.Count >= 1000) return [];
+            if (choices.Count == 0)
+            {
+                var first = ListNumberPattern().Match(plain);
+                if (first.Success)
+                {
+                    if (!long.TryParse(first.Value, NumberStyles.None, CultureInfo.InvariantCulture, out var number) ||
+                        number > long.MaxValue - 1000)
+                    {
+                        invalidList = true;
+                        return [new LogLine("[Protocol] Invalid list number; the list cannot be selected.")];
+                    }
+                    listBase = Math.Max(number - 1, 0);
+                }
+            }
             var match = ChoicePattern().Match(plain);
-            if (match.Success && choices.Count < 1000)
-                choices.Add(new Choice(match.Groups[1].Value, match.Groups[2].Value));
+            choices.Add(new Choice((listBase + choices.Count + 1).ToString(CultureInfo.InvariantCulture),
+                match.Success ? match.Groups[2].Value : plain) { Raw = text });
             return [];
         }
         if (text.StartsWith('[') && text.IndexOf(']') is var close && close > 0 &&

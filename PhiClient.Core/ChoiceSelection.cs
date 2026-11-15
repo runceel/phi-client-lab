@@ -28,7 +28,7 @@ public sealed class ChoiceSelection
             Clear();
             return;
         }
-        if (Waiting)
+        if (Active && page[0].Number == items[^1].Number)
         {
             checkedNumbers.Remove(items[^1].Number);
             items.RemoveAt(items.Count - 1);
@@ -65,7 +65,7 @@ public sealed class ChoiceSelection
         if (Waiting || index < 0 || index >= items.Count)
             return;
         Cursor = index;
-        if (!IsContinuation(index) && !checkedNumbers.Add(items[index].Number))
+        if (!checkedNumbers.Add(items[index].Number))
             checkedNumbers.Remove(items[index].Number);
     }
 
@@ -77,9 +77,10 @@ public sealed class ChoiceSelection
 
     public SelectionCommand Pick(int index) =>
         index < 0 || index >= items.Count ? new(".") :
-            new(items[index].Number, IsContinuation(index));
+            new(items[index].Number);
 
-    public SelectionCommand Number(int ordinal) =>
+    public SelectionCommand? Number(int ordinal) =>
+        ordinal == 9 ? Waiting || items.Count - PageStart < 9 ? null : new(items[PageStart + 8].Number, true) :
         ordinal is < 1 or > 9 ? new(".") : Pick(PageStart + ordinal - 1);
 
     public SelectionCommand Confirm() => Checked.Count == 0 ? Pick(Cursor) :
@@ -93,5 +94,4 @@ public sealed class ChoiceSelection
             Clear();
     }
 
-    private bool IsContinuation(int index) => index == PageStart + 8 && index == items.Count - 1;
 }
