@@ -90,6 +90,9 @@ public sealed partial class PhiConnection : IDisposable
     public Task SendAsync(string[] commands, CancellationToken token = default, int suppressLists = 0) =>
         SendBatchAsync(commands, token, suppressLists, Volatile.Read(ref transportGeneration));
 
+    public Task SendPinnedAsync(string[] commands, int generation, CancellationToken token = default) =>
+        SendBatchAsync(commands, token, 0, generation);
+
     public Task SendScriptAsync(string[] commands, int suppressLists, int generation, CancellationToken token = default)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(suppressLists);

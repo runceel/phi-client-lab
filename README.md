@@ -93,6 +93,21 @@ Alt+Gとフルキー移動も設定できます。自動装備を有効にする
 
 ## Playing
 
+**Operation > 全タブへ発言** は、開いている接続中のタブだけへ同じ行を送ります。
+送信ごとに対象タブ数を確認し、キャンセルすると全タブ発言を解除して下書きを保持します。
+保存済みのキャラクターを新たに開く操作ではありません。
+
+**Operation > 大声で発言** は世界全体への発言です。確認画面の **今回だけ送信** は
+送信後に通常発言へ戻し、**すべて大声** は次の発言にも適用します。
+全タブ発言を有効にしている間は通常発言として送ります。
+**発言の前に付ける言葉…** は空の入力行と送信後の新しい行へ追加します。空欄で解除できます。
+末尾行で修飾キーを使わずDownを押すと、その行を設定した言葉に置き換えます。
+IME変換中はこの操作を行いません。
+
+これらの状態遷移・行編集・100msの送信間隔は純粋テストで確認しています。
+追加モードのnative UIA試験はメニュー項目の取得で中断しており、実キーとIMEの確認も
+前面化が可能になってから行う残確認です。
+
 1. Register an existing character: enter a display name, server hostname, TCP
    port and character ID, then **Save character**. The first line of an existing
    Philly/wphi `.phirc` contains its ID. Folder import is not implemented.

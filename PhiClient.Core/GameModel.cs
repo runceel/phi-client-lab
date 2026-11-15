@@ -26,6 +26,11 @@ public sealed record GameModel
     public string World { get; init; } = "";
     public string Area { get; init; } = "";
     public string Input { get; init; } = "";
+    public bool Loud { get; init; }
+    public bool RepeatLoud { get; init; }
+    public bool AllTabSpeech { get; init; }
+    public string TalkPrefix { get; init; } = "";
+    public long LastChatAttempt { get; init; } = long.MinValue;
     public string BoardText { get; init; } = "";
     public bool Editing { get; init; }
     public MapFrame? Map { get; init; }
@@ -51,6 +56,10 @@ public abstract record GameMessage
     public sealed record PredictionReset : GameMessage;
     public sealed record PhaseChanged(ConnectionPhase Phase) : GameMessage;
     public sealed record InputChanged(string Text) : GameMessage;
+    public sealed record LoudChanged(bool Value, bool Repeat = false) : GameMessage;
+    public sealed record AllTabSpeechChanged(bool Value) : GameMessage;
+    public sealed record TalkPrefixChanged(string Value) : GameMessage;
+    public sealed record ChatAttempted(long At) : GameMessage;
     public sealed record BoardChanged(string Text) : GameMessage;
     public sealed record EditingChanged(bool Value) : GameMessage;
     public sealed record PreparingChanged(bool Value) : GameMessage;
@@ -104,13 +113,19 @@ public static class GameUpdate
             Append(new GameModel { Input = model.Input, BoardText = model.BoardText, Log = model.Log,
                 LogEntries = model.LogEntries, NextLogId = model.NextLogId, RawLogCharacters = model.RawLogCharacters,
                 LogCharacters = model.LogCharacters, LogSaving = model.LogSaving,
-                Priv = model.Priv with { Picked = [], Sending = false }, Phase = ConnectionPhase.Connecting }, "[Connecting...]"),
+                Priv = model.Priv with { Picked = [], Sending = false }, Phase = ConnectionPhase.Connecting,
+                Loud = model.Loud, RepeatLoud = model.RepeatLoud, AllTabSpeech = model.AllTabSpeech,
+                TalkPrefix = model.TalkPrefix }, "[Connecting...]"),
         GameMessage.PhaseChanged { Phase: ConnectionPhase.Offline } =>
             model with { Phase = ConnectionPhase.Offline, Selection = new(), Editing = false,
                 PreparingMagic = false, Transferring = false, Prediction = model.Prediction.Reset(),
                 UserRefresh = model.UserRefresh.Finish(), Priv = model.Priv with { Sending = false }, Master = null },
         GameMessage.PhaseChanged phase => model with { Phase = phase.Phase },
         GameMessage.InputChanged input => model with { Input = input.Text },
+        GameMessage.LoudChanged loud => model with { Loud = loud.Value, RepeatLoud = loud.Value && loud.Repeat },
+        GameMessage.AllTabSpeechChanged all => model with { AllTabSpeech = all.Value },
+        GameMessage.TalkPrefixChanged prefix => model with { TalkPrefix = prefix.Value },
+        GameMessage.ChatAttempted attempt => model with { LastChatAttempt = attempt.At },
         GameMessage.BoardChanged board => model with { BoardText = board.Text },
         GameMessage.EditingChanged edit => model with { Editing = edit.Value },
         GameMessage.PreparingChanged prepare => model with { PreparingMagic = prepare.Value },

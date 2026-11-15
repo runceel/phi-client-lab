@@ -34,7 +34,9 @@ partial class App
     private void CompleteDialog(ContentDialogResult result)
     {
         var completion = dialogCompletion;
-        var answer = new DialogAnswer(result == ContentDialogResult.Primary, model.Dialog?.Value ?? "");
+        var alternative = result == ContentDialogResult.Secondary && model.Dialog?.Alternative is not null;
+        var answer = new DialogAnswer(result == ContentDialogResult.Primary || alternative,
+            model.Dialog?.Value ?? "", alternative);
         dialogCompletion = null;
         Dispatch(new ClientMessage.DialogChanged(null));
         completion?.TrySetResult(answer);
@@ -58,6 +60,7 @@ partial class App
         {
             IsOpen = dialog is not null,
             CloseButtonText = dialog?.Accept is null ? "閉じる" : "キャンセル",
+            SecondaryButtonText = dialog?.Alternative ?? "",
             DefaultButton = dialog?.Accept is null ? ContentDialogButton.Close : ContentDialogButton.Primary,
             OnClosed = CompleteDialog
         };

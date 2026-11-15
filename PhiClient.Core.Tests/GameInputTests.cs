@@ -183,6 +183,39 @@ public sealed class GameInputTests
     }
 
     [Fact]
+    public void ChatThrottleAndPrefixEditingRespectTheOriginalBoundaries()
+    {
+        Assert.True(GameInput.ChatReady(0, long.MinValue));
+        Assert.False(GameInput.ChatReady(1099, 1000));
+        Assert.True(GameInput.ChatReady(1100, 1000));
+        Assert.Equal(("one\nprefix", 10), GameInput.WithChatPrefix("one\n", 4, "prefix"));
+        Assert.Equal(("one\ntext", 5), GameInput.WithChatPrefix("one\ntext", 5, "prefix"));
+        Assert.Equal(("one\nprefix", 10), GameInput.WithChatPrefix("one\ntext", 5, "prefix", replaceLast: true));
+        Assert.Equal(("one\ntext", 2), GameInput.WithChatPrefix("one\ntext", 2, "prefix", replaceLast: true));
+    }
+
+    [Fact]
+    public void ChatModesAreTabLocalAndReconnectPreservesModesWhileResettingTheAttemptTimer()
+    {
+        var original = new GameModel();
+        var edited = GameUpdate.Apply(original, new GameMessage.LoudChanged(true, true));
+        edited = GameUpdate.Apply(edited, new GameMessage.AllTabSpeechChanged(true));
+        edited = GameUpdate.Apply(edited, new GameMessage.TalkPrefixChanged("prefix"));
+        edited = GameUpdate.Apply(edited, new GameMessage.ChatAttempted(1000));
+        var reconnected = GameUpdate.Apply(edited, new GameMessage.PhaseChanged(ConnectionPhase.Connecting));
+        Assert.False(original.Loud);
+        Assert.True(reconnected.Loud);
+        Assert.True(reconnected.RepeatLoud);
+        Assert.True(reconnected.AllTabSpeech);
+        Assert.Equal("prefix", reconnected.TalkPrefix);
+        Assert.True(GameInput.ChatReady(1001, reconnected.LastChatAttempt));
+        var cancelled = GameUpdate.Apply(edited, new GameMessage.LoudChanged(false));
+        Assert.False(cancelled.Loud);
+        Assert.False(cancelled.RepeatLoud);
+        Assert.True(edited.RepeatLoud);
+    }
+
+    [Fact]
     public void MapMouseUsesEightAngularSectorsRatherThanAlwaysMovingDiagonally()
     {
         Assert.Equal(["go N"], GameInput.MapMovement(1, -3, true));

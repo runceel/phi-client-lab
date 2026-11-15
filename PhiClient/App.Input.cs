@@ -95,6 +95,17 @@ partial class App
             gameControl?.Focus(FocusState.Programmatic);
             args.Handled = true;
         }
+        else if (args.Key == VirtualKey.Down && !Down(VirtualKey.Shift) && !Down(VirtualKey.Control) &&
+            session.Model.TalkPrefix.Length > 0 && inputControl is { } input)
+        {
+            var next = GameInput.WithChatPrefix(session.Input, input.SelectionStart,
+                session.Model.TalkPrefix, replaceLast: true);
+            if (next.Text != session.Input || next.Caret != input.SelectionStart)
+            {
+                ApplyChatEdit(session, next);
+                args.Handled = true;
+            }
+        }
         else if (args.Key == VirtualKey.Enter && !Down(VirtualKey.Shift))
         {
             if (!args.KeyStatus.WasKeyDown) Submit(session, Down(VirtualKey.Control));
@@ -195,29 +206,6 @@ partial class App
             {
                 session.Dispatch(new GameMessage.SelectionCleared());
                 throw;
-            }
-        });
-    }
-
-    private void Submit(GameSession session, bool party = false, bool shout = false)
-    {
-        if (composing || committingComposition)
-            return;
-        var original = session.Input;
-        var caret = active == session ? inputControl?.SelectionStart ?? original.Length : original.Length;
-        var text = GameInput.ChatLine(original, caret, party, shout);
-        if (text is null) return;
-        var action = shout ? GameInput.Command(text)
-            with { Confirmation = "Shout this line to everyone in the world?" } : GameInput.Command(text);
-        _ = SessionOperationAsync(session, async () =>
-        {
-            if (!await ExecuteAsync(session, action) || session.Input != original) return;
-            var next = GameInput.AfterChatSend(original, caret);
-            session.Dispatch(new GameMessage.InputChanged(next.Text));
-            if (active == session && inputControl?.XamlRoot is not null)
-            {
-                inputControl.Text = next.Text;
-                inputControl.Select(next.Caret, 0);
             }
         });
     }

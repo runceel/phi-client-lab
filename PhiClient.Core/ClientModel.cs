@@ -33,8 +33,8 @@ public sealed record ClientOptions(bool ShowCharacters = true, bool ShowMap = tr
 }
 public sealed record DialogModel(string Title, string Text, string? Accept = null,
     string? InputLabel = null, string Value = "", string InputId = "action-answer",
-    bool Secret = false, bool Reveal = false);
-public sealed record DialogAnswer(bool Accepted, string Value);
+    bool Secret = false, bool Reveal = false, string? Alternative = null);
+public sealed record DialogAnswer(bool Accepted, string Value, bool Alternative = false);
 public sealed record SettingsEditorModel(ClientOptions Value, string Zoom, string FontSize,
     string ImportPath = "", string Message = "");
 public sealed record RegistrationGraphicsModel(long Request = 0, bool Loading = false, string Message = "")

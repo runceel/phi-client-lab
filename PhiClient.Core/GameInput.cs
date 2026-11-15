@@ -263,6 +263,17 @@ public static class GameInput
         return (next, next.Length);
     }
 
+    public static bool ChatReady(long now, long previous) => previous == long.MinValue || now - previous >= 100;
+
+    public static (string Text, int Caret) WithChatPrefix(string text, int caret, string prefix, bool replaceLast = false)
+    {
+        caret = Math.Clamp(caret, 0, text.Length);
+        var (start, end) = ChatBounds(text, caret);
+        if (replaceLast)
+            return end == text.Length ? (text[..start] + prefix, start + prefix.Length) : (text, caret);
+        return start == end ? (text.Insert(caret, prefix), caret + prefix.Length) : (text, caret);
+    }
+
     public static string[] MapMovement(int x, int y, bool northUp)
     {
         if (x == 0 && y == 0) return ["check", "look"];

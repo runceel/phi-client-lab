@@ -13,7 +13,7 @@ partial class App
         System.Collections.Immutable.ImmutableArray<SavedCharacter> Characters, bool Connected, bool Transferring,
         bool PreparingMagic, bool MasterRunning, bool LogSaving, bool HasTransport, bool KnownWorld,
         bool HasEagle, bool NorthFixed, PhiClient.Core.MasterMenu? Master, bool MasterVisible,
-        int ConnectedTabs, int DisconnectedTabs);
+        int ConnectedTabs, int DisconnectedTabs, bool Loud, bool AllTabSpeech);
     private MenuInputs? menuInputs;
     private Element? menuElement;
 
@@ -25,7 +25,8 @@ partial class App
             session?.Model.Master is not null, session?.Model.LogSaving == true, session?.Connection is not null,
             session?.World is not null and not "" and not "???", session?.Eagle is not null,
             session?.NorthFixed ?? true, model.MasterMenu, MasterMagic.Visible(session?.Stats, model.Options),
-            sessions.Count(item => item.Connection is not null), sessions.Count(item => item.Connection is null));
+            sessions.Count(item => item.Connection is not null), sessions.Count(item => item.Connection is null),
+            session?.Model.Loud == true, session?.Model.AllTabSpeech == true);
         // Preserve open native flyouts when only map animation or unrelated log content changes.
         if (inputs == menuInputs && menuElement is not null) return menuElement;
         MenuFlyoutItemData Action(string label, InputAction action) =>
@@ -65,6 +66,14 @@ partial class App
                     ToggleMenuItem("このキャラクターのログを自動保存", session.Model.LogSaving,
                         value => ToggleLogSaving(session, value)),
                 ToggleMenuItem("Full-key movement (789 UIO JKL M)", fullKeys, value => { fullKeys = value; refresh(); }),
+                session is null ? MenuItem("大声で発言", () => { }) with { IsEnabled = false } :
+                    ToggleMenuItem("大声で発言", session.Model.Loud,
+                        value => session.Dispatch(new GameMessage.LoudChanged(value))),
+                session is null ? MenuItem("全タブへ発言", () => { }) with { IsEnabled = false } :
+                    ToggleMenuItem("全タブへ発言", session.Model.AllTabSpeech,
+                        value => session.Dispatch(new GameMessage.AllTabSpeechChanged(value))),
+                MenuItem("発言の前に付ける言葉…", () => { if (session is not null) ChooseTalkPrefix(session); })
+                    with { IsEnabled = session is not null },
                 MenuItem("Shout current line...", () => { if (session is not null) Submit(session, shout: true); })
                     with { IsEnabled = session?.Connected == true },
                 MenuItem("ログ欄の内容をHTMLに保存", SaveLog) with { IsEnabled = session is not null },
