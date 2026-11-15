@@ -4,6 +4,38 @@ namespace PhiClient.Core.Tests;
 
 public sealed class LogMarkupTests
 {
+    [Theory]
+    [InlineData("a\tb", "a\u3000\u3000\u3000 b")]
+    [InlineData("日\tb", "日　　　b")]
+    [InlineData("&\tb", "&　 b")]
+    [InlineData("<\tb", "<　　b")]
+    [InlineData("はーと\tb", "♥　　　　b")]
+    [InlineData("/*r*/a\tb", "a　　　　b")]
+    [InlineData("/*color=red*/a\tb", "a　　b")]
+    [InlineData("/*r*/a/*color=.*/\tb", "a\u3000\u3000 b")]
+    [InlineData("/*unknown*/a\tb", "a b")]
+    public void SpeechTabsCountTheOriginalConvertedHtmlNotVisibleCharacters(string body, string expected)
+    {
+        var text = string.Concat(LogMarkup.Parse("勇者 > " + body).Select(part => part.Text));
+        Assert.Equal("勇者 > " + expected, text);
+        Assert.Equal("a\tb", Assert.Single(LogMarkup.Parse("a\tb")).Text);
+    }
+
+    [Fact]
+    public void ImageWindowsSuppressImagesAndLinksAndControlTagsStayHidden()
+    {
+        var options = new ClientOptions { NotInterpretedTagDisp = true };
+        var parts = LogMarkup.Parse("/*img_wnd=https://example.invalid/a.png*/ " +
+            "https://example.invalid/b.png /*img=https://example.invalid/c.png*/", options);
+        Assert.DoesNotContain(parts, part => part.Image is not null || part.Link is not null);
+        Assert.Contains("/*img=https://example.invalid/c.png*/", string.Concat(parts.Select(part => part.Text)));
+        Assert.Empty(LogMarkup.Parse("/**//*to=Bob*/", options));
+        var images = LogMarkup.Parse("https://example.invalid/a.png https://example.invalid/page");
+        Assert.Single(images, part => part.Image is not null);
+        Assert.DoesNotContain(images, part => part.Text == "https://example.invalid/page" && part.Link is not null);
+        Assert.NotNull(images[^1].Link);
+    }
+
     [Fact]
     public void OverlineSurvivesNestedColorAndEndsAtTheOriginalClosingTag()
     {
