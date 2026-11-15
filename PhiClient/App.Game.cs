@@ -144,6 +144,8 @@ partial class App
                 Action("Refresh", GameInput.Command("see"))),
             Menu("Help",
                 MenuItem("Keyboard controls", ShowKeyboardHelp),
+                MenuItem("wphiの利用者ガイド（ブラウザー）",
+                    () => OpenLogLink(new Uri("https://s7k.github.io/wphi/guide/"))),
                 MenuItem("窓の位置を元に戻す…", () => _ = PerformAsync(ResetWindowLayoutAsync)),
                 MenuItem(model.CheckingRelease ? "公開リリースを確認しています…" : "新しい版を確認する…",
                     () => _ = PerformAsync(CheckReleaseAsync)) with { IsEnabled = !model.CheckingRelease },
