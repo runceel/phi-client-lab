@@ -155,8 +155,12 @@ partial class App
         menuInputs = inputs;
         return menuElement = DropDownButton("メニュー", MenuItems(menus.Select(menu =>
                 (MenuFlyoutItemBase)MenuSubItem(menu.Title, menu.Items)).ToArray()))
-            .HorizontalAlignment(HorizontalAlignment.Left).Padding(8, 4)
-            .AutomationId("app-menu").OnMount(element => menuControl = (Microsoft.UI.Xaml.Controls.DropDownButton)element)
+            .HorizontalAlignment(HorizontalAlignment.Left).SubtleButton().MinWidth(48).Height(32).Padding(6, 4)
+            .ToolTip("メニュー").AutomationName("メニュー").AutomationId("app-menu").OnMount(element =>
+            {
+                menuControl = (Microsoft.UI.Xaml.Controls.DropDownButton)element;
+                menuControl.Content = new Microsoft.UI.Xaml.Controls.FontIcon { Glyph = "\uE700", FontSize = 16 };
+            })
             .WithKey($"menu-{session?.Character.Key ?? "offline"}");
     }
 
