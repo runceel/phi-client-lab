@@ -16,7 +16,7 @@ partial class App
         }
     }
 
-    private Task ShowVersionAsync() => SessionDialogAsync("PHI Client " + ProductVersion,
+    private Task ShowVersionAsync() => SessionDialogAsync(ProductName + " " + ProductVersion,
         "C#・WinUI 3と公式Microsoft.UI.Reactor previewを使用しています。\n" +
         "wphiをもとにした移植版です。wphi本体とは別の製品として、このリポジトリの公開リリースを確認します。\n" +
         "画像素材は設定した外部フォルダーから読み込みます。素材の作者・利用条件は素材設定から確認できます。\n" +

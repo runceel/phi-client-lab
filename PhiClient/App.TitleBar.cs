@@ -10,7 +10,7 @@ partial class App
 {
     private Element MainTitleBar()
     {
-        var title = active is null ? "PHI Client" : $"PHI Client — {active.Character.Name}";
+        var title = active is null ? ProductName : $"{ProductName} — {active.Character.Name}";
         var gameVisible = active is not null && !showCharacters && !model.Worlds.Visible &&
             model.SettingsEditor is null && model.Registration.Stage == RegistrationStage.None;
         var session = active;
@@ -65,8 +65,8 @@ partial class App
             var window = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(root.ContentIslandEnvironment.AppWindowId);
             var actionRight = actions.TransformToVisual(chrome).TransformPoint(new Point(actions.ActualWidth, 0)).X;
             // Mirror the larger occupied edge, not the remaining space between toolbar and caption.
-            var inset = Math.Max(actionRight + 8, window.TitleBar.RightInset / root.RasterizationScale + 8);
-            var width = Math.Max(0, chrome.ActualWidth - 2 * inset);
+            var width = PhiClient.TitleBarLayout.AvailableTitleWidth(chrome.ActualWidth, actionRight,
+                window.TitleBar.RightInset / root.RasterizationScale);
             if (Math.Abs(title.MaxWidth - width) > 0.5) title.MaxWidth = width;
         }
         chrome.Loaded += (_, _) =>

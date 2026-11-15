@@ -2,7 +2,7 @@
 
 These are unchanged graphics from `s7k/wphi`, revision
 `d8f11bf60c95d470fa14ca83bcc4c02d5c83fecc`, `resources/phi`.
-This collection supports use of PHI with PHI Client Lab. It is not a synthetic
+This collection supports use of PHI with PHI for Windows 11. It is not a synthetic
 or redrawn substitute. `source-manifest.json` records each imported file's hash.
 
 - `chara/*.bmp`, except `sushi_*.bmp`, are **PCGL-applicable graphics parts**.
@@ -19,13 +19,13 @@ or redrawn substitute. `source-manifest.json` records each imported file's hash.
   wphi's unchanged `README.md` records that its maintainer confirmed reuse on
   2026-11-07. This is an upstream permission record, not a blanket PCGL or MIT
   license for the skin. Preserve the original author and explanation files.
-  PHI Client Lab imports these files for local use; it does not bundle the skin
+  PHI for Windows 11 imports these files for local use; it does not bundle the skin
   in its executable or assert additional third-party redistribution rights.
 - `Config/MasterMagicMenu.xml` is an unchanged Philly configuration part.
   The upstream README records that its maintainer confirmed inclusion on
   2026-11-09. This is an upstream permission record, not a blanket MIT or PCGL
   license for Philly. It is imported for local use with the original README
-  and notices, not embedded in PHI Client Lab's executable.
+  and notices, not embedded in PHI for Windows 11's executable.
 
 The original `README.md` is retained verbatim, including its provenance and
 license boundaries. Only character sheets, the default map sheet, item sheet,

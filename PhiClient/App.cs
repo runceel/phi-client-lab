@@ -9,12 +9,14 @@ using static Microsoft.UI.Reactor.Factories;
 // Preview.17 pooling made replaced settings controls inaccessible to native UIA.
 ReactorApp.Run<App>(new WindowSpec
 {
-    Title = "PHI Client", Width = 1200, Height = 850,
+    Title = App.ProductName, Width = 1200, Height = 850,
     PersistenceId = "phi-main", PersistPlacement = true
 }, configure: host => host.Reconciler.Pool.Enabled = false);
 
 partial class App : Component
 {
+    internal const string ProductName = "PHI for Windows 11";
+
     public override Element Render()
     {
         var (snapshot, update) = UseReducer(model);

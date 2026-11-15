@@ -1,10 +1,12 @@
-# PHI Client Lab
+# PHI for Windows 11
 
 [wphiのプロトコル・動作仕様](https://github.com/s7k/wphi/blob/main/docs/04-client-spec.md)を
 基に実装した、C# / WinUI 3のPHIクライアントです。UIにはMicrosoft公式の実験的な
 [Microsoft.UI.Reactor](https://github.com/microsoft/microsoft-ui-reactor)
 NuGetパッケージ（`0.1.0-preview.17`）を使用しています。
 MauiReactorや同名の自作ライブラリによる代替ではありません。
+既存データとの互換性のため、内部プロジェクト名の`PhiClient`、パッケージidentity、
+設定の保存先と資格情報キーは変更していません。
 主要機能を実装し、wphiとの互換性と実UIの確認を進めています。**全機能の互換性確認は完了していません。**
 現在の統合は初期実装の区切りです。native入力・実操作の未確認と、試験前の表示設定4値を
 復旧できていない問題を残しており、統合後の個別Issueでの追跡と区別します。
@@ -46,7 +48,7 @@ MSIX版WinApp CLIではAppData内への書き込みが転送されるため、�
 
 ### GitHub Copilotアプリから手動起動する
 
-`.github\github-app.yml` を確認・承認すると、スクリプト一覧に **Start PHI Client (WinUI)** が表示されます。
+`.github\github-app.yml` を確認・承認すると、スクリプト一覧に **Start PHI for Windows 11 (WinUI)** が表示されます。
 選ぶと `tools\Start-PhiClient.ps1` がpackaged x64をビルド・起動します。
 自動実行triggerとゲームへの自動接続は追加していません。Windows、PowerShell 7.4以降、
 .NET 11 SDK、WinApp CLIが必要で、WinApp 0.8.0で確認しています。
@@ -89,9 +91,10 @@ MSBuild生成の`AppxManifest.xml`を指定します。展開前の`Package.appx
 タイトルはWindowsのcaptionボタンを含む窓全体の中央に置き、左右に重ならない幅で末尾を省略します。
 タイトルの上もドラッグ領域です。登録フロー中は従来どおり補助操作を表示しません。
 最小化・最大化・閉じるはWindows標準のcaptionを使い、独自の疑似ボタンは作っていません。
-タイトルバーの中央位置と補助操作は、150% DPI・ダークテーマの通常幅、登録画面、
+タイトルバーの中央位置と補助操作は、旧表示名「PHI Client」で150% DPI・ダークテーマの通常幅、登録画面、
 未接続のゲーム画面で確認しました。標準captionによる最大化・復元も確認しています。
 狭幅の省略・重なり、実ドラッグ・Snap、実キー、ライト・ハイコントラスト、DPI切り替えは確認保留です。
+正式名「PHI for Windows 11」への変更後はnative画面を再確認していません。
 以下のFile / Character / View / Help等は、タイトルバーの **メニュー** 内にあります。
 操作ガイドと操作パッドは通常は非表示です。既に保存済みのパッド表示設定は変更しません。
 狭幅では地図とログを上下に並べ、内緒話は世界の会話と切り替えて表示します。
