@@ -15,15 +15,39 @@ partial class App
 {
     private static bool Down(VirtualKey key) =>
         InputKeyboardSource.GetKeyStateForCurrentThread(key).HasFlag(CoreVirtualKeyStates.Down);
+    private bool altChordUsed;
+
+    private void ObserveInputFocus(object sender, RoutedEventArgs args)
+    {
+        if (sender is not FrameworkElement { XamlRoot: { } root }) return;
+        var chat = false;
+        var native = false;
+        for (var parent = FocusManager.GetFocusedElement(root) as DependencyObject;
+            parent is not null; parent = VisualTreeHelper.GetParent(parent))
+        {
+            var id = Microsoft.UI.Xaml.Automation.AutomationProperties.GetAutomationId(parent);
+            if (id == "command-input") { chat = true; break; }
+            if (id == "map-viewport" || id.StartsWith("map-zoom-", StringComparison.Ordinal) ||
+                parent is Microsoft.UI.Xaml.Controls.TextBox or Microsoft.UI.Xaml.Controls.PasswordBox or
+                Microsoft.UI.Xaml.Controls.RichEditBox or MapPaneSplitter or
+                Microsoft.UI.Xaml.Controls.Primitives.Thumb or Microsoft.UI.Xaml.Controls.DropDownButton or MenuFlyoutPresenter)
+            { native = true; break; }
+        }
+        if (model.ChatFocused != chat) Dispatch(new ClientMessage.ChatFocusChanged(chat));
+        if (model.NativeInputFocused != native) Dispatch(new ClientMessage.NativeInputFocusChanged(native));
+    }
 
     private void OnGameKeyDown(object sender, KeyRoutedEventArgs args)
     {
+        if (args.Key == VirtualKey.Menu) altChordUsed = false;
+        else if (Down(VirtualKey.Menu)) altChordUsed = true;
         if (closingApplication)
         {
             args.Handled = true;
             return;
         }
-        if (active is not { } session || model.Worlds.Visible || model.SettingsEditor is not null ||
+        if (active is not { } session || showCharacters || model.Registration.Stage != RegistrationStage.None ||
+            model.Worlds.Visible || model.SettingsEditor is not null ||
             dialogOpen ||
             Down(VirtualKey.LeftWindows) || Down(VirtualKey.RightWindows))
             return;
@@ -43,14 +67,19 @@ partial class App
         }
         if (((sender as FrameworkElement)?.XamlRoot ?? gameControl?.XamlRoot) is not { } root) return;
         var focused = FocusManager.GetFocusedElement(root);
+        if (args.Key == VirtualKey.Tab && !control && !ReferenceEquals(focused, gameControl)) return;
         // Log selection keeps its copy/select shortcuts; ordinary game keys work after clicking the log.
         for (var parent = focused as DependencyObject; parent is not null; parent = VisualTreeHelper.GetParent(parent))
         {
             if (parent is RichTextBlock && control && args.Key is VirtualKey.C or VirtualKey.A or VirtualKey.Insert)
                 return;
+            var automationId = Microsoft.UI.Xaml.Automation.AutomationProperties.GetAutomationId(parent);
+            if (automationId == "map-viewport" || automationId.StartsWith("map-zoom-", StringComparison.Ordinal))
+                return;
             if (parent is Microsoft.UI.Xaml.Controls.TextBox or Microsoft.UI.Xaml.Controls.PasswordBox or
                 Microsoft.UI.Xaml.Controls.RichEditBox or MapPaneSplitter or
-                Microsoft.UI.Xaml.Controls.Primitives.Thumb or Microsoft.UI.Xaml.Controls.MenuBar or MenuFlyoutPresenter)
+                Microsoft.UI.Xaml.Controls.Primitives.Thumb or Microsoft.UI.Xaml.Controls.MenuBar or
+                Microsoft.UI.Xaml.Controls.DropDownButton or MenuFlyoutPresenter)
                 return;
         }
         // OEM virtual keys depend on the keyboard layout; scan codes identify the physical keys used by wphi.
@@ -75,6 +104,12 @@ partial class App
         };
         var action = GameInput.Resolve(key, session.NorthFixed, fullKeys, shift, control, alt,
             session.Selection.Active, args.KeyStatus.IsExtendedKey, model.Options);
+        if (key == ConsoleKey.F10 && action is null && !alt && !control && !shift)
+        {
+            menuControl?.Focus(FocusState.Programmatic);
+            args.Handled = true;
+            return;
+        }
         if (action is null)
             return;
         args.Handled = true;
@@ -87,6 +122,21 @@ partial class App
             return;
         Execute(session, action);
         TraceDiagnostic(DiagnosticEvent.InputHandled);
+    }
+
+    private void OnGameKeyUp(object sender, KeyRoutedEventArgs args)
+    {
+        if (args.Key != VirtualKey.Menu || altChordUsed || composing || committingComposition ||
+            active?.PrivComposing == true || active?.PrivCommitting == true || dialogOpen ||
+            model.SettingsEditor is not null || model.Registration.Stage != RegistrationStage.None) return;
+        if (sender is FrameworkElement { XamlRoot: { } root })
+            for (var parent = FocusManager.GetFocusedElement(root) as DependencyObject;
+                parent is not null; parent = VisualTreeHelper.GetParent(parent))
+                if (parent is Microsoft.UI.Xaml.Controls.TextBox or Microsoft.UI.Xaml.Controls.PasswordBox or
+                    Microsoft.UI.Xaml.Controls.RichEditBox)
+                    return;
+        menuControl?.Focus(FocusState.Programmatic);
+        args.Handled = true;
     }
 
     private void AttachInput(Microsoft.UI.Xaml.Controls.TextBox box, GameSession session)

@@ -401,7 +401,7 @@ public sealed partial class PhiConnection : IDisposable
                 {
                     var fields = text[19..].Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
                         .Where(field => field is "name" or "pass" or "image" or "mail").Distinct();
-                    throw new IOException("キャラクターの作成が拒否されました。確認する項目: " +
+                    throw new RegistrationRejectedException("キャラクターの作成が拒否されました。確認する項目: " +
                         string.Join(", ", fields.Select(field => field switch
                         {
                             "name" => "名前", "pass" => "パスワード", "image" => "初期画像", _ => "メールアドレス"

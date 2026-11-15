@@ -14,16 +14,17 @@ partial class App
         var bitmap = current ? registrationPreview : null;
         return VStack(6,
             Button(candidates.Loading ? "キャラクター画像の一覧を取得しています…" : "キャラクター画像の一覧を取得",
-                    () => _ = PerformAsync(LoadRegistrationGraphicsAsync))
-                .IsEnabled(loaded && !busy).AutomationId("load-registration-graphics"),
+                    () => _ = LoadRegistrationGraphicsAsync())
+                .IsEnabled(loaded && !busy && !candidates.Loading).AutomationId("load-registration-graphics"),
             Caption("指定したゲームサーバーに接続し、キャラクター画像の一覧を取得します。この操作は一覧の取得だけを行います。")
                 .TextWrapping(TextWrapping.Wrap),
             TextBlock(candidates.Message).TextWrapping(TextWrapping.Wrap).AutomationId("registration-graphics-message"),
-            candidates.Names.IsEmpty ? Empty() :
+            candidates.Names.IsEmpty ? TextBlock(candidates.Loading ? "一覧の返事を待っています（最大30秒）。" :
+                    "一覧未取得・0件の場合も画像番号で続行できます。").TextWrapping(TextWrapping.Wrap).MinHeight(96) :
                 ListView(selected, SelectRegistrationGraphic, candidates.Names.Select((name, index) =>
                     (Element)TextBlock($"{index}: {name}").TextWrapping(TextWrapping.Wrap)
                         .AutomationId($"registration-graphic-{index}")).ToArray())
-                    .MaxHeight(160).IsEnabled(!busy).AutomationId("registration-graphics-list"),
+                    .Height(120).IsEnabled(!busy).AutomationId("registration-graphics-list"),
             bitmap is not null ?
                 Image("ms-appx:///Assets/Square44x44Logo.scale-200.png").Width(32).Height(32)
                     .WithKey($"registration-preview-{candidates.Request}-{selected}-{bitmap.PixelWidth}-{graphics.Revision}")

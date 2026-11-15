@@ -5,7 +5,7 @@ namespace PhiClient.Core.Tests;
 public sealed class SettingsTests
 {
     [Fact]
-    public async Task MovementPadVisibilityAndZoomPersistAndLegacySettingsKeepThePadVisible()
+    public async Task MovementPadVisibilityAndZoomPersistAndUnspecifiedPadStartsHidden()
     {
         var folder = Path.Combine(Path.GetTempPath(), "phi-pad-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(folder);
@@ -22,8 +22,10 @@ public sealed class SettingsTests
             Assert.False(loaded.FullKeys);
             await File.WriteAllTextAsync(path, "{\"mapZoom\":125}");
             var legacy = await store.LoadAsync();
-            Assert.True(legacy.ShowMovementPad);
+            Assert.False(legacy.ShowMovementPad);
             Assert.Equal(125, legacy.MapZoom);
+            await File.WriteAllTextAsync(path, "{\"showMovementPad\":true,\"mapZoom\":175}");
+            Assert.True((await store.LoadAsync()).ShowMovementPad);
         }
         finally { Directory.Delete(folder, true); }
     }

@@ -53,7 +53,8 @@ partial class App
                             header: dialog.InputLabel)
                         .IsReadOnly(true).AutomationId(dialog.InputId),
                     CheckBox(dialog.Reveal, value => Dispatch(new ClientMessage.DialogRevealChanged(value)),
-                        "パスワードを表示する").AutomationId("reveal-created-password")) :
+                        dialog.InputId == "pending-registration-id" ? "IDを表示する" : "パスワードを表示する")
+                        .AutomationId("reveal-created-password")) :
                 TextBox(dialog.Value, value => Dispatch(new ClientMessage.DialogEdited(value)), header: dialog.InputLabel)
                     .AutomationId(dialog.InputId));
         return ContentDialog(dialog?.Title ?? "", body, dialog?.Accept ?? "") with

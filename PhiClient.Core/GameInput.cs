@@ -278,7 +278,10 @@ public static class GameInput
     {
         if (x is < -1 or > 1 || y is < -1 or > 1)
             throw new ArgumentOutOfRangeException(nameof(x), "The movement pad has three rows and columns.");
-        return Command(x == 0 && y == 0 ? ["hit"] : MapMovement(x, y, northUp));
+        if (y == 1 && x != 0)
+            throw new ArgumentOutOfRangeException(nameof(x), "The bottom corners have no pad operation.");
+        return Command(y == -1 && x != 0 ? [x < 0 ? "turn l" : "turn r"] :
+            x == 0 && y == 0 ? ["hit"] : MapMovement(x, y, northUp));
     }
 
     public static string[] MapMovement(int x, int y, bool northUp)

@@ -19,7 +19,9 @@ partial class App
     private readonly CharacterStore store = new();
     private readonly List<GameSession> sessions = [];
     private Microsoft.UI.Xaml.Controls.TextBox? inputControl;
-    private Microsoft.UI.Xaml.Controls.Button? gameControl;
+    private Microsoft.UI.Xaml.Controls.Control? gameControl;
+    private Microsoft.UI.Xaml.Controls.DropDownButton? menuControl;
+    private bool pendingGameFocus;
     private DispatcherQueue? dispatcher;
     private Action refresh = () => { };
     private bool disposed;
@@ -137,24 +139,42 @@ partial class App
 
     private async Task SaveCharacterAsync()
     {
+        var form = model.Registration;
+        if (form.Stage != RegistrationStage.SavePending && !form.CanEdit) return;
         if (!int.TryParse(port, out var portNumber))
             throw new ArgumentException("TCPポートを数値で入力してください。");
         PhiConnection.ValidateEndpoint(host, portNumber);
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("表示名を入力してください。");
-        var character = new SavedCharacter(Guid.NewGuid().ToString("N"), name.Trim(), host.Trim(), portNumber);
+        var character = form.Character ??
+            new SavedCharacter(Guid.NewGuid().ToString("N"), name.Trim(), host.Trim(), portNumber);
         var characterId = id;
-        var createdPassword = password;
-        if (creating)
+        var createdPassword = form.NewCharacter ? password : "";
+        if (form.NewCharacter && form.Stage != RegistrationStage.SavePending)
         {
             if (password.Length == 0) password = PhiWire.CreatePassword();
             createdPassword = password;
+            EditRegistration(form with { Stage = RegistrationStage.Creating });
             notice = "指定した世界にキャラクターを作成しています…";
             refresh();
-            characterId = await PhiConnection.RegisterAsync(character.Host, portNumber, character.Name, password, image, email);
-            // Keep the new ID available for retry if local persistence fails.
-            id = characterId;
-            creating = false;
+            try
+            {
+                characterId = await PhiConnection.RegisterAsync(character.Host, portNumber, character.Name, password, image, email);
+            }
+            catch (RegistrationRejectedException error)
+            {
+                EditRegistration(form with { Stage = RegistrationStage.Rejected, Message = error.Message });
+                notice = error.Message;
+                return;
+            }
+            catch (Exception error) when (IsExpected(error))
+            {
+                EditRegistration(form with { Stage = RegistrationStage.Unknown,
+                    Message = "サーバーから作成結果を受け取れませんでした。入力と作成時のパスワードを保持しています。" });
+                notice = "作成結果は不明です。作成済みの可能性があるため、再送しません。";
+                return;
+            }
+            Dispatch(new ClientMessage.RegistrationCreated(character, characterId));
             notice = "世界での作成が完了しました。接続情報をこのPCに保存しています…";
             refresh();
         }
@@ -162,10 +182,13 @@ partial class App
         try { await store.AddAsync(character, characterId); }
         catch (Exception ex) when (createdPassword.Length > 0 && IsExpected(ex))
         {
-            throw new IOException("世界での作成は完了していますが、このPCへの保存に失敗しました。" +
-                "IDを入力欄に保持しています。保存先を確認して「キャラクターを保存」を再試行し、新規作成を繰り返さないでください。", ex);
+            EditRegistration(model.Registration with {
+                Message = "このPCへの保存に失敗しました。「このPCへの保存を再試行」で保存だけをやり直せます。" });
+            notice = "世界での作成は完了していますが、このPCへの保存に失敗しました。IDとパスワードを保持しています。";
+            return;
         }
         characters = characters.Append(character).ToList();
+        EditRegistration(model.Registration with { Stage = RegistrationStage.Complete, Character = character, Message = "" });
         id = "";
         password = "";
         notice = "接続情報を保存しました。「接続」でゲームを開始できます。";
@@ -179,9 +202,10 @@ partial class App
 
     private Task OpenAsync(SavedCharacter character)
     {
+        pendingGameFocus = true;
         active = sessions.FirstOrDefault(s => s.Character.Key == character.Key);
         showCharacters = false;
-        notice = "PHIの通信は暗号化されません。メニューとゲーム操作キーは、選択中のキャラクターに適用されます。";
+        notice = "";
         if (active is not null)
             return Task.CompletedTask;
         Dispatch(new ClientMessage.GameOpened(character.Key));

@@ -39,7 +39,7 @@ public sealed record ClientOptions(bool ShowCharacters = true, bool ShowMap = tr
     public bool SmoothMove { get; init; }
     public bool SingleWindow { get; init; }
     public int MapPaneWidth { get; init; } = 360;
-    public bool ShowMovementPad { get; init; } = true;
+    public bool ShowMovementPad { get; init; }
 }
 public sealed record DialogModel(string Title, string Text, string? Accept = null,
     string? InputLabel = null, string Value = "", string InputId = "action-answer",
@@ -62,6 +62,7 @@ public sealed record ClientModel
     public string Notice { get; init; } = "保存済みキャラクターに接続するか、キャラクターIDを登録して始めます。IDはWindows資格情報マネージャーに保存します。";
     public double WindowWidth { get; init; } = 1200;
     public double WindowHeight { get; init; } = 850;
+    public double GameBodyHeight { get; init; } = 400;
     public int DetachedMapWidth { get; init; } = 344;
     public string? PendingDelete { get; init; }
     public bool Creating { get; init; }
@@ -75,6 +76,10 @@ public sealed record ClientModel
     public string GraphicsNotice { get; init; } = "";
     public WorldDirectoryModel Worlds { get; init; } = new();
     public RegistrationGraphicsModel RegistrationGraphics { get; init; } = new();
+    public RegistrationForm Registration { get; init; } = new();
+    public bool GameGuideVisible { get; init; }
+    public bool ChatFocused { get; init; }
+    public bool NativeInputFocused { get; init; }
     public MasterMenu? MasterMenu { get; init; }
     public string MasterMessage { get; init; } = "";
     public ImmutableDictionary<string, LogImageState> LogImages { get; init; } =
@@ -85,10 +90,18 @@ public sealed record ClientModel
 
 public abstract record ClientMessage
 {
+    public sealed record RegistrationStarted(bool NewCharacter) : ClientMessage;
+    public sealed record RegistrationChanged(RegistrationForm Value) : ClientMessage;
+    public sealed record RegistrationCreated(SavedCharacter Character, string Id) : ClientMessage;
+    public sealed record RegistrationEnded : ClientMessage;
+    public sealed record GameGuideChanged(bool Visible) : ClientMessage;
+    public sealed record ChatFocusChanged(bool Focused) : ClientMessage;
+    public sealed record NativeInputFocusChanged(bool Focused) : ClientMessage;
     public sealed record TraceRecordingChanged(bool Value) : ClientMessage;
     public sealed record CheckingReleaseChanged(bool Value) : ClientMessage;
     public sealed record DraftChanged(CharacterDraft Value) : ClientMessage;
     public sealed record WindowSizeChanged(double Width, double Height) : ClientMessage;
+    public sealed record GameBodyHeightChanged(double Height) : ClientMessage;
     public sealed record MapPaneWidthChanged(int Width) : ClientMessage;
     public sealed record DetachedMapWidthChanged(int Width) : ClientMessage;
     public sealed record OptionsChanged(ClientOptions Value) : ClientMessage;
@@ -135,15 +148,40 @@ public static class ClientUpdate
 {
     public static ClientModel Apply(ClientModel model, ClientMessage message) => message switch
     {
+        ClientMessage.RegistrationStarted start when !model.Registration.NeedsDiscardWarning &&
+            model.Registration.Stage != RegistrationStage.Creating => model with
+        {
+            Registration = new(start.NewCharacter ? RegistrationStage.World : RegistrationStage.Character, start.NewCharacter),
+            Creating = start.NewCharacter, Draft = new(), RegistrationGraphics = new(),
+            Worlds = model.Worlds with { Visible = false }
+        },
+        ClientMessage.RegistrationChanged edit => model with { Registration = edit.Value },
+        ClientMessage.RegistrationCreated created => model with
+        {
+            Draft = model.Draft with { Id = created.Id },
+            Registration = model.Registration with { Stage = RegistrationStage.SavePending, Character = created.Character,
+                Message = "世界での作成は完了しました。このPCに接続情報を保存します。" }
+        },
+        ClientMessage.RegistrationEnded => model with
+            { Registration = new(), Draft = new(), Creating = false, RegistrationGraphics = new() },
+        ClientMessage.GameGuideChanged guide => model with { GameGuideVisible = guide.Visible },
+        ClientMessage.ChatFocusChanged focus => model with { ChatFocused = focus.Focused },
+        ClientMessage.NativeInputFocusChanged focus => model with { NativeInputFocused = focus.Focused },
         ClientMessage.TraceRecordingChanged trace => model with { TraceRecording = trace.Value },
         ClientMessage.CheckingReleaseChanged release => model with { CheckingRelease = release.Value },
         ClientMessage.WindowSizeChanged size => model with { WindowWidth = size.Width, WindowHeight = size.Height },
+        ClientMessage.GameBodyHeightChanged size => model with { GameBodyHeight = size.Height },
         ClientMessage.MapPaneWidthChanged size => model with { Options = model.Options with
             { MapPaneWidth = Math.Clamp(size.Width, MapPaneLayout.Minimum, MapPaneLayout.Maximum) } },
         ClientMessage.DetachedMapWidthChanged size => model with { DetachedMapWidth = Math.Clamp(size.Width, 184, 1600) },
-        ClientMessage.DraftChanged edit => model with { Draft = edit.Value,
+        ClientMessage.DraftChanged when model.Registration.Stage is RegistrationStage.Creating or
+            RegistrationStage.SavePending or RegistrationStage.Unknown => model,
+        ClientMessage.DraftChanged edit => model with { Draft = model.Registration.Stage != RegistrationStage.None &&
+                (edit.Value.Host != model.Draft.Host || edit.Value.Port != model.Draft.Port)
+                ? edit.Value with { Image = "0" } : edit.Value,
             RegistrationGraphics = edit.Value.Host != model.Draft.Host || edit.Value.Port != model.Draft.Port
-                ? new() : model.RegistrationGraphics },
+                ? new(0, false, "接続先を変更しました。画像番号を0に戻しました。候補は取得し直してください。")
+                : model.RegistrationGraphics },
         ClientMessage.OptionsChanged edit => model with { Options = edit.Value,
             Games = edit.Value.Automap != model.Options.Automap ? ResetPredictions(model.Games) :
                 edit.Value.SmoothMove != model.Options.SmoothMove ? model.Games.SetItems(model.Games.Select(pair =>
@@ -223,10 +261,17 @@ public static class ClientUpdate
         {
             Worlds = model.Worlds with { Loading = false, Message = $"世界一覧の取得に失敗しました: {failed.Error} 前の一覧を保持しています。" }
         },
-        ClientMessage.WorldSelected select when !model.Busy && !model.Worlds.Loading && model.Worlds.Items.Contains(select.Value) => model with
+        ClientMessage.WorldSelected select when !model.Busy && !model.Worlds.Loading &&
+            !model.Registration.NeedsDiscardWarning && model.Registration.Stage != RegistrationStage.Creating &&
+            model.Worlds.Items.Contains(select.Value) => model with
         {
-            Draft = model.Draft with { Host = select.Value.Host, Port = select.Value.Port.ToString(System.Globalization.CultureInfo.InvariantCulture) },
-            RegistrationGraphics = new(),
+            Draft = model.Draft with { Host = select.Value.Host, Port = select.Value.Port.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                Image = model.Registration.Stage == RegistrationStage.None ||
+                    select.Value.Host == model.Draft.Host && select.Value.Port.ToString() == model.Draft.Port
+                    ? model.Draft.Image : "0" },
+            RegistrationGraphics = select.Value.Host != model.Draft.Host || select.Value.Port.ToString() != model.Draft.Port
+                ? new(0, false, "接続先を変更しました。画像番号を0に戻しました。候補は取得し直してください。")
+                : model.RegistrationGraphics,
             Worlds = model.Worlds with { Visible = false },
             Options = model.Options with { ShowCharacters = true },
             Notice = $"「{select.Value.Name}」の接続先を入力しました。選択だけでは接続・キャラ作成しません。"

@@ -25,11 +25,13 @@ partial class App : Component
         UseEffect(SyncMapSplitter, model.Options.MapPaneWidth, windowWidth, active?.Model.Priv.Visible ?? false);
 
         Element content = model.SettingsEditor is not null ? SettingsView().Flex(grow: 1, basis: 0) :
-            active is null || model.Worlds.Visible
-            ? ScrollViewer(WorldDirectoryView())
+            model.Registration.Stage != RegistrationStage.None ? RegistrationView().Flex(grow: 1, basis: 0) :
+            active is null || showCharacters || model.Worlds.Visible
+            ? ScrollViewer(CharacterSidebar())
                 .OnMount(element => AttachReadableScroll((Microsoft.UI.Xaml.Controls.ScrollViewer)element))
                 .AutomationId("world-directory").Flex(grow: 1, basis: 0)
-            : TabView(sessions.IndexOf(active), index =>
+            : sessions.Count == 1 ? GameView(active).Flex(grow: 1, basis: 0) :
+            TabView(sessions.IndexOf(active), index =>
                 {
                     if (index >= 0 && index < sessions.Count) SelectSession(sessions[index]);
                 }, sessions.Select(s => Tab(
@@ -40,20 +42,17 @@ partial class App : Component
                     if (index >= 0 && index < sessions.Count) CloseTab(sessions[index]);
                 }).IsAddTabButtonVisible(false).CanDragTabs(false).CanReorderTabs(false)
                 .AutomationId("character-tabs").Flex(grow: 1, basis: 0);
-        var sidebarVisible = model.SettingsEditor is null && (showCharacters || active is null);
-        var body = windowWidth < 900 && model.SettingsEditor is null && sidebarVisible
-            ? (Element)ScrollViewer(VStack(16, sidebarVisible ? CharacterSidebar() : Empty(), WorldDirectoryView()))
-                .OnMount(element => AttachReadableScroll((Microsoft.UI.Xaml.Controls.ScrollViewer)element))
-                .AutomationId("registration-scroll").Flex(grow: 1, basis: 0).Padding(16)
-            : FlexRow(sidebarVisible ? CharacterSidebar() : Empty(), content)
-                .Flex(grow: 1, basis: 0).FlexPadding(16);
+        var body = FlexRow(content).Flex(grow: 1, basis: 0).FlexPadding(8);
         return FlexColumn(
-            TitleBar("PHI Client").Flex(shrink: 0),
-            AppMenu().Flex(shrink: 0),
-            TextBlock(notice).TextWrapping(TextWrapping.Wrap).Padding(16, 8).AutomationId("notice").Flex(shrink: 0),
+            MainTitleBar().Flex(shrink: 0),
+            notice is "" or "設定を保存しました。" or "地図の表示設定を保存しました。" ? Empty() :
+                HStack(6, TextBlock(notice).TextWrapping(TextWrapping.Wrap).MaxWidth(Math.Max(200, windowWidth - 100))
+                        .AutomationId("notice"), Button("閉じる", () => notice = "").AutomationName("通知を閉じる"))
+                    .Padding(8, 4).Flex(shrink: 0),
             body,
             DialogView()
-        ).Backdrop(BackdropKind.Mica).OnPreviewKeyDown(OnGameKeyDown)
+        ).Backdrop(BackdropKind.Mica).OnPreviewKeyDown(OnGameKeyDown).OnPreviewKeyUp(OnGameKeyUp)
+            .OnGotFocus(ObserveInputFocus)
             .OnMount(element =>
             {
                 var root = (FrameworkElement)element;
@@ -62,47 +61,52 @@ partial class App : Component
             });
     }
 
-    private Element CharacterSidebar() => ScrollViewer(VStack(10,
+    private Element MainTitleBar()
+    {
+        var compact = windowWidth < 760;
+        var title = compact ? "PHI" : active is null ? "PHI Client" : $"PHI Client — {active.Character.Name}";
+        var bar = TitleBar(title).NoIcon();
+        if (model.Registration.Stage != RegistrationStage.None) return bar;
+        var gameVisible = active is not null && !showCharacters && !model.Worlds.Visible && model.SettingsEditor is null;
+        var session = active;
+        var status = session?.Connected == true ? model.ChatFocused ? "接続・入力" :
+            model.NativeInputFocused ? "接続・UI" : "接続・移動" :
+            session?.Connecting == true ? "接続中…" : "未接続";
+        return bar.Tall().AutoRefreshDragRegions().RightHeader(HStack(4,
+            AppMenu().IsDragRegion(false),
+            gameVisible ? Button(compact ? "?" : "操作ガイド",
+                    () => Dispatch(new ClientMessage.GameGuideChanged(!model.GameGuideVisible)))
+                .AutomationName("操作ガイド").AutomationId("game-guide")
+                .Padding(8, 4).MinWidth(32).IsDragRegion(false) : Empty(),
+            gameVisible ? Caption(compact && session?.Connected == true ? "接続" : status)
+                .AutomationName(status).AutomationId("connection-status") : Empty(),
+            gameVisible && !compact && session is not null ? Button(session.Model.Priv.Visible ? "会話に戻る" : "内緒話",
+                    () => TogglePriv(session))
+                .AutomationId("toggle-priv").Padding(8, 4).IsDragRegion(false) : Empty()
+        ).VerticalAlignment(VerticalAlignment.Center));
+    }
+
+    private Element CharacterSidebar() => VStack(12,
         active is not null ? Button("ゲーム画面に戻る", () =>
         {
             showCharacters = false;
+            pendingGameFocus = true;
             Dispatch(new ClientMessage.WorldVisibilityChanged(false));
         }).AutomationId("return-to-game") : Empty(),
-        Heading("キャラクター"), Caption("保存済みキャラクター"),
+        TextBlock("キャラクター").FontSize(20),
         VStack(6, characters.Select(CharacterRow).ToArray()),
+        characters.Count == 0 ? TextBlock("保存済みのキャラクターはありません。新しく作るか、持っているIDを登録してください。")
+            .TextWrapping(TextWrapping.Wrap) : Empty(),
+        Button("キャラクターを新規作成する", () => BeginRegistration(true))
+            .IsEnabled(loaded && !busy).AutomationId("registration-mode"),
+        Button("既存のキャラクターIDを登録する", () => BeginRegistration(false))
+            .IsEnabled(loaded && !busy).AutomationId("register-existing"),
         Button("Phillyの登録を取り込む…", ImportPhillyProfiles)
             .IsEnabled(loaded && !busy).AutomationId("import-philly-profiles"),
-        SubHeading(creating ? "キャラクターを新規作成" : "既存のキャラクターIDを登録"),
-        Button("世界一覧から接続先を選ぶ", () => Dispatch(new ClientMessage.WorldVisibilityChanged(true)))
-            .AutomationId("show-worlds"),
-        TextBox(name, value => name = value, header: "表示名").AutomationId("character-name"),
-        TextBox(host, value => host = value, header: "ゲームサーバー（ホスト名 / IPアドレス）").AutomationId("server-host"),
-        TextBox(port, value => port = value, header: "TCPポート").AutomationId("server-port"),
-        creating
-            ? VStack(8,
-                RegistrationGraphicsView(),
-                PasswordBox(password, value => password = value, "パスワード（6文字・空欄で自動生成）")
-                    .AutomationName("パスワード。空欄の場合は作成時に6文字を自動生成").AutomationId("new-password"),
-                TextBox(image, value =>
-                {
-                    image = value;
-                    _ = PrepareRegistrationPreviewAsync();
-                }, header: "作成時のキャラクター画像の番号（0から数えます）").AutomationId("initial-image"),
-                TextBox(email, value => email = value, header: "メールアドレス（任意）").AutomationId("registration-email"),
-                Caption("指定した世界にキャラクターを作成します。"))
-            : PasswordBox(id, value => id = value, "キャラクターID")
-                .AutomationName("キャラクターID").AutomationId("character-id"),
-        Button(creating ? "世界で作成して保存" : "キャラクターを保存",
-            () => _ = PerformAsync(SaveCharacterAsync)).IsEnabled(loaded && !busy).AutomationId("save-character"),
-        Button(creating ? "既存のキャラクターIDを登録する" : "キャラクターを新規作成する", () =>
-        {
-            creating = !creating;
-            password = "";
-        }).IsEnabled(!busy).AutomationId("registration-mode"),
         TextBlock("PHIでは、認証情報とゲームデータを暗号化せずにTCPで送信します。信頼できるゲームサーバーだけを利用してください。")
-            .TextWrapping(TextWrapping.Wrap).Width(300),
+            .TextWrapping(TextWrapping.Wrap),
         Button("設定フォルダーを開く", () => _ = PerformAsync(OpenSettingsFolderAsync))
-    ).Width(300)).Width(300).Flex(shrink: 0);
+    ).MaxWidth(720).HorizontalAlignment(HorizontalAlignment.Center);
 
     private Element CharacterRow(SavedCharacter character) => VStack(4,
         TextBlock(character.Name), Caption($"{character.Host}:{character.Port}"),

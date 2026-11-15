@@ -28,10 +28,11 @@ Model/Update/Viewと、通信・保存・native操作を分けています。
 地図の余分な縦積みを整理し、補助情報を「地図情報・保存」にまとめました。
 地形記録の外周用領域は保ち、外周を使わない表示では画像の自然高まで余白を減らします。
 描画比率・クリック座標は従来の倍率処理を使います。既存の窓配置は上書きしません。
-3×3パッドの周囲8方向は画面方向、中央は攻撃です。斜めは縦・横の2命令です。
-表示切替と50–400%の倍率を地図の近くに置き、設定を保存します。EagleEyeにも倍率を適用します。
+3×3パッドは左旋回/北・前/右旋回、西・左/攻撃/東・右、空欄/南・後/空欄の7操作です。
+中央はSpaceの攻撃で、NumPad5や斜め移動ではありません。
+表示切替と50–400%の整数倍率入力・−/＋・100%復帰を置き、設定を保存します。EagleEyeにも倍率を適用します。
 
-Coreは **Passed: 253, Failed: 0, Skipped: 0**、x64 buildは警告/エラー0。
+先行`37bc0ea`のCoreは **Passed: 253, Failed: 0, Skipped: 0**、x64 buildは警告/エラー0。
 `files\ui-map-usability-20261115-185153\results.json`は所有loopback/UIAの9項目が合格しました。
 北固定/回転の全9位置のwire、非表示からの再表示と保存、50/400%境界、
 通常地図の125%描画寸法、EagleEyeの縦横スクロール比率、独立窓、設定復元を含みます。
@@ -44,9 +45,43 @@ Coreは **Passed: 253, Failed: 0, Skipped: 0**、x64 buildは警告/エラー0�
 `files\usability-regression\usability-core.trx`に253件の回帰結果、
 `files\usability-cleanup.json`に正常再起動後の設定/登録/素材指定の不変とTCP接続0件を記録しました。
 
-この単位は操作パッド/倍率/入力の機能改善です。後続で指定された
-「マップ＋チャットを主役にし、操作補助を通常は抑える」主画面構成と、
-専用3段階の新規登録は独立UX設計の確定を待っており、最終UX完了には数えていません。
+先行の9位置パッドはその後の設計照合で上記7操作へ訂正しました。先行wire試験を
+現在の9操作の保証としては扱いません。
+
+## コンパクトな主画面・3段階登録・タイトルバー
+
+独立UX設計とimpeccable Operate/craft-floorに沿い、通常画面をマップ＋チャットへ整理しました。
+1キャラ時はTabView枠を省き、操作ガイドを一時表示、パッドを保存式の補助表示にしています。
+設定の未指定時だけパッドを初期非表示にし、明示保存済みのtrue/falseは保持します。
+狭幅では地図と会話を上下に配分し、世界ログに80 DIP以上を確保します。
+privは狭幅で会話を切り替え、同じ狭い領域へ2つのチャットを積みません。
+
+公式`TitleBarElement.RightHeader`、`Tall`、`AutoRefreshDragRegions`、`IsDragRegion(false)`で、
+メニュー/ガイド/必要な接続状態をnativeタイトルバーへ統合しました。本文の重複操作行を除去しています。
+通常高さ32 DIPと別操作行を重ねず、操作可能な48 DIPのtitle barを使います。
+狭幅で中央の`Content`がクリップされた初回結果を受け、幅を確保する`RightHeader`へ一括修正しました。
+最小化/最大化/閉じるはWindows標準のままです。drag/Snap/最大化・復元の物理操作や別DPI間移動を
+実証したという意味ではなく、下記の手動確認を残しています。
+
+登録は専用の世界→キャラクター→確認で、既存IDのローカル登録とは分離しました。
+世界選択では通信せず、候補取得は明示操作だけ、作成時だけ秘密値を生成します。
+明確な拒否/結果不明/PC保存待ち/完了を分け、結果不明に再送操作を出しません。
+作成成功後の保存失敗は同一ID/秘密値/keyを保持して保存だけ再試行し、自動接続しません。
+候補取得中の中止を可能にし、取消後の応答を無視します。候補応答の再描画で入力focus/scrollを戻しません。
+終了は公開`ReactorApp.Exit()`へ統一し、直接Destroy/アプリExitによる既存の終了時AVを避けました。
+
+現在のCoreは **Passed: 257, Failed: 0, Skipped: 0**、x64 buildは警告/エラー0です。
+登録の保存故障/秘密の伏せ/不明時再送禁止等は`192504`バッチの前半7項目が合格しました。
+`193809`の独立identityで候補取消・7操作wire・整数倍率/再表示・狭幅privまで合格し、
+タイトルバーの狭幅だけ不合格。1回の一括修正後、`194037`は残るchrome/独立地図を含む5/5合格です。
+これらは全体の実キー/IME受け入れや独立UX最終評価を代替しません。
+
+**試験データ復旧の阻害:** `192504`のharnessがメニュー待機不足で中断し、設定原本をメモリ内だけに
+持っていたため失われました。元の`singleWindow`/`automap`/`showMovementPad`/`mapZoom`は確定できず、
+推測で復元していません。現在値を保全し、所有合成登録だけを通常UIで削除、製品appとlistenerを停止しました。
+以後はWinAppの`--unique-identity`、別layout、永続事前backupで試験しています。
+独立identity試験で製品settingsのSHA256不変と、合成登録除去/metadata・試験設定の復元/終了code0を確認しました。
+これは失われた製品設定の復元ではありません。4値の確定と復旧は未解決のマージ阻害条件です。
 
 ## 56項目の最終照合表
 
@@ -92,10 +127,10 @@ Coreは **Passed: 253, Failed: 0, Skipped: 0**、x64 buildは警告/エラー0�
 | 033 | 参加者組別priv、多人数初回返信確認。Core: `Priv.cs`; UI: `App.PrivEffects.cs` | `PrivTests`、native取消・下書き保持・承認後の送信。 |
 | 034 | reserve/trans/ok、移動先へopen再送なし。Core: `PhiConnection.Transfer.cs` | `WorldTransferTests`で成功・両側拒否・literal。追加native 5項目で予約待ち/移動完了/設定10行も確認。 |
 | 035 | 移動先確認、失敗時の行保持、接続先保存。UI: `App.TransferEffects.cs`, `App.Effects.cs` | `WorldTransferTests`で未承認先への接続抑制、行順と世代。追加nativeで移動中の送信拒否、同じ合成登録への移動先保存を確認。別ホスト確認画面のnative操作は未確認。 |
-| 036 | 空欄時のみ暗号学的6文字生成、本人確認。Core: `Protocol.cs`; UI: `App.RegistrationEffects.cs` | `PhiConnectionTests`, `ModelUpdateTests`、独立画面評価。秘密値は成果物に含めない。 |
+| 036 | 自動生成選択時、明示作成で暗号学的6文字生成、本人確認。Core: `Protocol.cs`, `RegistrationForm.cs`; UI: `App.Effects.cs` | `PhiConnectionTests`, `RegistrationFormTests`、native生成/伏せ/保存再試行。新3段階の独立最終評価は未実施。 |
 | 037 | Unicode文字数、禁止文字、メール任意。Core: `Protocol.cs` | `PhiConnectionTests.RegistrationUsesOriginalUnicodeValidationAndCryptographicAlphabet`。 |
 | 038 | REGINFO IMG、0基準番号、実画像。Core: `PhiConnection.cs`; UI: `App.RegistrationEffects.cs` | `RegistrationGraphicsTests`、native 5項目。取得は一覧要求だけでlogin/作成なし。 |
-| 039 | 作成・拒否・期限、ローカル保存の再試行。UI: `App.Effects.cs`, `CharacterStore.cs` | Core登録試験。追加native 5項目で作成成功後の保存故障、ID保持、作成を繰り返さない再保存、伏せた6文字の確認画面、復元。独立評価は未提供。 |
+| 039 | 3段階作成・拒否・結果不明・PC保存のみ再試行。UI: `App.RegistrationFlow.cs`, `App.Effects.cs`, `CharacterStore.cs` | `RegistrationFormTests`、native保存故障/同一ID/key/要求1回/自動接続なし/不明時再送なし。製品設定の復旧未完は別の阻害条件。 |
 | 040 | 世界一覧取得元、cache/import/選択/失敗。Core: `WorldDirectoryClient.cs`, `WorldList.cs` | `WorldListTests`、native 9項目。公開一覧更新なし。 |
 | 041 | 複数タブ、登録選択、全接続/切断/強制。UI: `App.Effects.cs` | 所有2タブnative 9項目。既存の実プロフィールを接続対象にしていない。 |
 | 042 | Philly登録・設定取り込み、秘密の保管。Core: `PhillyProfiles.cs`, `SettingsStore.cs`; UI: `App.ProfileImportEffects.cs` | `PhillyProfilesTests`、native 6項目。保存故障・同名置換・元データ保持。 |
@@ -111,8 +146,8 @@ Coreは **Passed: 253, Failed: 0, Skipped: 0**、x64 buildは警告/エラー0�
 | 052 | 通常/EagleEye PNG、folder。UI: `App.MapEffects.cs` | native 5項目、独立PNGデコード・寸法/透明画素・目視。保存先を開く操作は残確認。 |
 | 053 | 独立/統合窓、配置、統合幅。UI: `App.MapWindow.cs`, `App.MapLayoutEffects.cs`, `MapPaneSplitter.cs`, `App.ShutdownEffects.cs` | native 9項目と製品主窓のprocess跨ぎ配置。別identity配置fixtureも確認。地図窓の再起動跨ぎ配置・reset肯定実行・別DPIドラッグは残確認。 |
 | 054 | 版情報、明示的更新確認、時刻trace。Core: `ProductRelease.cs`, `DiagnosticTrace.cs`; UI: `App.DiagnosticsEffects.cs` | 両Core試験、native 5項目。公開Releasesの実取得・外部ページ起動は試験対象外。 |
-| 055 | 初回/登録/接続/切断/失敗/busyの日本語UX。UI: `App.RegistrationView.cs`, `App.Settings.cs`等 | R1–R12反映、提供17画面の独立再確認、N1/P2と保存結果4項目。未提供状態は下記参照。 |
-| 056 | 狭幅、DPI、IME、focus、読み上げ。UI: 各Viewとnative peer | 狭幅900×1000px/144DPI、幅200 DIP、UIA復旧。物理IME/focus、複数DPI、高contrast、読み上げ実音は保留。 |
+| 055 | 初回/3段階登録/接続/切断/失敗/busy、通常はマップ＋チャット。UI: `App.RegistrationFlow.cs`, `App.Game.cs`, `App.cs`等 | 既往R1–R12/N1/P2。新3段階・48 DIP nativeタイトルバー・候補取消・loading/error/保存失敗/完了の実装側UIA。独立最終評価は未実施。 |
+| 056 | 狭幅、DPI、IME、focus、読み上げ。UI: 各Viewとnative peer | 520×720px/144DPIで会話80 DIP以上、タイトルバーcommand/caption非重複。物理IME/focus、drag/Snap、複数DPI、高contrast、読み上げ実音は保留。 |
 
 ## 直近の修正とUIAのA/B
 
@@ -144,11 +179,15 @@ pool無効化ではcontrolの新規割当が増える可能性があります。
 ## native証拠
 
 次は作業セッション成果物内の相対パスです。ソースやパッケージへの素材同梱ではありません。
-保存済み設定の復元と、試験で作成した合成プロフィールだけの削除を各バッチで行いました。
+以下の過去成功バッチでは設定復元と合成登録の削除を確認しました。
+後続`192504`の製品設定復元未完を、これらの過去結果で上書きしません。
 結果形式はarrayまたは`results`配列なので、どちらも確認対象にしています。
 
 | 証拠 | 合格した範囲 |
 |---|---|
+| `files\ui-native-ux-20261115-192504\results.json` | 新登録等の前半7項目合格、後半はメニュー待機不足で中断、cleanup失敗。合格バッチではない。 |
+| `files\ui-native-ux-20261115-193809\results.json` | 別identityで候補取消/応答時scroll、明示接続、7パッドwire、整数倍率/再表示、狭幅会話/priv合格。狭幅titlebar不合格、cleanup/終了0は合格。 |
+| `files\ui-native-ux-20261115-194037\results.json` | 別identityの最終5/5。明示接続、狭幅map/chat/priv、titlebar/caption、独立地図150%/viewport、試験設定復元/終了0。製品settings hash不変。 |
 | `files\ui-map-windows-20261115-163817\results.json` | 9項目。主窓pool無効版の幅・地図窓・設定・ログ選択・復元。 |
 | `files\ui-alltabs-20261115-164117\results.json` | 9項目。2タブ発言、大声、prefix、全接続/切断/強制、取消、復元。 |
 | `files\ui-master-20261115-164545\results.json` | 9項目。原典XML、資格、順序、整数/文字、危険操作取消、不正整数拒否、復元。hover/focus/物理キーなし。 |
@@ -240,9 +279,12 @@ wphiにある機能を対象から外したという判断ではありません�
 
 | 残確認 | 必要な操作と影響 |
 |---|---|
+| 製品の試験設定復旧 | `singleWindow`/`automap`/`showMovementPad`/`mapZoom`の試験前値を利用者が確定して復元。未確定のため推測していない。表示方式・地形記録・パッド・倍率に影響。新たな製品identity試験は禁止し、別identityと永続backupを使う。 |
+| 新構成の独立UX最終確認 | 最新の通常/狭幅主画面、登録3段階・保存待ち/不明/完了を一度のまとめた確認へ渡す。既往17画面評価を新構成の合格としない。 |
 | 物理キー/IME/focus | 所有モックへ接続し、日本語変換の確定Enterで送信されないこと、Esc/Tab、修飾移動、F8–F12/Alt+G、list優先、看板/priv/タグ編集中の競合、長押しを実キーで確認。REQ-019/026–029/048/056の受け入れに影響。 |
 | 音声/通知 | 利用可能なローカルWAVで正常再生、利用者の前面/背面切替で点滅抑制を確認。REQ-050の受け入れに影響。 |
 | 配置/DPI/アクセシビリティ | 製品の地図窓の再起動跨ぎ配置、resetを承認して現在画面への復帰、統合境界の物理ドラッグ、別DPI間移動、高contrastと読み上げを確認。主窓の通常再起動配置は修正/確認済み。REQ-053/056の受け入れに影響。 |
+| タイトルバーの実操作 | 空白/タイトルからdrag、最大化captionのhoverでSnap、最大化/復元/最小化、Alt+Spaceとkeyboard/menu focusを確認。標準captionの存在/対応可能状態/狭幅非重複はUIA確認済みだが、物理経路は未確認。 |
 | 残る所有native状態 | list待機、priv実送信中、別ホスト確認の製品画面。世界移動の予約待ち/成功後の保存と、登録成功後の保存失敗/再試行は今回の追加5項目ずつで確認済み。独立レビューへは追加していない。 |
 | その他の未実施操作 | 保存先folderの起動、更新ページの実起動、dialog中の独立窓操作抑制。実装と試験済み範囲を区別する。 |
 
@@ -265,7 +307,8 @@ native harnessは利用者のprofileへ接続しないため、固定された�
 流用しないでください。`ui-chat.ps1 -MapWindowsOnly`、`ui-alltabs.ps1`、
 `ui-master.ps1`、`ui-transfer.ps1`、`ui-registration-save.ps1`の実行記録を保存しています。
 
-試験用サーバーは停止し、製品アプリは通常のpackaged起動で登録画面を残しています。
-試験用profileと保存故障用ファイルを片付け、設定・登録・実素材の指定を保持しました。
+試験用サーバー、製品アプリ、独立identityの試験アプリは停止しています。
+合成登録と保存故障用ファイルを片付け、元の実登録と実素材指定は保持しました。
+製品settingsの4値は前述のとおり復元未完、現在値を別途保全しています。
 PRはDraft、IssueはOpenのままです。物理キー/IME等の受け入れを完了扱いにせず、
 阻害条件を付けて引き継ぎます。

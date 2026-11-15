@@ -10,17 +10,21 @@ partial class App
     private WriteableBitmap? registrationPreview;
     private string registrationPreviewMessage = "";
     private double registrationRasterScale = 1;
+    private CancellationTokenSource? registrationGraphicsCancellation;
 
     private async Task LoadRegistrationGraphicsAsync()
     {
-        if (!int.TryParse(port, out var number))
-            throw new ArgumentException("TCPポートを数字で入力してください。");
-        PhiConnection.ValidateEndpoint(host, number);
+        if (model.RegistrationGraphics.Loading) return;
         var request = ++registrationGraphicsRequest;
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(worldLifetime.Token);
+        registrationGraphicsCancellation = cancellation;
         Dispatch(new ClientMessage.RegistrationGraphicsLoading(request));
         try
         {
-            var names = await PhiConnection.RegistrationGraphicsAsync(host.Trim(), number, worldLifetime.Token);
+            if (!int.TryParse(port, out var number))
+                throw new ArgumentException("TCPポートを数字で入力してください。");
+            PhiConnection.ValidateEndpoint(host, number);
+            var names = await PhiConnection.RegistrationGraphicsAsync(host.Trim(), number, cancellation.Token);
             Dispatch(new ClientMessage.RegistrationGraphicsLoaded(request, names));
             if (model.RegistrationGraphics.Request == request) await PrepareRegistrationPreviewAsync();
         }
@@ -28,6 +32,10 @@ partial class App
         {
             Dispatch(new ClientMessage.RegistrationGraphicsFailed(request,
                 error is OperationCanceledException ? "30秒以内に一覧の返事がありませんでした。接続先を確認して再試行してください。" : error.Message));
+        }
+        finally
+        {
+            if (ReferenceEquals(registrationGraphicsCancellation, cancellation)) registrationGraphicsCancellation = null;
         }
     }
 

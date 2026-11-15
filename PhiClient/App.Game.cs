@@ -13,7 +13,8 @@ partial class App
         System.Collections.Immutable.ImmutableArray<SavedCharacter> Characters, bool Connected, bool Transferring,
         bool PreparingMagic, bool MasterRunning, bool LogSaving, bool HasTransport, bool KnownWorld,
         bool HasEagle, bool NorthFixed, PhiClient.Core.MasterMenu? Master, bool MasterVisible,
-        int ConnectedTabs, int DisconnectedTabs, bool Loud, bool AllTabSpeech, bool CheckingRelease, bool TraceRecording);
+        int ConnectedTabs, int DisconnectedTabs, bool Loud, bool AllTabSpeech, bool CheckingRelease, bool TraceRecording,
+        bool ShowPad);
     private MenuInputs? menuInputs;
     private Element? menuElement;
 
@@ -26,7 +27,8 @@ partial class App
             session?.World is not null and not "" and not "???", session?.Eagle is not null,
             session?.NorthFixed ?? true, model.MasterMenu, MasterMagic.Visible(session?.Stats, model.Options),
             sessions.Count(item => item.Connection is not null), sessions.Count(item => item.Connection is null),
-            session?.Model.Loud == true, session?.Model.AllTabSpeech == true, model.CheckingRelease, model.TraceRecording);
+            session?.Model.Loud == true, session?.Model.AllTabSpeech == true, model.CheckingRelease, model.TraceRecording,
+            model.Options.ShowMovementPad);
         // Preserve open native flyouts when only map animation or unrelated log content changes.
         if (inputs == menuInputs && menuElement is not null) return menuElement;
         MenuFlyoutItemData Action(string label, InputAction action) =>
@@ -124,6 +126,8 @@ partial class App
                 Key("Call...  |  Alt+B", ConsoleKey.B, true),
                 Key("Return...  |  Alt+R", ConsoleKey.R, true)),
             Menu("View",
+                ToggleMenuItem("操作パッドを表示", model.Options.ShowMovementPad,
+                    value => SetMapOptions(model.Options with { ShowMovementPad = value })),
                 MenuItem("画像素材フォルダー…", ShowGraphicsSettings),
                 MenuItem("現在の世界の記録地図を消す…", () => _ = PerformAsync(ClearAutomapAsync))
                     with { IsEnabled = session?.World is not null and not "" and not "???" },
@@ -149,7 +153,11 @@ partial class App
         };
         if (MasterMenu(session) is { } master) menus = [.. menus, master];
         menuInputs = inputs;
-        return menuElement = MenuBar(menus).WithKey($"menu-{session?.Character.Key ?? "offline"}");
+        return menuElement = DropDownButton("メニュー", MenuItems(menus.Select(menu =>
+                (MenuFlyoutItemBase)MenuSubItem(menu.Title, menu.Items)).ToArray()))
+            .HorizontalAlignment(HorizontalAlignment.Left).Padding(8, 4)
+            .AutomationId("app-menu").OnMount(element => menuControl = (Microsoft.UI.Xaml.Controls.DropDownButton)element)
+            .WithKey($"menu-{session?.Character.Key ?? "offline"}");
     }
 
     private Element GameView(GameSession session)
@@ -191,6 +199,14 @@ partial class App
                 presenter.Update(session.Model.LogEntries, model.Options, model.LogImages);
                 viewer.Content = presenter.Surface;
                 viewer.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White);
+                viewer.IsTabStop = true;
+                gameControl = viewer;
+                viewer.Loaded += (_, _) =>
+                {
+                    if (!pendingGameFocus || active != session) return;
+                    pendingGameFocus = false;
+                    viewer.Focus(FocusState.Programmatic);
+                };
                 session.LogPresenter = presenter;
                 var scrollQueued = false;
                 viewer.LayoutUpdated += (_, _) =>
@@ -205,21 +221,23 @@ partial class App
                             viewer.ChangeView(null, viewer.ScrollableHeight, null);
                     });
                 };
-            }).Flex(grow: 1, basis: 0);
+            }).MinHeight(80).AutomationId("world-log-scroll").Flex(grow: 1, basis: 0);
 
         var chat = FlexColumn(
             session.Model.Master is null ? Empty() :
                 HStack(8, TextBlock("超魔法の手順を実行しています…").AutomationId("master-status"),
                     Button("残りの手順を中止", () => CancelMaster(session)).AutomationId("master-cancel")).Flex(shrink: 0),
-            HStack(8, SubHeading("世界からのログ"),
-                Caption($"{session.World} {session.Area}").AutomationId("world-location")).Flex(shrink: 0),
+            Caption($"{session.World} {session.Area}").AutomationId("world-location").Flex(shrink: 0),
             log, choices.Flex(shrink: 0), SignEditor(session).Flex(shrink: 0),
-            TextBox(session.Input, value =>
+            FlexRow(TextBox(session.Input, value =>
                 {
                     if (session.Input == value) return;
                     session.Dispatch(new GameMessage.InputChanged(value));
-                }, header: "発言またはPHIコマンド")
-                .AcceptsReturn(true).Height(82).AutomationId("command-input")
+                }).PlaceholderText("発言またはPHIコマンド").AutomationName("発言またはPHIコマンド")
+                .AcceptsReturn(true).Height(Math.Clamp(40 + 20 * session.Input.Count(c => c == '\n'), 40, 80))
+                .AutomationId("command-input")
+                .OnGotFocus((_, _) => Dispatch(new ClientMessage.ChatFocusChanged(true)))
+                .OnLostFocus((_, _) => Dispatch(new ClientMessage.ChatFocusChanged(false)))
                 .OnMount(element =>
                 {
                     var input = (Microsoft.UI.Xaml.Controls.TextBox)element;
@@ -230,48 +248,56 @@ partial class App
                 .OnKeyUp((_, args) =>
                 {
                     if (args.Key == Windows.System.VirtualKey.Enter) committingComposition = false;
-                }).Flex(shrink: 0),
-            VStack(4, HStack(8,
-                    Button("送信", () => Submit(session)).IsEnabled(session.Connected && session.Model.Master is null).AutomationId("send-command"),
-                    Button("Party", () => Submit(session, party: true)).IsEnabled(session.Connected),
-                    Button("タグ…", () => ShowInputTags(session)).AutomationId("chat-tags")),
-                Caption("Enter: current line  |  Shift+Enter: newline  |  Ctrl+Enter: party")
-                    .TextWrapping(TextWrapping.Wrap))
-                .Flex(shrink: 0)
+                }).Flex(grow: 1, basis: 0),
+                Button("送信", () => Submit(session)).IsEnabled(session.Connected && session.Model.Master is null)
+                    .AutomationId("send-command").Flex(shrink: 0),
+                model.GameGuideVisible ? MenuFlyout(Button("送信方法"),
+                    MenuItem("パーティーへ（Ctrl+Enter）", () => Submit(session, party: true)),
+                    MenuItem("タグを入力…", () => ShowInputTags(session)),
+                    MenuItem("改行: Shift+Enter", () => { }) with { IsEnabled = false }).Flex(shrink: 0) : Empty()
+            ).Flex(shrink: 0)
         ).Flex(grow: 1, basis: 0);
 
         var integratedMap = showMap && model.Options.SingleWindow && !showCharacters;
-        var compact = windowWidth < 1000;
+        var compact = windowWidth < 760;
+        var replaceChatWithPriv = session.Model.Priv.Visible && windowWidth < 1100;
         var mapWidth = compact ? Math.Min(model.Options.MapPaneWidth, Math.Max(200, windowWidth - 48)) :
             MapPaneLayout.Width(model.Options.MapPaneWidth, MapAvailableWidth);
         var map = MapPane(session, mapWidth - 16);
-        var mapHeight = Math.Max(200, windowHeight - 260);
+        var mapHeight = Math.Max(120, model.GameBodyHeight);
         var gameBody = compact
-            ? (Element)ScrollViewer(VStack(12,
-                integratedMap ? ScrollViewer(map).Width(mapWidth).Height(430) : Empty(),
-                chat.Height(560).Flex(grow: 0, basis: 560),
-                session.Model.Priv.Visible ? PrivView(session).Height(520) : Empty()))
+            ? replaceChatWithPriv ? (Element)PrivView(session, fill: true).Flex(grow: 1, basis: 0) : FlexColumn(
+                integratedMap ? ScrollViewer(map).Height(CompactMapHeight).Flex(shrink: 0) : Empty(), chat)
             : FlexRow(integratedMap
                     ? ScrollViewer(map).Width(mapWidth).Height(mapHeight).Flex(shrink: 0) : Empty(),
                 integratedMap ? MapSplitter(mapHeight) : Empty(),
-                chat, PrivView(session).Flex(shrink: 0));
+                replaceChatWithPriv ? PrivView(session, fill: true).Flex(grow: 1, basis: 0) : chat,
+                !replaceChatWithPriv ? PrivView(session).Flex(shrink: 0) : Empty());
         var connectionButton = Button(session.Connecting ? "接続しています…" : session.Connected ? "切断" : "再接続", ToggleConnection)
             .IsEnabled(!session.Connecting && !session.Closing).AutomationId("connection-toggle");
-        var movementButton = Button("キーボード操作", () => gameControl?.Focus(FocusState.Programmatic))
-            .OnMount(element => gameControl = (Microsoft.UI.Xaml.Controls.Button)element).AutomationId("movement-mode");
+        var movementButton = Button("キーボード操作に戻る", () => gameControl?.Focus(FocusState.Programmatic))
+            .AutomationId("movement-mode");
         var charactersButton = Button("キャラクター一覧", () => { showCharacters = !showCharacters; }).AutomationId("toggle-characters");
         var closeButton = Button("タブを閉じる", () => CloseTab(session)).IsEnabled(!session.Connecting && !session.Closing)
             .AutomationId("close-tab");
         var toolbar = compact ? (Element)VStack(6, HStack(6, connectionButton, movementButton), HStack(6, charactersButton, closeButton))
             : HStack(6, connectionButton, movementButton, charactersButton, closeButton);
         return FlexColumn(
-            toolbar.Flex(shrink: 0),
+            model.GameGuideVisible ? Expander("接続・タブ操作", toolbar).Flex(shrink: 0) : Empty(),
+            model.GameGuideVisible || session.Model.Transferring || session.PreparingMagic ?
             Caption(session.Model.Transferring ? "世界移動中です。操作は送信しません。「切断」で移動を中止できます。" :
                 session.PreparingMagic ? "Preparing magic: waiting for equipment response; other input is paused." :
-                $"通常はゲームのキー操作 / Tab: チャット入力 / Esc: ゲーム操作 / Ctrl+Tab: 次のキャラクター / {(fullKeys ? "フルキー移動" : "テンキー・矢印移動")}")
-                .AutomationId("input-mode").Flex(shrink: 0),
-            gameBody.Flex(grow: 1, basis: 0)
-        ).Flex(grow: 1, basis: 0).FlexPadding(12, 8);
+                model.ChatFocused ? "チャット入力中 / Enter: 送信 / Esc: ゲーム操作" :
+                model.NativeInputFocused ? "文字入力・UI操作中 / 入力欄やメニューの操作が優先されます" :
+                model.GameGuideVisible ? "移動: 矢印・テンキー / Tab: チャット / Esc: ゲーム操作 / Ctrl+Tab: 次のキャラクター" :
+                "ゲーム操作 / Tab: チャット")
+                .AutomationId("input-mode").Flex(shrink: 0) : Empty(),
+            gameBody.Flex(grow: 1, basis: 0).OnSizeChanged((_, args) =>
+            {
+                if (args.NewSize.Height > 0 && Math.Abs(model.GameBodyHeight - args.NewSize.Height) > 1)
+                    Dispatch(new ClientMessage.GameBodyHeightChanged(args.NewSize.Height));
+            })
+        ).Flex(grow: 1, basis: 0).FlexPadding(4);
     }
 
     private Element GraphicMap(GameSession session)

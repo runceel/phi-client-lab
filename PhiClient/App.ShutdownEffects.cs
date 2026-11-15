@@ -11,6 +11,7 @@ partial class App
     private int pendingSessionOperations;
     private int pendingLogWrites;
     private readonly Dictionary<PhiClient.GameSession, List<LogEntry>> unsavedLogEntries = [];
+    private bool confirmingRegistrationClose;
 
     private void AttachClosingWindow(FrameworkElement root)
     {
@@ -25,7 +26,29 @@ partial class App
     private void OnWindowClosing(AppWindow sender, AppWindowClosingEventArgs args)
     {
         args.Cancel = true;
-        if (closingApplication) return;
+        if (closingApplication || confirmingRegistrationClose) return;
+        if (model.Registration.Stage == RegistrationStage.Creating)
+        {
+            notice = "キャラクターの作成結果を待っています。結果を受け取ってから終了してください。";
+            return;
+        }
+        if (model.Registration.NeedsDiscardWarning)
+        {
+            _ = ConfirmRegistrationCloseAsync(sender);
+            return;
+        }
+        BeginClosing(sender);
+    }
+
+    private async Task ConfirmRegistrationCloseAsync(AppWindow sender)
+    {
+        confirmingRegistrationClose = true;
+        try { if (await EndRegistrationAsync()) BeginClosing(sender); }
+        finally { confirmingRegistrationClose = false; }
+    }
+
+    private void BeginClosing(AppWindow sender)
+    {
         closingApplication = true;
         if (mainRoot is not null) mainRoot.IsHitTestVisible = false;
         animation?.Stop();
@@ -77,8 +100,7 @@ partial class App
             StopDiagnosticTrace();
             stoppingTrace = false;
             window.Closing -= OnWindowClosing;
-            window.Destroy();
-            Application.Current.Exit();
+            ReactorApp.Exit();
         }
         catch (Exception error) when (IsExpected(error) || error is TimeoutException)
         {

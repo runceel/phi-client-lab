@@ -8,13 +8,13 @@ using static Microsoft.UI.Reactor.Factories;
 
 partial class App
 {
-    private Element PrivView(GameSession session)
+    private Element PrivView(GameSession session, bool fill = false)
     {
         var priv = session.Model.Priv;
         if (!priv.Visible) return Empty();
         var current = priv.Current;
         var users = session.Model.Users.Where(user => user.Name != session.Model.PlayerName).ToArray();
-        return FlexColumn(
+        var view = FlexColumn(
             HStack(8, SubHeading("priv（内緒話）"),
                 Button("閉じる", () => session.Dispatch(new GameMessage.PrivVisibilityChanged(false)))
                     .AutomationId("priv-close")).Flex(shrink: 0),
@@ -62,18 +62,20 @@ partial class App
                 }, () => SendPriv(session))
                 .IsEnabled(session.Connected && !session.Model.Transferring && !priv.Sending &&
                     session.Model.Master is null && current is not null && priv.Draft.Length > 0).AutomationId("priv-send").Flex(shrink: 0),
+            Expander("この世界の相手を選ぶ", VStack(4,
             HStack(6, TextBlock(session.Model.UserRefresh.Started is null ? "この世界の相手" : "相手の一覧を読み込んでいます…"),
                 Button("一覧を更新", () => _ = SessionOperationAsync(session, () => RefreshUsersAsync(session)))
                     .IsEnabled(session.Connected && !session.Model.Transferring && session.Model.UserRefresh.Started is null)
-                    .AutomationId("priv-refresh")).Flex(shrink: 0),
+                    .AutomationId("priv-refresh")),
             ListView(-1, _ => { }, users.Select(user => (Element)CheckBox(priv.Picked.Contains(user.Name),
                     value => session.Dispatch(new GameMessage.PrivPicked(user.Name, value)), user.Name)
                     .AutomationId($"priv-user-{user.Number}"))
-                .ToArray()).MaxHeight(160).AutomationId("priv-users").Flex(shrink: 0),
+                .ToArray()).MaxHeight(160).AutomationId("priv-users"),
             Button("選んだ相手との会話を開く", () =>
                     session.Dispatch(new GameMessage.PrivOpened(priv.Picked.ToArray())))
-                .IsEnabled(priv.Picked.Count > 0 && !priv.Sending).AutomationId("priv-open-conversation").Flex(shrink: 0)
-        ).Width(windowWidth < 1000 ? Math.Max(260, windowWidth - 64) : 300)
-            .FlexPadding(8).AutomationId("priv-panel");
+                .IsEnabled(priv.Picked.Count > 0 && !priv.Sending).AutomationId("priv-open-conversation")))
+                .Flex(shrink: 0)
+        ).FlexPadding(4).AutomationId("priv-panel");
+        return fill ? view : view.Width(300);
     }
 }

@@ -271,7 +271,7 @@ public sealed class PhiConnectionTests
                 await reader.ReadLineAsync(timeout.Token);
             await stream.WriteAsync("#ex-register reject name server-must-not-be-echoed\n"u8.ToArray(), timeout.Token);
         }, timeout.Token);
-        var error = await Assert.ThrowsAsync<IOException>(() => PhiConnection.RegisterAsync("127.0.0.1",
+        var error = await Assert.ThrowsAsync<RegistrationRejectedException>(() => PhiConnection.RegisterAsync("127.0.0.1",
             ((IPEndPoint)listener.LocalEndpoint).Port, "Tester", "abc123", "2", "test@example.invalid", timeout.Token));
         await server;
         Assert.Contains("名前", error.Message);
