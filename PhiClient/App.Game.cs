@@ -237,63 +237,15 @@ partial class App
                 .Flex(shrink: 0)
         ).Flex(grow: 1, basis: 0);
 
-        var map = VStack(8,
-            SubHeading(session.ShowEagle && session.Eagle is not null ? "EagleEye" :
-                $"周辺地図（{session.Map?.Size ?? 7} × {session.Map?.Size ?? 7}）").AutomationId("local-map"),
-            HStack(8, GameViews.Compass(session), TextBlock(session.Map is null ? "地図を待っています。" :
-                session.NorthFixed ? "北固定（上が北）" : "回転マップ（方位は矢印で確認）")
-                .TextWrapping(TextWrapping.Wrap)),
-            (ScrollViewer(GraphicMap(session)) with
-            {
-                HorizontalScrollBarVisibility = Microsoft.UI.Xaml.Controls.ScrollBarVisibility.Auto,
-                HorizontalScrollMode = Microsoft.UI.Xaml.Controls.ScrollMode.Enabled
-            }).AutomationId("map-viewport").MaxWidth(344).Height(344)
-                .OnMount(element =>
-                {
-                    var viewer = (Microsoft.UI.Xaml.Controls.ScrollViewer)element;
-                    viewer.SizeChanged += (_, args) =>
-                    {
-                        if (args.NewSize.Width <= 0 || args.NewSize.Height <= 0) return;
-                        session.MapViewportWidth = args.NewSize.Width;
-                        session.MapViewportHeight = args.NewSize.Height;
-                        refresh();
-                    };
-                }),
-            TextBlock("Characters: " + string.Join(", ", MapLabels.NameList(session.Map?.Actors ?? [])))
-                .TextWrapping(TextWrapping.Wrap).Width(336).AutomationId("map-character-names"),
-            TextBlock(model.GraphicsNotice).TextWrapping(TextWrapping.Wrap).FontSize(12).Width(336)
-                .AutomationId("graphics-notice"),
-            TextBlock(session.Map is null ? "Waiting for a map." :
-                $"Facing {session.Map.Direction} | {(session.NorthFixed ? "North up" : "Rotating")}")
-                .AutomationId("map-state"),
-            session.Eagle is null ? Empty() : Button(session.ShowEagle ? "Back to local map" : "Show EagleEye", () =>
-            {
-                session.Dispatch(new GameMessage.EagleToggled());
-            }),
-            Button("表示中の地図をPNGに保存", () => SaveMapImage(session))
-                .IsEnabled(!busy && session.Map is not null).AutomationId("save-map-image"),
-            Button("地図画像の保存先を開く", OpenMapImageFolder).AutomationId("open-map-images"),
-            GameViews.Status(session),
-            TextBlock("Click: move toward tile. Right-click: attack.\nWithout graphics: circle = character, ! = sign, * = item.")
-                .TextWrapping(TextWrapping.Wrap).FontSize(12).Width(336),
-            HStack(6,
-                Button("Turn left", () => Send(session, "turn l")),
-                Button("Forward", () => Move(session, "N")),
-                Button("Turn right", () => Send(session, "turn r"))),
-            HStack(6,
-                Button("Left", () => Move(session, "W")),
-                Button("Attack", () => Send(session, "hit")),
-                Button("Right", () => Move(session, "E")),
-                Button("Back", () => Move(session, "S")))
-        ).Width(344);
-
+        var map = MapPane(session);
+        var integratedMap = showMap && model.Options.SingleWindow && !showCharacters;
         var compact = windowWidth < 1000;
         var gameBody = compact
             ? (Element)ScrollViewer(VStack(12,
-                showMap && !showCharacters ? ScrollViewer(map).Width(360).Height(430) : Empty(),
+                integratedMap ? ScrollViewer(map).Width(360).Height(430) : Empty(),
                 chat.Height(560).Flex(grow: 0, basis: 560),
                 session.Model.Priv.Visible ? PrivView(session).Height(520) : Empty()))
-            : FlexRow(showMap && !showCharacters
+            : FlexRow(integratedMap
                     ? ScrollViewer(map).Width(360).Height(Math.Max(200, windowHeight - 260)).Flex(shrink: 0) : Empty(),
                 chat, PrivView(session).Flex(shrink: 0));
         var connectionButton = Button(session.Connecting ? "接続しています…" : session.Connected ? "切断" : "再接続", ToggleConnection)

@@ -65,6 +65,7 @@ partial class App
         return () =>
         {
             disposed = true;
+            mapWindow?.Close();
             worldLifetime.Cancel();
             worldClient?.Dispose();
             logImageClient?.Dispose();

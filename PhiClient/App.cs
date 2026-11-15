@@ -6,7 +6,11 @@ using PhiClient;
 using PhiClient.Core;
 using static Microsoft.UI.Reactor.Factories;
 
-ReactorApp.Run<App>("PHI Client", width: 1200, height: 850);
+ReactorApp.Run<App>(new WindowSpec
+{
+    Title = "PHI Client", Width = 1200, Height = 850,
+    PersistenceId = "phi-main", PersistPlacement = true
+});
 
 partial class App : Component
 {

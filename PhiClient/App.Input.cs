@@ -35,7 +35,7 @@ partial class App
             args.Handled = true;
             return;
         }
-        if (gameControl?.XamlRoot is not { } root) return;
+        if (((sender as FrameworkElement)?.XamlRoot ?? gameControl?.XamlRoot) is not { } root) return;
         var focused = FocusManager.GetFocusedElement(root);
         if (focused is Microsoft.UI.Xaml.Controls.TextBox or Microsoft.UI.Xaml.Controls.PasswordBox or Microsoft.UI.Xaml.Controls.RichEditBox)
             return;
