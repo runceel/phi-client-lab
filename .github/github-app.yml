@@ -1,0 +1,3 @@
+scripts:
+  - name: Start PHI Client (WinUI)
+    command: pwsh -NoLogo -NoProfile -File .\tools\Start-PhiClient.ps1

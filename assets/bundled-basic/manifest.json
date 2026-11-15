@@ -1,0 +1,493 @@
+{
+  "schemaVersion": 1,
+  "id": "phi-original-basic-v1",
+  "source": "Original deterministic pixel art; generator has no image inputs.",
+  "license": "See LICENSE.txt; no repository-wide license was found.",
+  "cellSize": 32,
+  "normalTopPadding": 16,
+  "eagleTopPadding": 0,
+  "alpha": "binary straight alpha; no premultiplication",
+  "png": {
+    "map": "map.png",
+    "items": "items.png",
+    "characters": "actors/{sheet}.png",
+    "decoding": "BGRA8 straight; use directly as PixelImage, do NOT call Transparent()"
+  },
+  "bmp": {
+    "map": "map.bmp",
+    "items": "items.bmp",
+    "characters": "actors/{sheet}.bmp",
+    "decoding": "24-bit RGB; use existing Transparent(horizontalMask:true), Transparent(verticalMask:true), Transparent() respectively"
+  },
+  "mapLayout": {
+    "columns": 16,
+    "rows": 2,
+    "frameWidth": 32,
+    "frameHeight": 48,
+    "groundY": 16,
+    "slots": [
+      {
+        "index": 0,
+        "name": "earth"
+      },
+      {
+        "index": 1,
+        "name": "grass"
+      },
+      {
+        "index": 2,
+        "name": "flowers"
+      },
+      {
+        "index": 3,
+        "name": "tree-overlay"
+      },
+      {
+        "index": 4,
+        "name": "water"
+      },
+      {
+        "index": 5,
+        "name": "paving"
+      },
+      {
+        "index": 6,
+        "name": "rock"
+      },
+      {
+        "index": 7,
+        "name": "masonry"
+      },
+      {
+        "index": 8,
+        "name": "fence"
+      },
+      {
+        "index": 9,
+        "name": "ice-pillar"
+      },
+      {
+        "index": 10,
+        "name": "timber-door"
+      },
+      {
+        "index": 11,
+        "name": "iron-door"
+      },
+      {
+        "index": 12,
+        "name": "arched-window"
+      },
+      {
+        "index": 13,
+        "name": "chest"
+      },
+      {
+        "index": 14,
+        "name": "open-chest"
+      },
+      {
+        "index": 15,
+        "name": "lattice"
+      },
+      {
+        "index": 16,
+        "name": "stairs"
+      },
+      {
+        "index": 17,
+        "name": "rune-circle"
+      },
+      {
+        "index": 18,
+        "name": "sign-ground"
+      },
+      {
+        "index": 19,
+        "name": "eagle-item"
+      },
+      {
+        "index": 20,
+        "name": "sign-wall"
+      },
+      {
+        "index": 21,
+        "name": "reserved-earth"
+      },
+      {
+        "index": 22,
+        "name": "reserved-earth"
+      },
+      {
+        "index": 23,
+        "name": "shore-edge"
+      },
+      {
+        "index": 24,
+        "name": "shore-corner"
+      },
+      {
+        "index": 25,
+        "name": "shore-inset"
+      },
+      {
+        "index": 26,
+        "name": "reserved-earth"
+      },
+      {
+        "index": 27,
+        "name": "reserved-earth"
+      },
+      {
+        "index": 28,
+        "name": "reserved-earth"
+      },
+      {
+        "index": 29,
+        "name": "reserved-earth"
+      },
+      {
+        "index": 30,
+        "name": "reserved-earth"
+      },
+      {
+        "index": 31,
+        "name": "unknown-fog"
+      }
+    ],
+    "terrain": {
+      "default": [
+        0
+      ],
+      ":": [
+        1
+      ],
+      "\u002B": [
+        2
+      ],
+      "T": [
+        1,
+        3
+      ],
+      "_": [
+        4
+      ],
+      "o": [
+        5
+      ],
+      "@": [
+        6
+      ],
+      "#": [
+        7
+      ],
+      "H": [
+        8
+      ],
+      "I": [
+        9
+      ],
+      "=": [
+        10
+      ],
+      "[": [
+        11
+      ],
+      "{": [
+        12
+      ],
+      "|": [
+        13
+      ],
+      "x": [
+        14
+      ],
+      "%": [
+        15
+      ],
+      "/": [
+        16
+      ],
+      "\u003E": [
+        17
+      ],
+      "?": [
+        31
+      ]
+    }
+  },
+  "actorLayout": {
+    "width": 96,
+    "height": 128,
+    "directions": [
+      "B",
+      "R",
+      "F",
+      "L"
+    ],
+    "rowHeight": 32,
+    "smallFrameX": [
+      0,
+      16
+    ],
+    "smallFrameWidth": 16,
+    "largeFrameX": [
+      32,
+      64
+    ],
+    "largeFrameWidth": 32,
+    "frames": 2
+  },
+  "defaults": [
+    {
+      "code": 0,
+      "key": "\u4EBA\u30FB\u9285\u50CF",
+      "sheet": "person"
+    },
+    {
+      "code": 1,
+      "key": "\u77E5\u7684\u751F\u7269",
+      "sheet": "wanderer"
+    },
+    {
+      "code": 2,
+      "key": "\u7363",
+      "sheet": "beast"
+    },
+    {
+      "code": 3,
+      "key": "\u72C2\u6226\u58EB",
+      "sheet": "berserker"
+    },
+    {
+      "code": 4,
+      "key": "\u9B54\u6CD5\u751F\u7269",
+      "sheet": "golem"
+    },
+    {
+      "code": 5,
+      "key": "\u30A2\u30F3\u30C7\u30C3\u30C9",
+      "sheet": "skeleton"
+    },
+    {
+      "code": 6,
+      "key": "\u7CBE\u795E\u4F53",
+      "sheet": "spirit"
+    },
+    {
+      "code": 7,
+      "key": "\u30A4\u30EC\u30A4\u30B6\u30FC",
+      "sheet": "eraser"
+    },
+    {
+      "code": 64,
+      "key": "setcg\u4F7F\u7528\u30AD\u30E3\u30E9",
+      "sheet": "person"
+    },
+    {
+      "code": 128,
+      "key": "\u751F\u7269",
+      "sheet": "wanderer"
+    },
+    {
+      "code": 129,
+      "key": "\u770B\u677F",
+      "sheet": "sign"
+    },
+    {
+      "code": 130,
+      "key": "\u9B54\u6CD5\u30A8\u30D5\u30A7\u30AF\u30C8",
+      "sheet": "magic"
+    },
+    {
+      "code": 112,
+      "key": "\u30A2\u30CB\u30E1\u30AA\u30D6\u30B8\u30A7",
+      "sheet": "animated-object"
+    },
+    {
+      "code": 117,
+      "key": "\u30A2\u30CB\u30E1\u306A\u3057\u30AA\u30D6\u30B8\u30A7",
+      "sheet": "object"
+    }
+  ],
+  "unknownActorSheet": "wanderer",
+  "unknownTerrainSlot": 0,
+  "unseenTerrainSlot": 31,
+  "preview": {
+    "contactSheet": "contact-sheet.png",
+    "scene": "scene-7x7.png",
+    "sceneFrame1": "scene-7x7-frame1.png",
+    "sceneNative": "scene-7x7-native.png",
+    "sceneDescription": "Synthetic renderer fixture, not a live game screenshot."
+  },
+  "files": [
+    {
+      "path": "map.png",
+      "width": 512,
+      "height": 96,
+      "sha256": "eda6e0d4d1c4fc3f2abc14845853eb40e98ec11a1919f1451f0a817702b5e257"
+    },
+    {
+      "path": "map.bmp",
+      "width": 1024,
+      "height": 96,
+      "sha256": "587d27c794df373e035529ec2f2ea331944e167ed05a25618e23fd941f963ed3"
+    },
+    {
+      "path": "actors/person.png",
+      "width": 96,
+      "height": 128,
+      "sha256": "04d6e38ab394b612eb64a71c9ba71cd88d8b6b02be309055bb7d3064a32f5c10"
+    },
+    {
+      "path": "actors/person.bmp",
+      "width": 96,
+      "height": 128,
+      "sha256": "43a95852fd12ff4c5e38b84721cb309167c8ecb28f3a6798529fb62032030e43"
+    },
+    {
+      "path": "actors/wanderer.png",
+      "width": 96,
+      "height": 128,
+      "sha256": "0881359ecabefc3502f7371e25375c6ffc23d8a6a28b686206ab2151b781c583"
+    },
+    {
+      "path": "actors/wanderer.bmp",
+      "width": 96,
+      "height": 128,
+      "sha256": "e3381166376b41e199761eb76a524145c06dcaaa870ea95660b13e582c9ef58d"
+    },
+    {
+      "path": "actors/beast.png",
+      "width": 96,
+      "height": 128,
+      "sha256": "cd3468609ba04e3c3760b1463fe26a5f5f1eed9d68879067a0d2270c1c4d2c73"
+    },
+    {
+      "path": "actors/beast.bmp",
+      "width": 96,
+      "height": 128,
+      "sha256": "436bca47bd43060c7f5b2685bb2a6042e8c2bf73961d89b1608c52b14b06b72f"
+    },
+    {
+      "path": "actors/berserker.png",
+      "width": 96,
+      "height": 128,
+      "sha256": "dac978046c90e16ac4174f2aff94f1a9c08c6e68fceec732e0fc30f78659958f"
+    },
+    {
+      "path": "actors/berserker.bmp",
+      "width": 96,
+      "height": 128,
+      "sha256": "f976e022073573c35e9121ec0beed161f04c83b40831ed58eb5f1d70aa5abacc"
+    },
+    {
+      "path": "actors/golem.png",
+      "width": 96,
+      "height": 128,
+      "sha256": "5f4e31c501dabf02e5e5effecc44b7871714de52bba8d8c39a6a4706bbf95393"
+    },
+    {
+      "path": "actors/golem.bmp",
+      "width": 96,
+      "height": 128,
+      "sha256": "2cabc299566b6eefd3ada558b8ac2ab61be3aeeba8a84f99fc68b4d9aa9917eb"
+    },
+    {
+      "path": "actors/skeleton.png",
+      "width": 96,
+      "height": 128,
+      "sha256": "44175bc4834d3bce8f345ecbd4b2945c1a999726b6989839e2a7ea35fb8c51a5"
+    },
+    {
+      "path": "actors/skeleton.bmp",
+      "width": 96,
+      "height": 128,
+      "sha256": "a0e25219693c766fd15b68443d274998512d38aec48ae5f8049acdc1f558e8a3"
+    },
+    {
+      "path": "actors/spirit.png",
+      "width": 96,
+      "height": 128,
+      "sha256": "5b253d7674f51c9f590580d029b68d481bf766607c682a6a6c10ae03ec197f9c"
+    },
+    {
+      "path": "actors/spirit.bmp",
+      "width": 96,
+      "height": 128,
+      "sha256": "abb52a0414e05c3012a92a288112ef3b9640f4cde0aab39612ca2f6c47a4b166"
+    },
+    {
+      "path": "actors/eraser.png",
+      "width": 96,
+      "height": 128,
+      "sha256": "bef7bb5a46a28af37e3c453a1e9c22f219c1e7aac94d22e2f54c4b77180a24cf"
+    },
+    {
+      "path": "actors/eraser.bmp",
+      "width": 96,
+      "height": 128,
+      "sha256": "54d1e61108888f4d539f5d9fd3341ab4f22894e0d0ad577261dee00e9c5bc299"
+    },
+    {
+      "path": "actors/sign.png",
+      "width": 96,
+      "height": 128,
+      "sha256": "c4238610604cdc040a84766b107ad03c9f1a7d96efa3fa854de105e147612b1d"
+    },
+    {
+      "path": "actors/sign.bmp",
+      "width": 96,
+      "height": 128,
+      "sha256": "bd81cf0981d89396cc15fe41dc64751a003d4c660fac614a9d46569e9d1a8d63"
+    },
+    {
+      "path": "actors/magic.png",
+      "width": 96,
+      "height": 128,
+      "sha256": "9cfe4b88d503958eccd2251922cedda2d8c80fed15e4c8173e32547a9806a6e6"
+    },
+    {
+      "path": "actors/magic.bmp",
+      "width": 96,
+      "height": 128,
+      "sha256": "a7bc45c1d973ad332daa73649ec7a82cdc023543f7c099f2deeb4b17e6be0bb2"
+    },
+    {
+      "path": "actors/animated-object.png",
+      "width": 96,
+      "height": 128,
+      "sha256": "896bc73a2c646e562c946553bb34229b81b0639a0db318f40f55288ae0da0f22"
+    },
+    {
+      "path": "actors/animated-object.bmp",
+      "width": 96,
+      "height": 128,
+      "sha256": "143eab052f48712d3b83202fcb5ec94c6c38160954608d6fcac63a3e1961836a"
+    },
+    {
+      "path": "actors/object.png",
+      "width": 96,
+      "height": 128,
+      "sha256": "0dad21eb9d7d6da16f70ede492e9ba582c37fcb4faa0d7a3b97af21823ea8ba2"
+    },
+    {
+      "path": "actors/object.bmp",
+      "width": 96,
+      "height": 128,
+      "sha256": "0b4ee978a04fcd04e8e0a4e773cb14fbacd21747f407f2186b042f3f789d0054"
+    },
+    {
+      "path": "items.png",
+      "width": 256,
+      "height": 32,
+      "sha256": "931868f926f4cf188c9d48facc360d2ee0279b22eb7263a798e7b15ae808801f"
+    },
+    {
+      "path": "items.bmp",
+      "width": 256,
+      "height": 64,
+      "sha256": "6de4033b50ff10520d8892f743389124fbba4bbd3d4eca7f197be8a54b5fd100"
+    }
+  ]
+}

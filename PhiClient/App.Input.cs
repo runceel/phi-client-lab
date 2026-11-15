@@ -1,0 +1,380 @@
+using Microsoft.UI.Input;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Reactor;
+using Microsoft.UI.Reactor.Core;
+using PhiClient;
+using PhiClient.Core;
+using Windows.System;
+using Windows.UI.Core;
+using static Microsoft.UI.Reactor.Factories;
+
+partial class App
+{
+    private static bool Down(VirtualKey key) =>
+        InputKeyboardSource.GetKeyStateForCurrentThread(key).HasFlag(CoreVirtualKeyStates.Down);
+    private bool altChordUsed;
+
+    private void ObserveInputFocus(object sender, RoutedEventArgs args)
+    {
+        if (sender is not FrameworkElement { XamlRoot: { } root }) return;
+        var chat = false;
+        var native = false;
+        for (var parent = FocusManager.GetFocusedElement(root) as DependencyObject;
+            parent is not null; parent = VisualTreeHelper.GetParent(parent))
+        {
+            var id = Microsoft.UI.Xaml.Automation.AutomationProperties.GetAutomationId(parent);
+            if (id == "command-input") { chat = true; break; }
+            if (id == "map-viewport" || id.StartsWith("map-zoom-", StringComparison.Ordinal) ||
+                parent is Microsoft.UI.Xaml.Controls.TextBox or Microsoft.UI.Xaml.Controls.PasswordBox or
+                Microsoft.UI.Xaml.Controls.RichEditBox or MapPaneSplitter or
+                Microsoft.UI.Xaml.Controls.Primitives.Thumb or Microsoft.UI.Xaml.Controls.DropDownButton or MenuFlyoutPresenter)
+            { native = true; break; }
+        }
+        if (model.ChatFocused != chat) Dispatch(new ClientMessage.ChatFocusChanged(chat));
+        if (model.NativeInputFocused != native) Dispatch(new ClientMessage.NativeInputFocusChanged(native));
+    }
+
+    private void OnGameKeyDown(object sender, KeyRoutedEventArgs args)
+    {
+        if (args.Key == VirtualKey.Menu) altChordUsed = false;
+        else if (Down(VirtualKey.Menu)) altChordUsed = true;
+        if (closingApplication)
+        {
+            args.Handled = true;
+            return;
+        }
+        if (active is not { } session || showCharacters || model.Registration.Stage != RegistrationStage.None ||
+            model.Worlds.Visible || model.SettingsEditor is not null ||
+            dialogOpen ||
+            Down(VirtualKey.LeftWindows) || Down(VirtualKey.RightWindows))
+            return;
+        if (!Down(VirtualKey.Enter))
+            committingComposition = session.PrivCommitting = false;
+        if (composing || committingComposition || session.PrivComposing || session.PrivCommitting)
+            return;
+        var control = Down(VirtualKey.Control);
+        var shift = Down(VirtualKey.Shift);
+        var alt = Down(VirtualKey.Menu);
+        if (args.Key == VirtualKey.Tab && control && !alt && !composing && !session.PrivComposing && !session.PrivCommitting)
+        {
+            if (!args.KeyStatus.WasKeyDown) CycleTab(shift ? -1 : 1);
+            args.Handled = true;
+            TraceDiagnostic(DiagnosticEvent.InputHandled);
+            return;
+        }
+        if (((sender as FrameworkElement)?.XamlRoot ?? gameControl?.XamlRoot) is not { } root) return;
+        var focused = FocusManager.GetFocusedElement(root);
+        if (args.Key == VirtualKey.Tab && !control)
+        {
+            var chat = ReferenceEquals(focused, inputControl);
+            var log = ReferenceEquals(focused, gameControl) || ReferenceEquals(focused, session.LogPresenter?.Control);
+            if ((!chat && !log) || GameInput.TabAction(chat, shift, control, alt) is not { } tab) return;
+            var target = tab.Intent == InputIntent.FocusLog ? gameControl : inputControl;
+            if (target is not { IsLoaded: true } || target.XamlRoot != root ||
+                !args.KeyStatus.WasKeyDown && !target.Focus(FocusState.Keyboard)) return;
+            args.Handled = true;
+            TraceDiagnostic(DiagnosticEvent.InputHandled);
+            return;
+        }
+        // Log selection keeps its copy/select shortcuts; ordinary game keys work after clicking the log.
+        for (var parent = focused as DependencyObject; parent is not null; parent = VisualTreeHelper.GetParent(parent))
+        {
+            if (parent is RichTextBlock && control && args.Key is VirtualKey.C or VirtualKey.A or VirtualKey.Insert)
+                return;
+            var navigation = parent is Microsoft.UI.Xaml.Controls.Primitives.Selector or
+                Microsoft.UI.Xaml.Controls.Primitives.RangeBase or Microsoft.UI.Xaml.Controls.Expander or TabViewItem or
+                Microsoft.UI.Xaml.Controls.RadioButton or Microsoft.UI.Xaml.Controls.ToggleSwitch;
+            if ((navigation || parent is Microsoft.UI.Xaml.Controls.Primitives.ButtonBase or
+                    Microsoft.UI.Xaml.Documents.Hyperlink) &&
+                GameInput.NativeControlOwnsKey((ConsoleKey)args.Key, navigation))
+                return;
+            if (parent is RichTextBlock && (control || shift) &&
+                GameInput.NativeControlOwnsKey((ConsoleKey)args.Key, navigation: true))
+                return;
+            var automationId = Microsoft.UI.Xaml.Automation.AutomationProperties.GetAutomationId(parent);
+            if (automationId == "map-viewport" || automationId.StartsWith("map-zoom-", StringComparison.Ordinal))
+                return;
+            if (parent is Microsoft.UI.Xaml.Controls.TextBox or Microsoft.UI.Xaml.Controls.PasswordBox or
+                Microsoft.UI.Xaml.Controls.RichEditBox or MapPaneSplitter or
+                Microsoft.UI.Xaml.Controls.Primitives.Thumb or Microsoft.UI.Xaml.Controls.MenuBar or
+                Microsoft.UI.Xaml.Controls.DropDownButton or MenuFlyoutPresenter)
+                return;
+        }
+        // OEM virtual keys depend on the keyboard layout; scan codes identify the physical keys used by wphi.
+        var key = args.KeyStatus.ScanCode switch
+        {
+            0x0C => ConsoleKey.OemMinus,
+            0x27 => ConsoleKey.Oem1,
+            0x35 when !args.KeyStatus.IsExtendedKey => ConsoleKey.Oem2,
+            0x28 => ConsoleKey.Oem7,
+            0x47 when !args.KeyStatus.IsExtendedKey => ConsoleKey.NumPad7,
+            0x48 when !args.KeyStatus.IsExtendedKey => ConsoleKey.NumPad8,
+            0x49 when !args.KeyStatus.IsExtendedKey => ConsoleKey.NumPad9,
+            0x4B when !args.KeyStatus.IsExtendedKey => ConsoleKey.NumPad4,
+            0x4C when !args.KeyStatus.IsExtendedKey => ConsoleKey.NumPad5,
+            0x4D when !args.KeyStatus.IsExtendedKey => ConsoleKey.NumPad6,
+            0x4F when !args.KeyStatus.IsExtendedKey => ConsoleKey.NumPad1,
+            0x50 when !args.KeyStatus.IsExtendedKey => ConsoleKey.NumPad2,
+            0x51 when !args.KeyStatus.IsExtendedKey => ConsoleKey.NumPad3,
+            0x52 when !args.KeyStatus.IsExtendedKey => ConsoleKey.NumPad0,
+            0x53 when !args.KeyStatus.IsExtendedKey => ConsoleKey.Decimal,
+            _ => (ConsoleKey)args.Key
+        };
+        var action = GameInput.Resolve(key, session.NorthFixed, fullKeys, shift, control, alt,
+            session.Selection.Active, args.KeyStatus.IsExtendedKey, model.Options);
+        if (key == ConsoleKey.F10 && action is null && !alt && !control && !shift)
+        {
+            menuControl?.Focus(FocusState.Programmatic);
+            args.Handled = true;
+            return;
+        }
+        if (action is null)
+            return;
+        args.Handled = true;
+        if (args.KeyStatus.WasKeyDown && !action.Repeatable &&
+            !(action.Intent == InputIntent.ListNumber && action.Number == 9))
+            return;
+        if (args.KeyStatus.WasKeyDown && model.Options.Automap && session.NorthFixed &&
+            !session.Model.Prediction.Queue.IsEmpty && action.Commands.Any(line =>
+                line.Length == 4 && line.StartsWith("go ", StringComparison.Ordinal)))
+            return;
+        Execute(session, action);
+        TraceDiagnostic(DiagnosticEvent.InputHandled);
+    }
+
+    private void OnGameKeyUp(object sender, KeyRoutedEventArgs args)
+    {
+        if (args.Key != VirtualKey.Menu || altChordUsed || composing || committingComposition ||
+            active?.PrivComposing == true || active?.PrivCommitting == true || dialogOpen ||
+            model.SettingsEditor is not null || model.Registration.Stage != RegistrationStage.None) return;
+        if (sender is FrameworkElement { XamlRoot: { } root })
+            for (var parent = FocusManager.GetFocusedElement(root) as DependencyObject;
+                parent is not null; parent = VisualTreeHelper.GetParent(parent))
+                if (parent is Microsoft.UI.Xaml.Controls.TextBox or Microsoft.UI.Xaml.Controls.PasswordBox or
+                    Microsoft.UI.Xaml.Controls.RichEditBox)
+                    return;
+        menuControl?.Focus(FocusState.Programmatic);
+        args.Handled = true;
+    }
+
+    private void AttachInput(Microsoft.UI.Xaml.Controls.TextBox box, GameSession session)
+    {
+        inputControl = box;
+        composing = committingComposition = false;
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(box,
+            "Tabでログへ切り替えてゲーム操作。Shift+Tabで通常のUIフォーカス移動。");
+        box.TextChanging += (input, _) =>
+        {
+            if (disposed || active != session || inputControl != input || !input.IsLoaded || session.Input == input.Text) return;
+            // TextChanged is deferred; capture before a pending controlled render can restore old text.
+            model = ClientUpdate.Apply(model, new ClientMessage.GameChanged(session.Character.Key,
+                new GameMessage.InputChanged(input.Text)));
+            publish?.Invoke(model);
+        };
+        box.TextCompositionStarted += (_, _) => composing = true;
+        box.TextCompositionEnded += (_, _) =>
+        {
+            composing = false;
+            committingComposition = Down(VirtualKey.Enter);
+        };
+    }
+
+    private void OnInputKeyDown(GameSession session, KeyRoutedEventArgs args)
+    {
+        if (composing || committingComposition || Down(VirtualKey.Menu))
+            return;
+        if (args.Key == VirtualKey.Escape)
+        {
+            gameControl?.Focus(FocusState.Programmatic);
+            args.Handled = true;
+        }
+        else if (args.Key == VirtualKey.Down && !Down(VirtualKey.Shift) && !Down(VirtualKey.Control) &&
+            session.Model.TalkPrefix.Length > 0 && inputControl is { } input)
+        {
+            var next = GameInput.WithChatPrefix(session.Input, input.SelectionStart,
+                session.Model.TalkPrefix, replaceLast: true);
+            if (next.Text != session.Input || next.Caret != input.SelectionStart)
+            {
+                ApplyChatEdit(session, next);
+                args.Handled = true;
+            }
+        }
+        else if (args.Key == VirtualKey.Enter && !Down(VirtualKey.Shift))
+        {
+            if (!args.KeyStatus.WasKeyDown) Submit(session, Down(VirtualKey.Control));
+            args.Handled = true;
+        }
+        if (args.Handled) TraceDiagnostic(DiagnosticEvent.InputHandled);
+    }
+
+    private void Execute(GameSession session, InputAction action)
+    {
+        if (session.Model.Master is not null && action.Commands.Any())
+            return;
+        if (session.Model.Transferring && action.Intent is not
+            (InputIntent.ForceDisconnect or InputIntent.ForceDisconnectAll or InputIntent.NextTab or
+                InputIntent.PreviousTab or InputIntent.FocusInput or InputIntent.FocusLog))
+            return;
+        var selection = session.Selection;
+        switch (action.Intent)
+        {
+            case InputIntent.FocusInput: inputControl?.Focus(FocusState.Programmatic); return;
+            case InputIntent.FocusLog: gameControl?.Focus(FocusState.Programmatic); return;
+            case InputIntent.NextTab: CycleTab(1); return;
+            case InputIntent.PreviousTab: CycleTab(-1); return;
+            case InputIntent.ToggleMap: showMap = !showMap; refresh(); return;
+            case InputIntent.ForceDisconnect: session.Connection?.Dispose(); return;
+            case InputIntent.ForceDisconnectAll:
+                ForceDisconnectAll();
+                return;
+            case InputIntent.ListUp: session.Dispatch(new GameMessage.SelectionMoved(-1)); break;
+            case InputIntent.ListDown: session.Dispatch(new GameMessage.SelectionMoved(1)); break;
+            case InputIntent.ListToggle: session.Dispatch(new GameMessage.SelectionAdvanced()); break;
+            case InputIntent.ListNumber:
+                if (selection.Number(action.Number) is { } number) Choose(session, number);
+                return;
+            case InputIntent.ListAccept:
+                if (!selection.Waiting) Choose(session, selection.Confirm());
+                return;
+            default:
+                _ = SessionOperationAsync(session, () => ExecuteAsync(session, action));
+                return;
+        }
+        if (listControl is not null && session.Selection.Cursor < listControl.Items.Count)
+            listControl.ScrollIntoView(listControl.Items[session.Selection.Cursor]);
+        refresh();
+    }
+
+    private async Task<bool> ExecuteAsync(GameSession session, InputAction action, bool keepSelection = false)
+    {
+        if (!session.Connected || session.Connection is null)
+            throw new InvalidOperationException("Connect before sending a command.");
+        if (session.Model.Transferring)
+            throw new InvalidOperationException("世界移動中です。移動が終わってから再度操作してください。");
+        if (session.PreparingMagic)
+            throw new InvalidOperationException("Wait for the equipment response before sending another command.");
+        if (session.Model.Master is not null)
+            throw new InvalidOperationException("超魔法の手順を実行中です。完了するか中止してから操作してください。");
+        var connection = session.Connection;
+        var transportVersion = connection.TransportVersion;
+        if (action.Confirmation is not null &&
+            !await SessionDialogAsync("Confirm magic", action.Confirmation, "Cast"))
+            return false;
+        if (action.Prompt is not null)
+        {
+            var response = await RequestDialogAsync(new(action.Prompt, "", "Send", action.Prompt));
+            if (!response.Accepted) return false;
+            var answer = response.Value;
+            if (answer.Length == 0) throw new ArgumentException("Enter a value before sending.");
+            PhiWire.ValidateLine(answer);
+            if (action.Numeric && (answer.Any(c => !char.IsAsciiDigit(c)) || !long.TryParse(answer, out var amount) || amount <= 0))
+                throw new ArgumentException("Enter a positive whole-number amount.");
+            action = action with { Commands = action.Commands.Select(line => line.Replace("{}", answer)).ToArray() };
+        }
+        if (session.Connection != connection || !session.Connected)
+            throw new InvalidOperationException("The session disconnected while the dialog was open.");
+        if (transportVersion != connection.TransportVersion)
+            throw new InvalidOperationException("確認中に世界移動が始まったため、操作を取り消しました。");
+        if (!keepSelection)
+            session.Dispatch(new GameMessage.SelectionCleared());
+        if (action.Intent == InputIntent.WriteSign)
+        {
+            session.Dispatch(new GameMessage.EditingChanged(true));
+            action = GameInput.Command("write");
+        }
+        action = GameInput.ApplyOptions(action, model.Options);
+        session.Dispatch(new GameMessage.PreparingChanged(action.AutoUnequip));
+        refresh();
+        try { await connection.SendActionAsync(action); }
+        finally { session.Dispatch(new GameMessage.PreparingChanged(false)); }
+        return true;
+    }
+
+    private void Choose(GameSession session, SelectionCommand command)
+    {
+        if (session.Selection.Waiting) return;
+        session.Dispatch(new GameMessage.SelectionBegan(command));
+        _ = SessionOperationAsync(session, async () =>
+        {
+            try { await ExecuteAsync(session, GameInput.Command(command.Text), command.NextPage); }
+            catch
+            {
+                session.Dispatch(new GameMessage.SelectionCleared());
+                throw;
+            }
+        });
+    }
+
+    private void MapClick(GameSession session, int x, int y)
+    {
+        gameControl?.Focus(FocusState.Programmatic);
+        Send(session, GameInput.MapMovement(x, y, session.NorthFixed));
+    }
+
+    private void SelectSession(GameSession session)
+    {
+        if (active == session) return;
+        active = session;
+        composing = committingComposition = false;
+        refresh();
+    }
+
+    private void CycleTab(int delta)
+    {
+        if (active is not null && sessions.Count > 0)
+            SelectSession(sessions[(sessions.IndexOf(active) + delta + sessions.Count) % sessions.Count]);
+    }
+
+    private void CloseTab(GameSession session) =>
+        _ = SessionOperationAsync(session, async () =>
+        {
+            session.MasterCancellation?.Cancel();
+            await DisconnectAsync(session);
+            if (session.ConnectionTask is { } task) await task;
+            if (logStore is not null) await logStore.FlushAsync();
+            var wasActive = active == session;
+            session.Detach();
+            sessions.Remove(session);
+            Dispatch(new ClientMessage.GameClosed(session.Character.Key,
+                wasActive ? sessions.LastOrDefault()?.Character.Key : model.ActiveKey));
+        });
+
+    private void ToggleConnection()
+    {
+        if (active is not { } session || session.Connecting || session.Closing) return;
+        if (session.Connected)
+            _ = SessionOperationAsync(session, () => DisconnectAsync(session));
+        else
+            _ = PerformAsync(() => StartAsync(session));
+    }
+
+
+    private void SaveLog()
+    {
+        if (active is not { } session) return;
+        _ = PerformAsync(async () =>
+        {
+            var file = await Logs.SaveBufferAsync(session.Character.Name, session.Model.LogEntries, model.Options);
+            notice = $"ログ欄の内容を保存しました: {file}";
+        });
+    }
+
+    private void ShowKeyboardHelp() => _ = PerformAsync(async () => await SessionDialogAsync("Keyboard controls",
+        "Outside text fields:\n" +
+        "Arrows / numpad 8246: move; Ctrl: strafe / face; Shift+arrows: relative move / turn.\n" +
+        "Full keys: 789 UIO JKL M and - ; / ' act as numpad keys (Operation menu toggles).\n" +
+        "Z/X/C/V: get/put/use/sort; F: floor items; A/S/D/B: read/write/erase/watch sign.\n" +
+        "Q/W: equip/unequip; M: check+look; R: spells; P: pay; H/N/Y: hi/no/yes.\n" +
+        "Space / J: attack; L / numpad Enter: cast; Home: equip+sort; End: unequip first.\n" +
+        "T / Shift+T: rotate / north-up; Shift+7 / Shift+5: 7x7 / 5x5; Shift+F5: map pane.\n" +
+        "F1-F7 / Alt+1-7: numbered spells. Alt magic is listed in the Magic menu.\n" +
+        "Ctrl+Tab / Ctrl+Shift+Tab: next / previous character; Pause / Shift+F1: force disconnect.\n" +
+        "Lists: 1-9 current page; arrows cursor; Space check; Enter send; 0/Esc/./left/right cancel; -/+ all.\n\n" +
+        "Text field: Enter sends and clears the current line; Shift+Enter inserts a newline;\n" +
+        "Ctrl+Enter sends to party. Tab switches between chat and log/game mode; Esc also returns to the log.\n" +
+        "Shift+Tab uses normal UI focus navigation; Space/Enter activate focused native controls.\n" +
+        "IME composition Enter confirms text only. Shout requires confirmation via Operation."));
+}

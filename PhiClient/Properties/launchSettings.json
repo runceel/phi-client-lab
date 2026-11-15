@@ -1,0 +1,7 @@
+{
+  "profiles": {
+    "PhiClient (Package)": {
+      "commandName": "MsixPackage"
+    }
+  }
+}
