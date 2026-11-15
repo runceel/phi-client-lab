@@ -47,6 +47,7 @@ public sealed record GameModel
     public int RawLogCharacters { get; init; }
     public int LogCharacters { get; init; }
     public bool LogSaving { get; init; }
+    public bool LogSearchVisible { get; init; }
 }
 
 public abstract record GameMessage
@@ -69,6 +70,7 @@ public abstract record GameMessage
     public sealed record EagleToggled : GameMessage;
     public sealed record Logged(string Text, DateTimeOffset? Time = null) : GameMessage;
     public sealed record LogSavingChanged(bool Value) : GameMessage;
+    public sealed record LogSearchVisibilityChanged(bool Value) : GameMessage;
     public sealed record PrivVisibilityChanged(bool Value) : GameMessage;
     public sealed record PrivPicked(string Name, bool Value) : GameMessage;
     public sealed record PrivOpened(IReadOnlyList<string> To) : GameMessage;
@@ -115,7 +117,7 @@ public static class GameUpdate
         GameMessage.PhaseChanged { Phase: ConnectionPhase.Connecting } =>
             Append(new GameModel { Input = model.Input, InputRevision = model.InputRevision, BoardText = model.BoardText, Log = model.Log,
                 LogEntries = model.LogEntries, NextLogId = model.NextLogId, RawLogCharacters = model.RawLogCharacters,
-                LogCharacters = model.LogCharacters, LogSaving = model.LogSaving,
+                LogCharacters = model.LogCharacters, LogSaving = model.LogSaving, LogSearchVisible = model.LogSearchVisible,
                 Priv = model.Priv with { Picked = [], SendStage = PrivSendStage.Idle }, Phase = ConnectionPhase.Connecting,
                 Loud = model.Loud, RepeatLoud = model.RepeatLoud, AllTabSpeech = model.AllTabSpeech,
                 TalkPrefix = model.TalkPrefix }, "[Connecting...]"),
@@ -140,6 +142,7 @@ public static class GameUpdate
         GameMessage.EagleToggled => model with { ShowEagle = !model.ShowEagle },
         GameMessage.Logged log => Append(model, log.Text, log.Time),
         GameMessage.LogSavingChanged save => model with { LogSaving = save.Value },
+        GameMessage.LogSearchVisibilityChanged search => model with { LogSearchVisible = search.Value },
         GameMessage.PrivVisibilityChanged visibility => model with { Priv = model.Priv with { Visible = visibility.Value } },
         GameMessage.PrivPicked pick => model with { Priv = model.Priv with { Picked = pick.Value ?
             model.Priv.Picked.Add(pick.Name) : model.Priv.Picked.Remove(pick.Name) } },
