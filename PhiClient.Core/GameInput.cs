@@ -253,13 +253,13 @@ public static class GameInput
 
     public static (string Text, int Caret) AfterChatSend(string text, int caret, string prefix = "")
     {
-        var (_, end) = ChatBounds(text, caret);
+        var (start, end) = ChatBounds(text, caret);
         if (end < text.Length)
-            return (text, end + (text[end] == '\r' && end + 1 < text.Length && text[end + 1] == '\n' ? 2 : 1));
-        var separator = text.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : text.Contains('\r') ? "\r" : "\n";
-        var next = text + separator + prefix;
-        var lines = next.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n');
-        if (lines.Length > 100) next = string.Join(separator, lines[^100..]);
+        {
+            var nextStart = end + (text[end] == '\r' && end + 1 < text.Length && text[end + 1] == '\n' ? 2 : 1);
+            return (text.Remove(start, nextStart - start), start);
+        }
+        var next = text[..start] + prefix;
         return (next, next.Length);
     }
 

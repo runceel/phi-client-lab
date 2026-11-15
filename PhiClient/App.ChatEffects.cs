@@ -5,11 +5,19 @@ partial class App
 {
     private void ApplyChatEdit(GameSession session, (string Text, int Caret) edit)
     {
-        session.Dispatch(new GameMessage.InputChanged(edit.Text));
+        if (session.Input != edit.Text) session.Dispatch(new GameMessage.InputChanged(edit.Text));
         if (active == session && inputControl?.XamlRoot is not null)
         {
-            inputControl.Text = edit.Text;
-            inputControl.Select(edit.Caret, 0);
+            var input = inputControl;
+            var revision = session.Model.InputRevision;
+            if (input.Text != edit.Text) input.Text = edit.Text;
+            input.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+            {
+                if (active == session && inputControl == input && input.IsLoaded &&
+                    session.Model.InputRevision == revision && input.Text == edit.Text &&
+                    !composing && !committingComposition)
+                    input.Select(edit.Caret, 0);
+            });
         }
     }
 
@@ -61,7 +69,11 @@ partial class App
                 target.Session.Dispatch(new GameMessage.SelectionCleared());
                 await target.Connection.SendPinnedAsync([text], target.Generation);
             }
-            if (session.Input == original) ApplyChatEdit(session, GameInput.AfterChatSend(original, caret, state.TalkPrefix));
+            if (active == session && (composing || committingComposition)) return;
+            var draft = session.Model;
+            session.Dispatch(new GameMessage.ChatSent(state.InputRevision, caret));
+            if (session.Model.InputRevision != draft.InputRevision)
+                ApplyChatEdit(session, GameInput.AfterChatSend(original, caret, draft.TalkPrefix));
         });
     }
 

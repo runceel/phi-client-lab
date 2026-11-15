@@ -341,7 +341,7 @@ partial class App
         "F1-F7 / Alt+1-7: numbered spells. Alt magic is listed in the Magic menu.\n" +
         "Ctrl+Tab / Ctrl+Shift+Tab: next / previous character; Pause / Shift+F1: force disconnect.\n" +
         "Lists: 1-9 current page; arrows cursor; Space check; Enter send; 0/Esc/./left/right cancel; -/+ all.\n\n" +
-        "Text field: Enter sends the current line and keeps it; Shift+Enter inserts a newline;\n" +
+        "Text field: Enter sends and clears the current line; Shift+Enter inserts a newline;\n" +
         "Ctrl+Enter sends to party. Esc enters movement mode; Tab returns to input.\n" +
         "IME composition Enter confirms text only. Shout requires confirmation via Operation."));
 }

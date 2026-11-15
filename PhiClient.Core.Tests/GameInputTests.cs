@@ -167,19 +167,56 @@ public sealed class GameInputTests
         string text, int caret, bool party, string? expected) =>
         Assert.Equal(expected, GameInput.ChatLine(text, caret, party, loud: true));
 
+    [Theory]
+    [InlineData("hello", 2, "", "", 0)]
+    [InlineData("hello", 5, "say ", "say ", 4)]
+    [InlineData("one\r\ntwo", 2, "", "two", 0)]
+    [InlineData("one\r\ntwo", 4, "", "two", 0)]
+    [InlineData("one\rtwo", 2, "", "two", 0)]
+    [InlineData("one\ntwo\nthree", 5, "", "one\nthree", 4)]
+    [InlineData("one\n\nthree", 4, "", "one\nthree", 4)]
+    [InlineData("one\r\ntwo", 7, "next", "one\r\nnext", 9)]
+    [InlineData("one\ntwo", 7, "", "one\n", 4)]
+    public void SuccessfulChatRemovesOnlyTheSentLineAndKeepsUnsentLines(
+        string text, int caret, string prefix, string expected, int expectedCaret) =>
+        Assert.Equal((expected, expectedCaret), GameInput.AfterChatSend(text, caret, prefix));
+
     [Fact]
-    public void SentLinesRemainInTheDraftAndTheCaretAdvancesAcrossCrLfOrToThePrefix()
+    public void SuccessfulChatDoesNotTruncateOtherUnsentLines()
     {
-        Assert.Equal(("one\r\ntwo", 5), GameInput.AfterChatSend("one\r\ntwo", 2));
-        Assert.Equal(("one\r\ntwo\r\nnext", 14), GameInput.AfterChatSend("one\r\ntwo", 7, "next"));
         var draft = string.Join('\n', Enumerable.Range(1, 100));
         var after = GameInput.AfterChatSend(draft, draft.Length);
         var lines = after.Text.Split('\n');
         Assert.Equal(100, lines.Length);
-        Assert.Equal("2", lines[0]);
-        Assert.Equal("100", lines[^2]);
+        Assert.Equal("1", lines[0]);
+        Assert.Equal("99", lines[^2]);
         Assert.Empty(lines[^1]);
         Assert.Equal(after.Text.Length, after.Caret);
+    }
+
+    [Fact]
+    public void CompletedChatClearsTheCapturedDraftDespiteLogUpdatesAndNativeTextEchoes()
+    {
+        var draft = GameUpdate.Apply(new(), new GameMessage.InputChanged("hello"));
+        var current = GameUpdate.Apply(draft, new GameMessage.Logged("unrelated log"));
+        current = GameUpdate.Apply(current, new GameMessage.InputChanged("hello"));
+        var sent = GameUpdate.Apply(current, new GameMessage.ChatSent(draft.InputRevision, 5));
+        Assert.Empty(sent.Input);
+        Assert.Equal(draft.InputRevision + 1, sent.InputRevision);
+        Assert.Equal("hello", draft.Input);
+    }
+
+    [Theory]
+    [InlineData("new draft")]
+    [InlineData("hello")]
+    public void CompletedChatNeverClearsAnEditedDraftEvenWhenTheTextMatchesAgain(string replacement)
+    {
+        var draft = GameUpdate.Apply(new(), new GameMessage.InputChanged("hello"));
+        var current = GameUpdate.Apply(draft, new GameMessage.InputChanged("temporary edit"));
+        current = GameUpdate.Apply(current, new GameMessage.InputChanged(replacement));
+        var sent = GameUpdate.Apply(current, new GameMessage.ChatSent(draft.InputRevision, 5));
+        Assert.Equal(replacement, sent.Input);
+        Assert.Equal(current.InputRevision, sent.InputRevision);
     }
 
     [Fact]
@@ -198,7 +235,8 @@ public sealed class GameInputTests
     public void ChatModesAreTabLocalAndReconnectPreservesModesWhileResettingTheAttemptTimer()
     {
         var original = new GameModel();
-        var edited = GameUpdate.Apply(original, new GameMessage.LoudChanged(true, true));
+        var edited = GameUpdate.Apply(original, new GameMessage.InputChanged("unsent"));
+        edited = GameUpdate.Apply(edited, new GameMessage.LoudChanged(true, true));
         edited = GameUpdate.Apply(edited, new GameMessage.AllTabSpeechChanged(true));
         edited = GameUpdate.Apply(edited, new GameMessage.TalkPrefixChanged("prefix"));
         edited = GameUpdate.Apply(edited, new GameMessage.ChatAttempted(1000));
@@ -208,6 +246,8 @@ public sealed class GameInputTests
         Assert.True(reconnected.RepeatLoud);
         Assert.True(reconnected.AllTabSpeech);
         Assert.Equal("prefix", reconnected.TalkPrefix);
+        Assert.Equal("unsent", reconnected.Input);
+        Assert.Equal(edited.InputRevision, reconnected.InputRevision);
         Assert.True(GameInput.ChatReady(1001, reconnected.LastChatAttempt));
         var cancelled = GameUpdate.Apply(edited, new GameMessage.LoudChanged(false));
         Assert.False(cancelled.Loud);

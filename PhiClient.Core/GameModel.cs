@@ -26,6 +26,7 @@ public sealed record GameModel
     public string World { get; init; } = "";
     public string Area { get; init; } = "";
     public string Input { get; init; } = "";
+    public long InputRevision { get; init; }
     public bool Loud { get; init; }
     public bool RepeatLoud { get; init; }
     public bool AllTabSpeech { get; init; }
@@ -56,6 +57,7 @@ public abstract record GameMessage
     public sealed record PredictionReset : GameMessage;
     public sealed record PhaseChanged(ConnectionPhase Phase) : GameMessage;
     public sealed record InputChanged(string Text) : GameMessage;
+    public sealed record ChatSent(long InputRevision, int Caret) : GameMessage;
     public sealed record LoudChanged(bool Value, bool Repeat = false) : GameMessage;
     public sealed record AllTabSpeechChanged(bool Value) : GameMessage;
     public sealed record TalkPrefixChanged(string Value) : GameMessage;
@@ -111,7 +113,7 @@ public static class GameUpdate
         GameMessage.PredictionTick tick => model with { Prediction = model.Prediction.Tick(tick.At) },
         GameMessage.PredictionReset => model with { Prediction = model.Prediction.Reset() },
         GameMessage.PhaseChanged { Phase: ConnectionPhase.Connecting } =>
-            Append(new GameModel { Input = model.Input, BoardText = model.BoardText, Log = model.Log,
+            Append(new GameModel { Input = model.Input, InputRevision = model.InputRevision, BoardText = model.BoardText, Log = model.Log,
                 LogEntries = model.LogEntries, NextLogId = model.NextLogId, RawLogCharacters = model.RawLogCharacters,
                 LogCharacters = model.LogCharacters, LogSaving = model.LogSaving,
                 Priv = model.Priv with { Picked = [], SendStage = PrivSendStage.Idle }, Phase = ConnectionPhase.Connecting,
@@ -122,7 +124,11 @@ public static class GameUpdate
                 PreparingMagic = false, Transferring = false, Prediction = model.Prediction.Reset(),
                 UserRefresh = model.UserRefresh.Finish(), Priv = model.Priv with { SendStage = PrivSendStage.Idle }, Master = null },
         GameMessage.PhaseChanged phase => model with { Phase = phase.Phase },
-        GameMessage.InputChanged input => model with { Input = input.Text },
+        GameMessage.InputChanged input => input.Text == model.Input ? model :
+            model with { Input = input.Text, InputRevision = model.InputRevision + 1 },
+        GameMessage.ChatSent sent => sent.InputRevision != model.InputRevision ? model :
+            model with { Input = GameInput.AfterChatSend(model.Input, sent.Caret, model.TalkPrefix).Text,
+                InputRevision = model.InputRevision + 1 },
         GameMessage.LoudChanged loud => model with { Loud = loud.Value, RepeatLoud = loud.Value && loud.Repeat },
         GameMessage.AllTabSpeechChanged all => model with { AllTabSpeech = all.Value },
         GameMessage.TalkPrefixChanged prefix => model with { TalkPrefix = prefix.Value },

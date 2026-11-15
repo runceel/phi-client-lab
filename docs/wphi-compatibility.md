@@ -20,6 +20,26 @@ Model/Update/Viewと、通信・保存・native操作を分けています。
 原典の実素材は利用条件付きの外部フォルダー取り込みであり、ソースやMSIXへ同梱していません。
 別途制作したオリジナル基本画像だけを同梱しています。
 
+## チャット送信後の下書き
+
+送信済みの行を残す旧処理を変更し、送信成功時には現在行だけを除去します。
+他の未送信行と発言prefixを保ち、入力revisionが進んだ下書きは古い送信完了で消しません。
+確認取消・送信失敗には完了更新を出さず、IME変換中/確定中は送信と入力編集を抑止します。
+nativeの選択範囲はReactor反映後に、同じ入力欄・revision・本文の場合だけ更新します。
+この処理からフォーカス移動は行いません。
+
+`GameInputTests`は **Passed: 53, Failed: 0, Skipped: 0**、
+Core全体は **Passed: 269, Failed: 0, Skipped: 0**。packaged x64 buildは警告0/エラー0です。
+結果は `files\chat-send-regression\chat-input-targeted.trx` と `chat-core-all.trx` に保存しました。
+
+**新しい動作のnative受け入れは未完了です。**
+新規の試験専用identityと所有loopbackで、UIAによる下書き設定が送信前に空へ戻りました。
+直接ValuePatternと公式WinApp set-valueの両方で送信前条件を満たせず、追加の反復は止めました。
+`files\chat-send-20261115-203738\results.json`は失敗記録であり、送信後クリアの成功証拠ではありません。
+取消/送信失敗/prefix caretの後続native確認と、物理Enter/IME/focusは保留です。
+合成登録の削除・試験前データの復元・製品データSHA不変・正常終了0は各バッチで確認し、
+所有mockも停止しました。以前の行保持native試験は変更後の合格へ読み替えません。
+
 ## 追加の操作性改善
 
 チャット等の編集欄・IME・モーダル・メニュー・地図幅操作を保護しながら、通常ボタンと
@@ -155,7 +175,7 @@ EagleEyeの07画像は外側スクロール上端で、下部補助情報は既�
 | 025 | XML超魔法、順序、変数、隠すlist、資格。Core: `MasterMagic.cs`; UI: `App.MasterEffects.cs` | `MasterMagicTests`, `PhiConnectionTests`、未改変原典XMLのnative 9項目。 |
 | 026 | フルキー・修飾キー・list中の操作。Core: `GameInput.cs`; UI: `App.Input.cs` | `GameInputTests`。実キーによるfocus・修飾キーの経路は保留。 |
 | 027 | F8–F12、list用shortcut、Alt+G、literal改行。Core: `SettingsStore.cs`, `GameInput.cs` | 設定往復と入力優先順位。実キー経路は保留。 |
-| 028 | Enter/Shift/Ctrl、行保持、空行、大声保護。Core: `GameInput.cs`; UI: `App.ChatEffects.cs` | `GameInputTests`、nativeボタン送信・行保持・大声。実キー経路は保留。 |
+| 028 | Enter/Shift/Ctrl、成功行の除去・未送信行保持、空行、大声保護。Core: `GameInput.cs`, `GameModel.cs`; UI: `App.ChatEffects.cs` | `GameInputTests`で成功行除去・入力revisionによる新下書き保護。送信済み行を残す原典互換動作は利用者指定で変更。実キー経路は保留。 |
 | 029 | IME確定Enterの抑制、編集中のゲームキー除外。UI: `App.Input.cs`, `App.TagInput.cs` | 実装・ビルド確認。日本語IMEの実変換・確定は保留。 |
 | 030 | 大声今回/継続、全タブ発言、prefix。UI: `App.ChatEffects.cs` | `GameInputTests`、所有2タブnative 9項目。 |
 | 031 | 複数行看板、空行、終端、取消、server終了。Core: `GameInput.cs`; UI: `App.Game.cs` | 入力・protocol照合、nativeタグ挿入と看板取消。全server終了状態の実画面は未確認。 |
