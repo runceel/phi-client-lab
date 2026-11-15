@@ -60,6 +60,8 @@ public sealed record ClientModel
     public string GraphicsNotice { get; init; } = "";
     public WorldDirectoryModel Worlds { get; init; } = new();
     public RegistrationGraphicsModel RegistrationGraphics { get; init; } = new();
+    public MasterMenu? MasterMenu { get; init; }
+    public string MasterMessage { get; init; } = "";
     public ImmutableDictionary<string, AutomapWorld> Automaps { get; init; } =
         ImmutableDictionary<string, AutomapWorld>.Empty;
 }
@@ -82,6 +84,7 @@ public abstract record ClientMessage
     public sealed record RegistrationGraphicsLoaded(long Request, IReadOnlyList<string> Names) : ClientMessage;
     public sealed record RegistrationGraphicsFailed(long Request, string Error) : ClientMessage;
     public sealed record RegistrationGraphicSelected(int Index) : ClientMessage;
+    public sealed record MasterMenuChanged(MasterMenu? Value, string Message) : ClientMessage;
     public sealed record LoadedChanged(bool Value) : ClientMessage;
     public sealed record BusyChanged(bool Value) : ClientMessage;
     public sealed record GameOpened(string Key) : ClientMessage;
@@ -132,6 +135,7 @@ public static class ClientUpdate
         ClientMessage.NoticeChanged edit => model with { Notice = edit.Value },
         ClientMessage.DeleteMarked edit => model with { PendingDelete = edit.Key },
         ClientMessage.CreatingChanged edit => model with { Creating = edit.Value },
+        ClientMessage.MasterMenuChanged master => model with { MasterMenu = master.Value, MasterMessage = master.Message },
         ClientMessage.RegistrationGraphicsLoading load => model with
             { RegistrationGraphics = new(load.Request, true, "指定したサーバーから初期画像の候補を取得しています…") },
         ClientMessage.RegistrationGraphicsLoaded load when load.Request == model.RegistrationGraphics.Request =>

@@ -31,10 +31,11 @@ try {
         $relative -match '^chara/[^/]+\.bmp$' -or
         $relative -match '^Skins/Mine/chara/[^/]+\.(bmp|txt)$' -or
         $relative -in @('README.md', 'PCGL.txt', 'PCGL.utf8.txt',
+            'Config/MasterMagicMenu.xml',
             'Skins/Mine/chip/Default.bmp', 'Skins/Mine/Images/Items.bmp',
             'Skins/Mine/制作者.txt', 'Skins/Mine/説明.txt')
     })
-    if ($entries.Count -ne 348) {
+    if ($entries.Count -ne 349) {
         throw "Unexpected original graphics inventory ($($entries.Count)). No graphics were imported."
     }
     New-Item -ItemType Directory -Path $output | Out-Null

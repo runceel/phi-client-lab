@@ -13,6 +13,7 @@ public sealed partial class PhiConnection : IDisposable
     private readonly CancellationTokenSource lifetime = new();
     private TaskCompletionSource<Choices?>? equipment;
     private int hiddenLists;
+    private int scriptHiddenLists;
     private long hideUntil;
     private long equipmentPromptUntil;
     private long equipmentConfirmationUntil;
@@ -89,7 +90,15 @@ public sealed partial class PhiConnection : IDisposable
     public Task SendAsync(string[] commands, CancellationToken token = default, int suppressLists = 0) =>
         SendBatchAsync(commands, token, suppressLists, Volatile.Read(ref transportGeneration));
 
-    private async Task SendBatchAsync(string[] commands, CancellationToken token, int suppressLists, int generation)
+    public Task SendScriptAsync(string[] commands, int suppressLists, int generation, CancellationToken token = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(suppressLists);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(suppressLists, 4096);
+        return SendBatchAsync(commands, token, 0, generation, suppressLists);
+    }
+
+    private async Task SendBatchAsync(string[] commands, CancellationToken token, int suppressLists, int generation,
+        int scriptSuppressLists = 0)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(suppressLists);
         var lines = commands.ToArray();
@@ -104,6 +113,13 @@ public sealed partial class PhiConnection : IDisposable
             if (stream is null)
                 throw new InvalidOperationException("Not connected.");
             RejectTransferInput(generation);
+            if (scriptSuppressLists > 0)
+                lock (automation)
+                {
+                    if (scriptHiddenLists > 4096 - scriptSuppressLists)
+                        throw new InvalidOperationException("超魔法の非表示リストの返事が多く残っています。再接続してから実行してください。");
+                    scriptHiddenLists += scriptSuppressLists;
+                }
             if (suppressLists > 0)
                 lock (automation)
                 {
@@ -213,6 +229,11 @@ public sealed partial class PhiConnection : IDisposable
                 equipped.Text.Contains("を装備した", StringComparison.Ordinal))
             {
                 equipmentConfirmationUntil = 0;
+                return true;
+            }
+            if (item is Choices { Complete: true } && scriptHiddenLists > 0)
+            {
+                scriptHiddenLists--;
                 return true;
             }
             if (item is Choices { Complete: true } && hiddenLists > 0)

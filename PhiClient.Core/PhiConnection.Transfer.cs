@@ -87,6 +87,7 @@ public sealed partial class PhiConnection
             {
                 equipment?.TrySetException(new IOException("世界移動のため魔法の準備を中止しました。"));
                 hiddenLists = 0;
+                scriptHiddenLists = 0;
                 equipmentPromptUntil = 0;
             }
             try { ValidateEndpoint(request.Host, request.Port); }

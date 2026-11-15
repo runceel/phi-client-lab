@@ -51,7 +51,7 @@ partial class App
                 .Flex(shrink: 0),
             Button(priv.Sending ? "相手を確認して送信しています…" : "内緒話を送信", () => SendPriv(session))
                 .IsEnabled(session.Connected && !session.Model.Transferring && !priv.Sending &&
-                    current is not null && priv.Draft.Length > 0).AutomationId("priv-send").Flex(shrink: 0),
+                    session.Model.Master is null && current is not null && priv.Draft.Length > 0).AutomationId("priv-send").Flex(shrink: 0),
             HStack(6, TextBlock(session.Model.UserRefresh.Started is null ? "この世界の相手" : "相手の一覧を読み込んでいます…"),
                 Button("一覧を更新", () => _ = SessionOperationAsync(session, () => RefreshUsersAsync(session)))
                     .IsEnabled(session.Connected && !session.Model.Transferring && session.Model.UserRefresh.Started is null)

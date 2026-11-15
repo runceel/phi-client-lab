@@ -104,6 +104,8 @@ partial class App
 
     private void Execute(GameSession session, InputAction action)
     {
+        if (session.Model.Master is not null && action.Commands.Any())
+            return;
         if (session.Model.Transferring && action.Intent is not
             (InputIntent.ForceDisconnect or InputIntent.ForceDisconnectAll or InputIntent.NextTab or
                 InputIntent.PreviousTab or InputIntent.FocusInput))
@@ -145,6 +147,8 @@ partial class App
             throw new InvalidOperationException("世界移動中です。移動が終わってから再度操作してください。");
         if (session.PreparingMagic)
             throw new InvalidOperationException("Wait for the equipment response before sending another command.");
+        if (session.Model.Master is not null)
+            throw new InvalidOperationException("超魔法の手順を実行中です。完了するか中止してから操作してください。");
         var connection = session.Connection;
         var transportVersion = connection.TransportVersion;
         if (action.Confirmation is not null &&
@@ -228,6 +232,7 @@ partial class App
     private void CloseTab(GameSession session) =>
         _ = SessionOperationAsync(session, async () =>
         {
+            session.MasterCancellation?.Cancel();
             await DisconnectAsync(session);
             if (session.ConnectionTask is { } task) await task;
             if (logStore is not null) await logStore.FlushAsync();

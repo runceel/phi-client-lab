@@ -9,17 +9,31 @@ using static Microsoft.UI.Reactor.Factories;
 partial class App
 {
     private Microsoft.UI.Xaml.Controls.ListView? listControl;
+    private sealed record MenuInputs(GameSession? Session, bool Busy, bool Follow, bool FullKeys, bool ShowMap,
+        System.Collections.Immutable.ImmutableArray<SavedCharacter> Characters, bool Connected, bool Transferring,
+        bool PreparingMagic, bool MasterRunning, bool LogSaving, bool HasTransport, bool KnownWorld,
+        bool HasEagle, bool NorthFixed, PhiClient.Core.MasterMenu? Master, bool MasterVisible);
+    private MenuInputs? menuInputs;
+    private Element? menuElement;
 
     private Element AppMenu()
     {
         var session = active;
+        var inputs = new MenuInputs(session, busy, followLog, fullKeys, showMap, model.Characters,
+            session?.Connected == true, session?.Model.Transferring == true, session?.PreparingMagic == true,
+            session?.Model.Master is not null, session?.Model.LogSaving == true, session?.Connection is not null,
+            session?.World is not null and not "" and not "???", session?.Eagle is not null,
+            session?.NorthFixed ?? true, model.MasterMenu, MasterMagic.Visible(session?.Stats, model.Options));
+        // Preserve open native flyouts when only map animation or unrelated log content changes.
+        if (inputs == menuInputs && menuElement is not null) return menuElement;
         MenuFlyoutItemData Action(string label, InputAction action) =>
             MenuItem(label, () => { if (session is not null) Execute(session, action); })
-                with { IsEnabled = session?.Connected == true && !session.Model.Transferring };
+                with { IsEnabled = session?.Connected == true && !session.Model.Transferring && session.Model.Master is null };
         MenuFlyoutItemData Key(string label, ConsoleKey key, bool alt = false, bool shift = false) =>
             Action(label, GameInput.Resolve(key, session?.NorthFixed ?? true, false,
                 alt: alt, shift: shift) ?? throw new InvalidOperationException("Missing menu binding."));
-        return MenuBar(
+        var menus = new[]
+        {
             Menu("File",
                 MenuItem("Connect / disconnect", ToggleConnection) with { IsEnabled = session is not null },
                 MenuItem("Disconnect all", () =>
@@ -33,6 +47,7 @@ partial class App
                 MenuItem("Close tab", () => { if (session is not null) CloseTab(session); })
                     with { IsEnabled = session is not null },
                 MenuItem("設定…", OpenSettings) with { IsEnabled = !busy },
+                MenuItem("超魔法のXMLを読み込む…", ChooseMasterMenu) with { IsEnabled = !busy },
                 MenuItem("Characters / registration", () => { showCharacters = !showCharacters; refresh(); })),
             Menu("Character",
                 MenuItem("priv（内緒話）", () => { if (session is not null) TogglePriv(session); })
@@ -116,8 +131,11 @@ partial class App
                 MenuItem("About", () => _ = PerformAsync(async () => await SessionDialogAsync("PHI Client",
                     "C# / WinUI 3 with official Microsoft.UI.Reactor preview. " +
                     "Newly drawn schematic maps; no wphi image assets are bundled. " +
-                    "PHI uses unencrypted TCP. This is not yet a complete wphi replacement.")))))
-            .WithKey($"menu-{session?.Character.Key ?? "offline"}");
+                    "PHI uses unencrypted TCP. This is not yet a complete wphi replacement."))))
+        };
+        if (MasterMenu(session) is { } master) menus = [.. menus, master];
+        menuInputs = inputs;
+        return menuElement = MenuBar(menus).WithKey($"menu-{session?.Character.Key ?? "offline"}");
     }
 
     private Element GameView(GameSession session)
@@ -172,6 +190,9 @@ partial class App
             }).Flex(grow: 1, basis: 0);
 
         var chat = FlexColumn(
+            session.Model.Master is null ? Empty() :
+                HStack(8, TextBlock("超魔法の手順を実行しています…").AutomationId("master-status"),
+                    Button("残りの手順を中止", () => CancelMaster(session)).AutomationId("master-cancel")).Flex(shrink: 0),
             HStack(8, SubHeading("世界からのログ"),
                 Caption($"{session.World} {session.Area}").AutomationId("world-location")).Flex(shrink: 0),
             log, choices.Flex(shrink: 0), SignEditor(session).Flex(shrink: 0),
@@ -188,7 +209,7 @@ partial class App
                     if (args.Key == Windows.System.VirtualKey.Enter) committingComposition = false;
                 }).Flex(shrink: 0),
             HStack(8,
-                Button("Send", () => Submit(session)).IsEnabled(session.Connected).AutomationId("send-command"),
+                Button("Send", () => Submit(session)).IsEnabled(session.Connected && session.Model.Master is null).AutomationId("send-command"),
                 Button("Party", () => Submit(session, party: true)).IsEnabled(session.Connected),
                 Caption("Enter: current line  |  Shift+Enter: newline  |  Ctrl+Enter: party"))
                 .Flex(shrink: 0)

@@ -32,7 +32,10 @@ Check 'Unchanged originals and all license files, without server configuration' 
             'Sushi-MIT.txt', 'Skins\Mine\制作者.txt')) {
             if (-not (Test-Path -LiteralPath (Join-Path $output $name))) { throw "Missing notice: $name" }
         }
-        if (Test-Path -LiteralPath (Join-Path $output 'Config')) { throw 'Server configuration was imported.' }
+        $config = @(Get-ChildItem -LiteralPath (Join-Path $output 'Config') -File -Recurse)
+        if ($config.Count -ne 1 -or $config[0].Name -cne 'MasterMagicMenu.xml') {
+            throw 'Only the reviewed MasterMagicMenu.xml may be imported from Config; no server endpoints.'
+        }
         if (Get-ChildItem -LiteralPath $output -Recurse -Filter 'LANU_*') { throw 'Excluded graphic was imported.' }
     } finally { $archive.Dispose() }
 }

@@ -57,6 +57,8 @@ partial class App
         var connection = session.Connection;
         if (connection is null || !session.Connected || session.Model.Transferring)
             throw new InvalidOperationException("接続が完了してから内緒話を送信してください。");
+        if (session.Model.Master is not null)
+            throw new InvalidOperationException("超魔法の手順が終わってから、内緒話を送信してください。");
         var generation = connection.TransportVersion;
         session.Dispatch(new GameMessage.PrivSendingChanged(true));
         try

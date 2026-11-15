@@ -9,6 +9,40 @@ namespace PhiClient.Core.Tests;
 public sealed class PhiConnectionTests
 {
     [Fact]
+    public async Task ScriptSendsPinTheTransportAndHideOnlyTheirCountOfCompletedLists()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        using var connection = new PhiConnection();
+        var ready = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var lists = new ConcurrentQueue<Choices>();
+        connection.Received += item =>
+        {
+            if (item is ConnectionReady) ready.TrySetResult();
+            if (item is Choices choices) lists.Enqueue(choices);
+        };
+        var server = Task.Run(async () =>
+        {
+            using var peer = await listener.AcceptTcpClientAsync(timeout.Token);
+            var stream = peer.GetStream();
+            using var reader = new StreamReader(stream, PhiWire.Encoding, false, 1024, true);
+            for (var i = 0; i < 11; i++) await reader.ReadLineAsync(timeout.Token);
+            Assert.Equal("first", await reader.ReadLineAsync(timeout.Token));
+            Assert.Equal("second", await reader.ReadLineAsync(timeout.Token));
+            await stream.WriteAsync(PhiWire.Encode("#list\n[1] hidden one\n#end-list\n" +
+                "#list\n[1] hidden two\n#end-list\n#list\n[1] visible\n#end-list\n#close\n"), timeout.Token);
+        }, timeout.Token);
+        var run = connection.RunAsync("127.0.0.1", ((IPEndPoint)listener.LocalEndpoint).Port, "script-fixture", timeout.Token);
+        await ready.Task.WaitAsync(timeout.Token);
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            connection.SendScriptAsync(["must-not-send"], 1, connection.TransportVersion - 1, timeout.Token));
+        await connection.SendScriptAsync(["first", "second"], 2, connection.TransportVersion, timeout.Token);
+        await Task.WhenAll(server, run).WaitAsync(timeout.Token);
+        Assert.Equal("visible", Assert.Single(Assert.Single(lists).Items).Text);
+    }
+
+    [Fact]
     public async Task UserRefreshClearsParserNamesBeforeNewRosterWithoutInterpretingLiteralUserCommands()
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));

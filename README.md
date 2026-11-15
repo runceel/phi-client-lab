@@ -218,7 +218,8 @@ Then load the printed absolute directory (by default `.local\wphi-graphics`).
 The setup script downloads the reviewed wphi revision
 `d8f11bf60c95d470fa14ca83bcc4c02d5c83fecc`, verifies the archive's SHA-256,
 and imports its unchanged BMPs and license/author notices. It refuses existing
-directories and does not import Config files or any public-server endpoints.
+directories. From Config it imports only the reviewed `MasterMagicMenu.xml`;
+it does not import any public-server endpoints or other Config files.
 It does not redraw or substitute the graphics. To use an existing checkout,
 enter its root or `resources\phi` directly; a checkout root is resolved to that
 graphics subfolder. For an offline setup, pass `-ArchivePath` with the matching
@@ -303,7 +304,7 @@ The importer checks are reproducible with the downloaded original archive:
 ```
 
 Use a new artifact directory. These checks compare every imported file against
-the untouched archive, require the license/author notices, exclude Config files,
+the untouched archive, require the license/author notices, allow only the reviewed MasterMagic menu from Config,
 and reject altered archives and attempts to overwrite an existing collection.
 
 ## Data and trust
@@ -380,9 +381,26 @@ reserve/trans による世界移動、原典のパスワード生成とログ装
 会話は最大50組、各組の履歴は最大2,000行・2MiBです。安全のため宛先は1,000人、
 一度の送信量は8Mi文字相当までに制限しています。
 
+**File > 超魔法のXMLを読み込む…** から、信頼できるwphi／Phillyの
+`Config\MasterMagicMenu.xml` を指定できます。Shift_JIS / CP932、またはBOM付きUTF-8を
+読み込み、指定したファイルの参照を保存します。起動時はアプリ保存先の
+`MasterMagicMenu.xml`、保存済み参照、素材フォルダーの `Config\MasterMagicMenu.xml` の順に探します。
+原典の素材取り込みスクリプトは、許可記録を確認したこのXMLだけをConfigから追加します。
+原典READMEに記録された2026-11-09のPhilly作者による同梱許可と出典を保持し、
+公開世界の接続設定や他のConfigファイルは取り込みません。既存の素材フォルダーへの上書きも拒否します。
+
+**超魔法** メニューは経験値が原典のマスター値 `99999999` のキャラクター、または
+設定で表示を有効にしたキャラクターに表示します。選んだ項目の送信・確認・整数・文字入力を
+XMLの順番どおりに実行します。表示設定はメニューの切替であり、実行結果は接続先の権限と仕様によります。
+整数は半角の数字と先頭の `-`、文字は `%string`、整数は `%int` として置換します。
+取消・不正な整数・世界移動・切断で残りの手順を中止します。送信済みの操作は取り消されません。
+実行中の手動送信を止め、元の接続世代に固定して、古い手順が移動先へ流れないようにしています。
+XMLは1MiB、項目は2,048件、手順は1項目4,096個までです。DTDと外部entityは読み込みません。
+超魔法の実UI総合確認は、全体の回帰確認とあわせて進行中です。
+
 未対応・確認中: Philly の登録情報取り込み、ログ画像の自動表示、
 Mine 以外のスキン、actor の状態装飾、旧5×5 actor の全仕様、
-超魔法メニュー、入力欄のタグメニュー、通知・音、独立マップ窓、
+入力欄のタグメニュー、通知・音、独立マップ窓、
 窓配置の保存と復帰、更新確認など。これらは要件から除外していません。
 生のコマンドを送れることを、対応するクライアント UI の実装済みとは扱いません。
 

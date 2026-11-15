@@ -15,6 +15,7 @@ public sealed record GameModel
     public bool AttackMode { get; init; }
     public bool MagicMode { get; init; }
     public bool PreparingMagic { get; init; }
+    public MasterRun? Master { get; init; }
     public bool Transferring { get; init; }
     public string PlayerName { get; init; } = "";
     public ImmutableArray<User> Users { get; init; } = [];
@@ -53,6 +54,7 @@ public abstract record GameMessage
     public sealed record BoardChanged(string Text) : GameMessage;
     public sealed record EditingChanged(bool Value) : GameMessage;
     public sealed record PreparingChanged(bool Value) : GameMessage;
+    public sealed record MasterChanged(MasterRun? Value) : GameMessage;
     public sealed record EagleToggled : GameMessage;
     public sealed record Logged(string Text, DateTimeOffset? Time = null) : GameMessage;
     public sealed record LogSavingChanged(bool Value) : GameMessage;
@@ -106,12 +108,13 @@ public static class GameUpdate
         GameMessage.PhaseChanged { Phase: ConnectionPhase.Offline } =>
             model with { Phase = ConnectionPhase.Offline, Selection = new(), Editing = false,
                 PreparingMagic = false, Transferring = false, Prediction = model.Prediction.Reset(),
-                UserRefresh = model.UserRefresh.Finish(), Priv = model.Priv with { Sending = false } },
+                UserRefresh = model.UserRefresh.Finish(), Priv = model.Priv with { Sending = false }, Master = null },
         GameMessage.PhaseChanged phase => model with { Phase = phase.Phase },
         GameMessage.InputChanged input => model with { Input = input.Text },
         GameMessage.BoardChanged board => model with { BoardText = board.Text },
         GameMessage.EditingChanged edit => model with { Editing = edit.Value },
         GameMessage.PreparingChanged prepare => model with { PreparingMagic = prepare.Value },
+        GameMessage.MasterChanged master => model with { Master = master.Value },
         GameMessage.EagleToggled => model with { ShowEagle = !model.ShowEagle },
         GameMessage.Logged log => Append(model, log.Text, log.Time),
         GameMessage.LogSavingChanged save => model with { LogSaving = save.Value },
@@ -144,7 +147,7 @@ public static class GameUpdate
         TransferProgress progress => model with { Transferring = progress.Active, Prediction = model.Prediction.Reset() },
         WorldMoved => model with { Map = null, Eagle = null, ShowEagle = false, World = "", Area = "",
             Users = [], Selection = new(), Editing = false, PreparingMagic = false, Prediction = model.Prediction.Reset(),
-            UserRefresh = new(), Priv = model.Priv with { Sending = false } },
+            UserRefresh = new(), Priv = model.Priv with { Sending = false }, Master = null },
         LogLine { Literal: false } line when line.Text.StartsWith("DM > ", StringComparison.Ordinal) &&
             line.Text[5..] is "進めません." or "Can not go." =>
             Append(model with { Prediction = model.Prediction.CannotGo(at) }, line.Text, time, line),

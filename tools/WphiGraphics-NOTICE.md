@@ -21,10 +21,15 @@ or redrawn substitute. `source-manifest.json` records each imported file's hash.
   license for the skin. Preserve the original author and explanation files.
   PHI Client Lab imports these files for local use; it does not bundle the skin
   in its executable or assert additional third-party redistribution rights.
+- `Config/MasterMagicMenu.xml` is an unchanged Philly configuration part.
+  The upstream README records that its maintainer confirmed inclusion on
+  2026-11-09. This is an upstream permission record, not a blanket MIT or PCGL
+  license for Philly. It is imported for local use with the original README
+  and notices, not embedded in PHI Client Lab's executable.
 
 The original `README.md` is retained verbatim, including its provenance and
 license boundaries. Only character sheets, the default map sheet, item sheet,
-character index and notices are imported. No real-world server configuration,
+character index, the reviewed MasterMagic menu and notices are imported. No real-world server configuration,
 credentials, gameplay code, other UI skins or sound files are imported.
 
 Sources:

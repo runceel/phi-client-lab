@@ -117,6 +117,7 @@ partial class App
             graphicsFolder = (await File.ReadAllTextAsync(graphicsPath)).Trim();
             await graphics.SetFolderAsync(graphicsFolder);
         }
+        await LoadMasterMenuAsync();
         notice = "Ready. Choose a saved character or register a new one.";
     }
 
@@ -200,6 +201,8 @@ partial class App
         {
             if (disposed || session.Connection != connection)
                 return;
+            if (item is TransferProgress { Active: true } or WorldMoved)
+                session.MasterCancellation?.Cancel();
             var privWasVisible = session.Model.Priv.Visible;
             session.Dispatch(new GameMessage.Received(item, Environment.TickCount64, DateTimeOffset.Now));
             if (item is LogLine { Channel: LogChannel.Priv, Literal: false } && !privWasVisible &&
@@ -239,6 +242,7 @@ partial class App
         }
         finally
         {
+            session.MasterCancellation?.Cancel();
             connection.Dispose();
             session.Connection = null;
             session.Dispatch(new GameMessage.PhaseChanged(ConnectionPhase.Offline));
@@ -305,6 +309,6 @@ partial class App
 
     private static bool IsExpected(Exception ex) =>
         ex is IOException or InvalidDataException or SocketException or ArgumentException or InvalidOperationException
-            or UnauthorizedAccessException or JsonException or COMException or OperationCanceledException;
+            or UnauthorizedAccessException or JsonException or COMException or OperationCanceledException or System.Xml.XmlException;
 
 }
