@@ -166,14 +166,6 @@ partial class App
         composing = committingComposition = false;
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(box,
             "Tabでログへ切り替えてゲーム操作。Shift+Tabで通常のUIフォーカス移動。");
-        box.TextChanging += (input, _) =>
-        {
-            if (disposed || active != session || inputControl != input || !input.IsLoaded || session.Input == input.Text) return;
-            // TextChanged is deferred; capture before a pending controlled render can restore old text.
-            model = ClientUpdate.Apply(model, new ClientMessage.GameChanged(session.Character.Key,
-                new GameMessage.InputChanged(input.Text)));
-            publish?.Invoke(model);
-        };
         box.TextCompositionStarted += (_, _) => composing = true;
         box.TextCompositionEnded += (_, _) =>
         {

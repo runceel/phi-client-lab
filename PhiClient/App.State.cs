@@ -67,6 +67,12 @@ partial class App
     private void Refresh()
     {
         if (disposed) return;
+        if (capturingTextInput)
+        {
+            // Publish the hook now, but do not mutate the visual tree inside TextChanging.
+            publish?.Invoke(model);
+            return;
+        }
         foreach (var game in sessions)
         {
             if (game.LogPresenter is { Control.IsLoaded: true } presenter)

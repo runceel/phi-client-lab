@@ -41,7 +41,7 @@ partial class App
                     viewer.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White);
                     session.PrivPresenter = presenter;
                 }).Flex(grow: 1, basis: 0),
-            TextBox(priv.Draft, text => session.Dispatch(new GameMessage.PrivDraftChanged(text)),
+            InputBox(priv.Draft, text => session.Dispatch(new GameMessage.PrivDraftChanged(text)),
                     header: current is null ? "一覧で相手を選んでください" : $"{string.Join("・", current.To)} へ")
                 .IsEnabled(current is not null).AutomationId("priv-input")
                 .OnMount(element => AttachPrivInput(session, (Microsoft.UI.Xaml.Controls.TextBox)element))

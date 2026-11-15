@@ -236,7 +236,7 @@ partial class App
                     Button("残りの手順を中止", () => CancelMaster(session)).AutomationId("master-cancel")).Flex(shrink: 0),
             Caption($"{session.World} {session.Area}").AutomationId("world-location").Flex(shrink: 0),
             log, choices.Flex(shrink: 0), SignEditor(session).Flex(shrink: 0),
-            FlexRow(TextBox(session.Input, value =>
+            FlexRow(InputBox(session.Input, value =>
                 {
                     if (session.Input == value) return;
                     session.Dispatch(new GameMessage.InputChanged(value));
@@ -362,7 +362,7 @@ partial class App
     }
 
     private Element SignEditor(GameSession session) => !session.Editing ? Empty() : VStack(6,
-        TextBox(session.BoardText, text =>
+        InputBox(session.BoardText, text =>
             {
                 if (session.BoardText == text) return;
                 session.Dispatch(new GameMessage.BoardChanged(text));
