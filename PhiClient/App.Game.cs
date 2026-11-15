@@ -266,6 +266,9 @@ partial class App
             {
                 session.Dispatch(new GameMessage.EagleToggled());
             }),
+            Button("表示中の地図をPNGに保存", () => SaveMapImage(session))
+                .IsEnabled(!busy && session.Map is not null).AutomationId("save-map-image"),
+            Button("地図画像の保存先を開く", OpenMapImageFolder).AutomationId("open-map-images"),
             GameViews.Status(session),
             TextBlock("Click: move toward tile. Right-click: attack.\nWithout graphics: circle = character, ! = sign, * = item.")
                 .TextWrapping(TextWrapping.Wrap).FontSize(12).Width(336),
@@ -287,6 +290,8 @@ partial class App
                 Button("Keyboard movement mode", () => gameControl?.Focus(FocusState.Programmatic))
                     .OnMount(element => gameControl = (Microsoft.UI.Xaml.Controls.Button)element)
                     .AutomationId("movement-mode"),
+                Button("キャラクター一覧", () => { showCharacters = !showCharacters; })
+                    .AutomationId("toggle-characters"),
                 Button("Close tab", () => CloseTab(session)).IsEnabled(!session.Connecting && !session.Closing)
                     .AutomationId("close-tab")).Flex(shrink: 0),
             Caption(session.Model.Transferring ? "世界移動中です。操作は送信しません。「切断」で移動を中止できます。" :
@@ -303,7 +308,8 @@ partial class App
     {
         var bitmap = session.GraphicsImage;
         if (bitmap is null) return GameViews.Map(session, (x, y) => MapClick(session, x, y), () => Send(session, "hit"),
-            DisplayMap(session), model.Options.MapZoom / 100.0);
+            DisplayMap(session), model.Options.MapZoom / 100.0)
+                .OnMount(element => AttachMapSurface((FrameworkElement)element, session));
         // The preview's Image descriptor requires a URI even when OnMount supplies a live bitmap.
         var picture = Image("ms-appx:///Assets/Square44x44Logo.scale-200.png")
             .AccessibilityHidden()
@@ -329,9 +335,13 @@ partial class App
             .WithKey($"map-surface-{session.GraphicsWidth}-{session.GraphicsHeight}")
             .AutomationId("sprite-map").AutomationName("Character sprites and map chips: " +
                 string.Join(", ", MapLabels.NameList(session.Map?.Actors ?? [])))
-            .OnMount(element => ((Microsoft.UI.Xaml.UIElement)element).Clip =
-                new Microsoft.UI.Xaml.Media.RectangleGeometry { Rect = new Windows.Foundation.Rect(0, 0,
-                    session.GraphicsWidth, session.GraphicsHeight) })
+            .OnMount(element =>
+            {
+                var surface = (FrameworkElement)element;
+                AttachMapSurface(surface, session);
+                surface.Clip = new Microsoft.UI.Xaml.Media.RectangleGeometry { Rect = new Windows.Foundation.Rect(0, 0,
+                    session.GraphicsWidth, session.GraphicsHeight) };
+            })
             .OnPointerPressed((sender, args) =>
             {
                 if (session.ShowEagle || sender is not Microsoft.UI.Xaml.UIElement view) return;
