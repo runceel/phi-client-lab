@@ -7,7 +7,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-if (-not $IsWindows) { throw 'Packaged PHI Client requires Windows.' }
+if (-not $IsWindows) { throw 'Packaged PHI for Windows 11 requires Windows.' }
 Get-Command dotnet, winapp -ErrorAction Stop | Out-Null
 
 $workspace = [IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot)).TrimEnd('\')
@@ -27,7 +27,7 @@ $arguments = @('run', $project, '--arch', $Architecture, '--detach', '--unique-i
     '--devtools', 'off', '--output-appx-directory', $layout)
 if ($NoBuild) { $arguments += '--no-build' }
 
-if ($PSCmdlet.ShouldProcess($project, 'Build and launch packaged PHI Client with a worktree-specific identity')) {
+if ($PSCmdlet.ShouldProcess($project, 'Build and launch packaged PHI for Windows 11 with a worktree-specific identity')) {
     New-Item -ItemType Directory -Path $layout -Force | Out-Null
     Push-Location -LiteralPath $workspace
     try {

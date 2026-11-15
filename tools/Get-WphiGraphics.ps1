@@ -58,7 +58,7 @@ try {
         files = @($files)
     } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $output 'source-manifest.json') -Encoding utf8
     Write-Output "Original wphi graphics imported: $output"
-    Write-Output 'Choose View > Graphics folder in PHI Client Lab, enter this directory, and Load.'
+    Write-Output 'Choose View > Graphics folder in PHI for Windows 11, enter this directory, and Load.'
 } finally {
     if ($archive) { $archive.Dispose() }
     if ($temporaryArchive) { Remove-Item -LiteralPath $temporaryArchive }

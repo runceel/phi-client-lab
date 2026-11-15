@@ -42,7 +42,7 @@ partial class App
             {
                 mapWindow = ReactorApp.OpenWindow(new WindowSpec
                 {
-                    Title = "PHI Client — 地図", Width = 400, Height = 520,
+                    Title = $"{ProductName} — 地図", Width = 400, Height = 520,
                     MinWidth = 380, MinHeight = 280,
                     PersistenceId = "phi-map", PersistPlacement = true, ActivateOnOpen = false
                 }, () => new MapWindowView(this));
@@ -63,7 +63,7 @@ partial class App
     }
 
     private Element DetachedMapView() => FlexColumn(
-        TitleBar("PHI Client — 地図"),
+        TitleBar($"{ProductName} — 地図"),
         active is { } session
             ? ScrollViewer(MapPane(session, model.DetachedMapWidth)).Flex(grow: 1, basis: 0).Padding(12)
                 .AutomationId("detached-map-scroll")

@@ -9,12 +9,14 @@ using static Microsoft.UI.Reactor.Factories;
 // Preview.17 pooling made replaced settings controls inaccessible to native UIA.
 ReactorApp.Run<App>(new WindowSpec
 {
-    Title = "PHI Client", Width = 1200, Height = 850,
+    Title = App.ProductName, Width = 1200, Height = 850,
     PersistenceId = "phi-main", PersistPlacement = true
 }, configure: host => host.Reconciler.Pool.Enabled = false);
 
 partial class App : Component
 {
+    internal const string ProductName = "PHI for Windows 11";
+
     public override Element Render()
     {
         var (snapshot, update) = UseReducer(model);
@@ -59,31 +61,6 @@ partial class App : Component
                 AttachNotificationWindow(root);
                 AttachWindowLayout(root);
             });
-    }
-
-    private Element MainTitleBar()
-    {
-        var compact = windowWidth < 760;
-        var title = compact ? "PHI" : active is null ? "PHI Client" : $"PHI Client — {active.Character.Name}";
-        var bar = TitleBar(title).NoIcon();
-        if (model.Registration.Stage != RegistrationStage.None) return bar;
-        var gameVisible = active is not null && !showCharacters && !model.Worlds.Visible && model.SettingsEditor is null;
-        var session = active;
-        var status = session?.Connected == true ? model.ChatFocused ? "接続・入力" :
-            model.NativeInputFocused ? "接続・UI" : "接続・移動" :
-            session?.Connecting == true ? "接続中…" : "未接続";
-        return bar.Tall().AutoRefreshDragRegions().RightHeader(HStack(4,
-            AppMenu().IsDragRegion(false),
-            gameVisible ? Button(compact ? "?" : "操作ガイド",
-                    () => Dispatch(new ClientMessage.GameGuideChanged(!model.GameGuideVisible)))
-                .AutomationName("操作ガイド").AutomationId("game-guide")
-                .Padding(8, 4).MinWidth(32).IsDragRegion(false) : Empty(),
-            gameVisible ? Caption(compact && session?.Connected == true ? "接続" : status)
-                .AutomationName(status).AutomationId("connection-status") : Empty(),
-            gameVisible && !compact && session is not null ? Button(session.Model.Priv.Visible ? "会話に戻る" : "内緒話",
-                    () => TogglePriv(session))
-                .AutomationId("toggle-priv").Padding(8, 4).IsDragRegion(false) : Empty()
-        ).VerticalAlignment(VerticalAlignment.Center));
     }
 
     private Element CharacterSidebar() => VStack(12,
