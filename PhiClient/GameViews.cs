@@ -100,15 +100,16 @@ internal static class GameViews
     {
         var status = session.Stats;
         Element Bar(string label, long? now, long? max) => VStack(2,
-            TextBlock($"{label}  {now?.ToString() ?? "--"} / {max?.ToString() ?? "--"}").AutomationId($"{label.ToLowerInvariant()}-value"),
+            TextBlock($"{label}  {now?.ToString() ?? "--"} / {max?.ToString() ?? "--"}")
+                .TextWrapping(TextWrapping.Wrap).AutomationId($"{label.ToLowerInvariant()}-value"),
             Progress(now is null || max is null or <= 0 ? 0 : Math.Clamp((double)now / max.Value * 100, 0, 100))
                 .AutomationName($"{label}: {now?.ToString() ?? "unknown"} of {max?.ToString() ?? "unknown"}"));
         return VStack(6,
-            TextBlock(status?.Name ?? session.Character.Name).FontWeight(FontWeights.SemiBold),
+            TextBlock(status?.Name ?? session.Character.Name).FontWeight(FontWeights.SemiBold).TextWrapping(TextWrapping.Wrap),
             Bar("HP", status?.Hp, status?.MaxHp),
             Bar("MP", status?.Mp, status?.MaxMp),
             TextBlock($"F {status?.Fighter}   W {status?.Warrior}   M {status?.Magician}   C {status?.Cleric}\n" +
-                $"Gp {status?.Gold}   Exp {status?.Experience}").AutomationId("game-status"),
+                $"Gp {status?.Gold}   Exp {status?.Experience}").TextWrapping(TextWrapping.Wrap).AutomationId("game-status"),
             TextBlock(string.Join(" | ", session.Conditions.Active
                 .Concat(session.AttackMode ? new[] { "Attack" } : [])
                 .Concat(session.MagicMode ? new[] { "Magic" } : [])))

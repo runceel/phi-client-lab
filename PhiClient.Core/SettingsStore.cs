@@ -52,6 +52,7 @@ public sealed class SettingsStore(string path)
             foreach (var line in macro.Replace("\\n", "\n", StringComparison.Ordinal).Split('\n'))
                 PhiWire.ValidateLine(line.TrimEnd('\r'));
         return options with { MapZoom = Math.Clamp(options.MapZoom, 50, 400),
+            MapPaneWidth = Math.Clamp(options.MapPaneWidth, MapPaneLayout.Minimum, MapPaneLayout.Maximum),
             LogFontSize = Math.Min(options.LogFontSize, 64) };
     }
 

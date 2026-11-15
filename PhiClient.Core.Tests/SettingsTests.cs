@@ -5,6 +5,22 @@ namespace PhiClient.Core.Tests;
 public sealed class SettingsTests
 {
     [Fact]
+    public void IntegratedMapWidthReservesLogSpaceWithoutLosingTheSavedPreference()
+    {
+        var original = new ClientModel();
+        var resized = ClientUpdate.Apply(original, new ClientMessage.MapPaneWidthChanged(900));
+        Assert.Equal(360, original.Options.MapPaneWidth);
+        Assert.Equal(900, resized.Options.MapPaneWidth);
+        Assert.Equal(640, MapPaneLayout.Width(resized.Options.MapPaneWidth, 1000));
+        Assert.Equal(900, MapPaneLayout.Width(resized.Options.MapPaneWidth, 1600));
+        Assert.Equal(200, MapPaneLayout.Width(100, 1000));
+        Assert.Equal(200, MapPaneLayout.Width(1600, 100));
+        Assert.Equal(900, resized.Options.MapPaneWidth);
+        Assert.Throws<ArgumentOutOfRangeException>(() => MapPaneLayout.Width(360, double.NaN));
+        Assert.Equal(184, ClientUpdate.Apply(resized, new ClientMessage.DetachedMapWidthChanged(10)).DetachedMapWidth);
+    }
+
+    [Fact]
     public void PhillyLogOptionsAndFontNameImportWithoutChangingUnspecifiedOptions()
     {
         var options = SettingsStore.ImportPhilly(new(), PhiWire.Encode(
@@ -59,13 +75,14 @@ public sealed class SettingsTests
                 "[Move]\nFullKeyMove=off\nFullKeyMove=on\n[Shortcut]\nShortcutF08=\"go N\\ngo E;保持\"\n" +
                 "ListModeShortcutF08=.\nAltGWord=こんにちは\n[Automation]\nAutoEquipSystemMagic=on\n" +
                 "[LogEdit]\nLogTagDeleteCutCopy=on\n[Log]\nLogDispTime=off\n"));
-            await store.SaveAsync(settings with { MapZoom = 999, LogFontSize = 999 });
+            await store.SaveAsync(settings with { MapZoom = 999, LogFontSize = 999, MapPaneWidth = 9999 });
             var loaded = await store.LoadAsync();
             Assert.False(loaded.FullKeys);
             Assert.False(loaded.LogDispTime);
             Assert.True(loaded.AutoEquipSystemMagic);
             Assert.True(loaded.LogTagDeleteCopy);
             Assert.Equal(400, loaded.MapZoom);
+            Assert.Equal(1600, loaded.MapPaneWidth);
             Assert.Equal(64u, loaded.LogFontSize);
             Assert.Equal("go N\\ngo E;保持", loaded.Shortcuts[0]);
             Assert.Equal(["go N", "go E;保持"],

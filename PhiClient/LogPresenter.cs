@@ -31,7 +31,9 @@ internal sealed class LogPresenter(Action<IReadOnlyList<LogEntry>, bool> copy, A
     private int layoutVersion;
     private (double Width, double Height, double Scale, int Version)? decoratedLayout;
     private ImmutableArray<LogEntry> entries = [];
-    private ClientOptions? presentation;
+    private sealed record Presentation(string Font, uint Size, bool Time, bool Links, bool Images,
+        bool ImageUrls, bool ImageLinks, bool LoudImages, bool LoudSizes, bool Unknown);
+    private Presentation? presentation;
     private ImmutableDictionary<string, LogImageState>? images;
     private readonly Dictionary<string, ImageSource> bitmaps = [];
     private long? pressedRow;
@@ -84,13 +86,16 @@ internal sealed class LogPresenter(Action<IReadOnlyList<LogEntry>, bool> copy, A
     public void Update(ImmutableArray<LogEntry> value, ClientOptions options,
         ImmutableDictionary<string, LogImageState>? imageStates = null)
     {
-        if (presentation != options || !ReferenceEquals(images, imageStates))
+        var next = new Presentation(options.LogFontName, options.LogFontSize, options.LogDispTime,
+            options.LogUrlLink, options.LogImageDisp, options.LogImageDispURL, options.LogImageLinkDisp,
+            options.LogImageDispLoud, options.LogLargeDispLoud, options.NotInterpretedTagDisp);
+        if (presentation != next || !ReferenceEquals(images, imageStates))
         {
             Control.Blocks.Clear();
             paragraphs.Clear();
             owners.Clear();
             overlines.Clear();
-            presentation = options;
+            presentation = next;
             images = imageStates;
             Control.FontFamily = new(options.LogFontName.Length == 0 ? "ＭＳ ゴシック, Consolas" : options.LogFontName);
             Control.FontSize = options.LogFontSize == 0 ? 14 : options.LogFontSize;

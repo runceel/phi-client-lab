@@ -6,11 +6,12 @@ using PhiClient;
 using PhiClient.Core;
 using static Microsoft.UI.Reactor.Factories;
 
+// Preview.17 pooling made replaced settings controls inaccessible to native UIA.
 ReactorApp.Run<App>(new WindowSpec
 {
     Title = "PHI Client", Width = 1200, Height = 850,
     PersistenceId = "phi-main", PersistPlacement = true
-});
+}, configure: host => host.Reconciler.Pool.Enabled = false);
 
 partial class App : Component
 {
@@ -21,6 +22,7 @@ partial class App : Component
         publish = next => update(_ => next);
         refresh = Refresh;
         UseEffect(StartServices, Array.Empty<object>());
+        UseEffect(SyncMapSplitter, model.Options.MapPaneWidth, windowWidth, active?.Model.Priv.Visible ?? false);
 
         Element content = model.SettingsEditor is not null ? SettingsView().Flex(grow: 1, basis: 0) :
             active is null || model.Worlds.Visible

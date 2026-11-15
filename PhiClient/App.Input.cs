@@ -42,6 +42,8 @@ partial class App
             return;
         if (focused is Microsoft.UI.Xaml.Controls.RichTextBlock)
             return;
+        if (focused is MapPaneSplitter or Microsoft.UI.Xaml.Controls.Primitives.Thumb)
+            return;
         for (var parent = focused as DependencyObject; parent is not null; parent = VisualTreeHelper.GetParent(parent))
             if (parent is Microsoft.UI.Xaml.Controls.MenuBar or MenuFlyoutPresenter)
                 return;

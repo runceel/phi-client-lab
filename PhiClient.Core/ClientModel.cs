@@ -38,6 +38,7 @@ public sealed record ClientOptions(bool ShowCharacters = true, bool ShowMap = tr
     public bool Automap { get; init; } = true;
     public bool SmoothMove { get; init; }
     public bool SingleWindow { get; init; }
+    public int MapPaneWidth { get; init; } = 360;
 }
 public sealed record DialogModel(string Title, string Text, string? Accept = null,
     string? InputLabel = null, string Value = "", string InputId = "action-answer",
@@ -60,6 +61,7 @@ public sealed record ClientModel
     public string Notice { get; init; } = "保存済みキャラクターに接続するか、キャラクターIDを登録して始めます。IDはWindows資格情報マネージャーに保存します。";
     public double WindowWidth { get; init; } = 1200;
     public double WindowHeight { get; init; } = 850;
+    public int DetachedMapWidth { get; init; } = 344;
     public string? PendingDelete { get; init; }
     public bool Creating { get; init; }
     public bool Loaded { get; init; }
@@ -86,6 +88,8 @@ public abstract record ClientMessage
     public sealed record CheckingReleaseChanged(bool Value) : ClientMessage;
     public sealed record DraftChanged(CharacterDraft Value) : ClientMessage;
     public sealed record WindowSizeChanged(double Width, double Height) : ClientMessage;
+    public sealed record MapPaneWidthChanged(int Width) : ClientMessage;
+    public sealed record DetachedMapWidthChanged(int Width) : ClientMessage;
     public sealed record OptionsChanged(ClientOptions Value) : ClientMessage;
     public sealed record LogImageLoading(string Url, long Request) : ClientMessage;
     public sealed record LogImageLoaded(string Url, long Request, int Width, int Height,
@@ -133,6 +137,9 @@ public static class ClientUpdate
         ClientMessage.TraceRecordingChanged trace => model with { TraceRecording = trace.Value },
         ClientMessage.CheckingReleaseChanged release => model with { CheckingRelease = release.Value },
         ClientMessage.WindowSizeChanged size => model with { WindowWidth = size.Width, WindowHeight = size.Height },
+        ClientMessage.MapPaneWidthChanged size => model with { Options = model.Options with
+            { MapPaneWidth = Math.Clamp(size.Width, MapPaneLayout.Minimum, MapPaneLayout.Maximum) } },
+        ClientMessage.DetachedMapWidthChanged size => model with { DetachedMapWidth = Math.Clamp(size.Width, 184, 1600) },
         ClientMessage.DraftChanged edit => model with { Draft = edit.Value,
             RegistrationGraphics = edit.Value.Host != model.Draft.Host || edit.Value.Port != model.Draft.Port
                 ? new() : model.RegistrationGraphics },

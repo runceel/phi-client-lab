@@ -1,21 +1,21 @@
 # PHI Client Lab
 
-A native C# / WinUI 3 PHI client, independently implemented from the
-[wphi protocol and behavior documentation](https://github.com/s7k/wphi/blob/main/docs/04-client-spec.md).
-The UI uses the official experimental
+[wphiのプロトコル・動作仕様](https://github.com/s7k/wphi/blob/main/docs/04-client-spec.md)を
+基に実装した、C# / WinUI 3のPHIクライアントです。UIにはMicrosoft公式の実験的な
 [Microsoft.UI.Reactor](https://github.com/microsoft/microsoft-ui-reactor)
-NuGet package (`0.1.0-preview.17`), not MauiReactor or a local imitation.
-This is an initial functional client, **not a feature-complete wphi replacement**.
+NuGetパッケージ（`0.1.0-preview.17`）を使用しています。
+MauiReactorや同名の自作ライブラリによる代替ではありません。
+主要機能を実装し、wphiとの互換性と実UIの確認を進めています。**全機能の互換性確認は完了していません。**
 
-## Requirements and running
+## 開発環境と起動
 
-- Windows 11 with Developer Mode enabled for development package registration.
-- .NET 11 SDK and WinApp CLI 0.7 or later (developed with 0.8.0).
-- x64 or ARM64. The app is packaged (single-project MSIX); do not run the EXE
-  directly or change it to unpackaged mode to bypass activation errors.
-- Internet access for the first NuGet restore and Windows App Runtime setup.
+- Windows 11。開発用パッケージの登録には開発者モードを使います。
+- .NET 11 SDKとWinApp CLI 0.7以降（開発時は0.8.0）。
+- x64またはARM64。single-project MSIXのpackaged構成です。
+  起動エラーの回避を目的としたEXEの直接実行やunpackaged構成への変更は行わないでください。
+- 初回のNuGet復元とWindows App Runtimeのセットアップにはインターネット接続が必要です。
 
-From the repository root in PowerShell:
+リポジトリのルートでPowerShellを開き、実行します。
 
 ```powershell
 dotnet build .\PhiClient\PhiClient.csproj -p:Platform=x64
@@ -23,38 +23,35 @@ winapp run .\PhiClient\PhiClient.csproj --arch x64 --detach
 dotnet test .\PhiClient.Core.Tests\PhiClient.Core.Tests.csproj
 ```
 
-For ARM64, replace `x64` with `ARM64` for the build and `arm64` for `--arch`.
-Native AOT publishing is not configured or verified. The official template uses
-the .NET 11 Windows target and brings in its matching Windows App SDK through
-Reactor. The per-app WinUI analyzer is included with `PrivateAssets=all`.
+ARM64では、ビルドの`x64`を`ARM64`、`--arch`を`arm64`へ変更します。
+Native AOTの発行設定・動作確認は行っていません。公式テンプレートの.NET 11 Windowsターゲットを
+使用し、対応するWindows App SDKをReactor経由で参照します。
+WinUI analyzerは`PrivateAssets=all`でアプリだけに適用します。
 
-If packaged registration fails from a deeply nested or access-restricted checkout,
-use a short, per-configuration layout outside AppData:
+深いパスやアクセス制限のあるcheckoutからパッケージを登録できない場合は、
+AppData外の短いパスを、構成ごとの配置先に指定します。
 
 ```powershell
 winapp run .\PhiClient\PhiClient.csproj --arch x64 --detach `
   --output-appx-directory "$env:USERPROFILE\PhiClientLayouts\Debug-x64"
 ```
 
-The MSIX-installed WinApp CLI redirects writes under AppData, so an AppData
-layout cannot be registered. The development package references its layout
-directory: keep it in place and do not share it between configurations or
-architectures. Do not disable packaging or change system ACLs to work around
-registration errors.
+MSIX版WinApp CLIではAppData内への書き込みが転送されるため、その配置先を登録できません。
+開発用パッケージは配置先フォルダーを参照し続けます。起動後もフォルダーを保持し、
+ビルド構成・CPUアーキテクチャごとに分けてください。
+登録エラーの回避を目的としたpackagingの無効化やシステムACLの変更は行わないでください。
 
-For a trimmed Release, use its normal restore:
+トリミングを有効にしたRelease発行では、通常の復元を含めて実行します。
 
 ```powershell
 dotnet publish .\PhiClient\PhiClient.csproj -c Release -p:Platform=x64
 ```
 
-A Debug-only restore does not include
-the Release linker/crossgen tools; do not reuse it with `--no-restore`.
-Use a fresh layout when switching between build and publish outputs.
-When registering the published folder directly, supply the MSBuild-generated
-`AppxManifest.xml` with its Windows App Runtime package dependency, not the
-unexpanded source `Package.appxmanifest`. A successful build alone does not
-verify that the trimmed package activates.
+Debugだけの復元にはRelease用のlinker/crossgenツールが含まれないため、
+その状態で`--no-restore`を指定しないでください。build出力とpublish出力を切り替える場合は、
+新しい配置先を使います。発行フォルダーを直接登録する場合は、Windows App Runtimeへの依存を含む
+MSBuild生成の`AppxManifest.xml`を指定します。展開前の`Package.appxmanifest`は使いません。
+トリミングしたパッケージの起動は、ビルド成功とは別に確認が必要です。
 
 ## 設定
 
@@ -75,6 +72,12 @@ Alt+Gとフルキー移動も設定できます。自動装備を有効にする
 地図窓だけを閉じると非表示になり、**View > Map pane** またはShift+F5で再表示します。
 メイン窓と地図窓の位置・大きさ・最大化状態は公式Reactorのpackaged保存機能で復帰します。
 モニター構成が変わった場合は保存位置を使わず既定の配置へ戻します。
+統合表示では地図とログの境界をドラッグして地図の幅を変え、操作完了時に保存します。
+境界にフォーカスを移すと左右キーで16 DIPずつ、Home/Endで調整範囲の端まで変更できます。
+幅は200–1600 DIPの範囲で、ログ用の領域を残すよう現在の窓幅に合わせます。
+窓を狭くしても保存した希望幅を保ち、広げるとその幅へ戻します。
+この変更・保存経路とログの範囲選択保持はnative UIAで確認済みです。
+物理ドラッグと実キーによる確認は保留しています。
 全画面・全操作の実UI確認は、互換性監査の後続作業です。
 
 ### 版情報・更新確認・時刻の記録
@@ -141,7 +144,7 @@ EagleEyeを表示中はその地図を保存します。画像はこのPCのア�
 保存名は日時とランダムな識別子で作り、キャラクターIDを含めません。画像の保存による
 ゲーム命令の送信はありません。素材の利用・共有には、取り込んだ素材の利用条件が適用されます。
 
-## Playing
+## ゲームの操作
 
 **Operation > 全タブへ発言** は、開いている接続中のタブだけへ同じ行を送ります。
 送信ごとに対象タブ数を確認し、キャンセルすると全タブ発言を解除して下書きを保持します。
@@ -161,8 +164,9 @@ IME変換中はこの操作を行いません。
 原典の根拠は `ui\src\tagMenu.ts` と `TagMenuPopup.tsx` です。
 
 これらの状態遷移・行編集・100msの送信間隔は純粋テストで確認しています。
-追加モードのnative UIA試験はメニュー項目の取得で中断しており、実キーとIMEの確認も
-前面化が可能になってから行う残確認です。
+所有モック2タブのnative UIAで、全タブ発言の取消・送信、大声の今回／継続、発言prefix、
+通常全切断・全再接続・全強制切断を確認しています。
+実キーとIMEは前面化が可能になってから行う残確認です。
 
 1. 既存のキャラクターは表示名、接続先、TCPポート、IDを入力して **キャラクターを保存** で保存します。
    **Phillyの登録を取り込む…** はPhillyフォルダー直下の `表示名.chara\.phirc` を読み込みます。
@@ -203,34 +207,33 @@ IME変換中はこの操作を行いません。
 7. **切断** は `#x` を送ってから接続を閉じます。保存済みキャラクターを削除するときは、
    先にそのタブを閉じ、削除ボタンを再度押して確認してください。
 
-| Keys outside text fields | Action |
+| 入力欄の外で使うキー | 操作 |
 |---|---|
-| Arrows / numpad 8,2,4,6 | Move using the server-confirmed map style |
-| Ctrl+movement | Strafe on north-up maps; face a direction on rotating maps |
-| Shift+arrows | Relative forward/backward movement or turn left/right |
-| Numpad 7,9,5 | Turn left, right, back |
-| 789 / UIO / JKL / M, `- ; / '` | Full-key equivalents; toggle in Operation |
-| Z/X/C/V/F | Get, put, use, sort, floor items |
-| A/S/D/B | Read, write, erase sign, watch board |
-| Q/W/M/R/P | Equip, unequip, check+look, spells, pay |
-| Space / J; L / numpad Enter | Attack; cast |
-| F1–F7 / Alt+1–7 | Numbered spells |
-| Alt+letter / Alt+Shift+letter | System magic; see the Magic menu |
-| T / Shift+T; Shift+7 / Shift+5 | Rotating / north-up; 7x7 / 5x5 |
-| Shift+F5 | Show/hide map pane |
-| Ctrl+Tab / Ctrl+Shift+Tab | Next/previous character, including from the input field |
-| Pause / Shift+F1; Alt+Pause | Force disconnect current; all characters |
-| Lists: 1–9, arrows, Space, Enter | Current-page selection, cursor, check, confirm checked rows |
-| Lists: Esc/0/period/left/right; minus/plus | Cancel; all |
+| 矢印 / テンキー8,2,4,6 | サーバーが返した地図方式に従って移動 |
+| Ctrl+移動キー | 北固定では平行移動、回転マップでは向きを変更 |
+| Shift+矢印 | 相対的な前後移動、左右への方向転換 |
+| テンキー7,9,5 | 左・右・後ろを向く |
+| 789 / UIO / JKL / M, `- ; / '` | フルキー移動。Operationメニューで切り替え |
+| Z/X/C/V/F | 拾う、置く、使う、並べ替え、床の品物一覧 |
+| A/S/D/B | 看板を読む・書く・消す、掲示板を見る |
+| Q/W/M/R/P | 装備、装備解除、check+look、魔法、支払い |
+| Space / J; L / テンキーEnter | 攻撃、魔法の発動 |
+| F1–F7 / Alt+1–7 | 番号で魔法を選ぶ |
+| Alt+英字 / Alt+Shift+英字 | 系統魔法。Magicメニューに対応を表示 |
+| T / Shift+T; Shift+7 / Shift+5 | 回転 / 北固定、7×7 / 5×5 |
+| Shift+F5 | 地図欄の表示切り替え |
+| Ctrl+Tab / Ctrl+Shift+Tab | 次 / 前のキャラクターへ切り替え。入力欄内でも有効 |
+| Pause / Shift+F1; Alt+Pause | 現在のタブ / 全タブを強制切断 |
+| リスト中: 1–9、矢印、Space、Enter | 現在のページから選択、カーソル移動、チェック、確定 |
+| リスト中: Esc/0/period/左右; minus/plus | 取消、全選択 |
 
-List continuation keeps prior checks and uses the server's real numbers.
-System magic that needs free hands first waits for the actual equipment list,
-removes the weapon if present, and suppresses only intermediate equipment/spell
-lists. Target lists remain visible. Preparation times out visibly after five
-seconds; automatic re-equipping is not implemented. Call, Return and shouting
-require confirmation. Japanese IME composition has dedicated commit-key guards.
-A native Microsoft IME check verified physical romaji composition, commit Enter
-without sending, and a separate Enter sending exactly one Japanese line.
+リストの続きでは既存のチェックを保持し、サーバーから受けた番号を使います。
+手を空ける必要のある系統魔法では、装備一覧の応答を待って武器を外します。
+途中の装備・魔法一覧だけを隠し、対象選択の一覧は表示します。
+準備が5秒で終わらない場合は理由を表示します。設定を有効にすると、対象選択のない系統魔法で
+実際に外した武器だけを装備し直します。Call・Return・大声では送信前に確認します。
+IMEの確定Enterを送信へ流さないガードを実装しています。
+最新対象版の物理キー・IME実入力は、ユーザーによる前面化が可能になるまで残確認として扱います。
 
 ## 接続先世界の一覧
 
@@ -281,41 +284,38 @@ LZH は Windows 標準の `tar.exe` で `resist.ini` だけをメモリーに読
 [HTTP/LZH と INI 解析](https://github.com/s7k/wphi/blob/d8f11bf60c95d470fa14ca83bcc4c02d5c83fecc/src-tauri/src/download.rs#L66-L135)、
 [選択による入力](https://github.com/s7k/wphi/blob/d8f11bf60c95d470fa14ca83bcc4c02d5c83fecc/ui/src/NewCharacter.tsx#L145-L168)。
 
-## Character graphics and map chips
+## キャラクター画像とマップチップ
 
 **View > 画像素材フォルダー…** で、このPCにある素材フォルダーの絶対パスを入力し、**読み込む** を選びます。
-To use **the actual graphics shipped by wphi**, run this explicit setup command
-in PowerShell 7.4 or later:
+**wphiが実際に配布している素材**を使う場合は、PowerShell 7.4以降で次を実行します。
 
 ```powershell
 .\tools\Get-WphiGraphics.ps1
 ```
 
-Then load the printed absolute directory (by default `.local\wphi-graphics`).
-The setup script downloads the reviewed wphi revision
-`d8f11bf60c95d470fa14ca83bcc4c02d5c83fecc`, verifies the archive's SHA-256,
-and imports its unchanged BMPs and license/author notices. It refuses existing
-directories. From Config it imports only the reviewed `MasterMagicMenu.xml`;
-it does not import any public-server endpoints or other Config files.
-It does not redraw or substitute the graphics. To use an existing checkout,
-enter its root or `resources\phi` directly; a checkout root is resolved to that
-graphics subfolder. For an offline setup, pass `-ArchivePath` with the matching
-original archive and `-OutputDirectory` with a new local folder.
+表示された絶対パス（既定は`.local\wphi-graphics`）をアプリで読み込みます。
+スクリプトは確認済みのwphi
+`d8f11bf60c95d470fa14ca83bcc4c02d5c83fecc`を取得し、アーカイブのSHA-256を検証します。
+BMPとライセンス・作者表記をそのまま取り込み、既存フォルダーへの上書きは拒否します。
+Configから取り込むのは利用条件を確認した`MasterMagicMenu.xml`だけで、
+公開サーバーの接続設定や他のConfigは含めません。画像の描き直しや別画像への置き換えも行いません。
+既存のcheckoutを使う場合は、そのルートか`resources\phi`を指定します。
+ルートを指定した場合は、その中の素材フォルダーを使います。
+オフラインでは、同じ原典アーカイブを`-ArchivePath`、新しい保存先を`-OutputDirectory`へ指定できます。
 
-The imported non-sushi character sheets are **PCGL-applicable graphics parts**.
-PCGL permits PHI-supporting use with the scope declaration and license attached;
-the importer preserves both original PCGL files and wphi's provenance README.
-Sushi sheets are expressly excluded from PCGL and identified upstream as MIT
-(Copyright 2026 s7k); the MIT notice is also attached. The Mine skin identifies
-**Cress** as author, and wphi records its maintainer's reuse confirmation on
-2026-11-07. This record is not treated as a blanket PCGL/MIT grant for the skin.
-Artwork stays in the external local folder, not in this application's package
-or source repository. See `tools\WphiGraphics-NOTICE.md` for exact scope and
-sources. Preserve these notices with screenshots and any permitted distribution.
-Other user-provided collections still require their own permission.
+寿司以外の対象キャラクター画像には、**PCGLを適用する画像部品**という範囲の指定があります。
+PCGLは適用範囲の宣言とライセンスを添えたPHI対応での利用を認めており、
+取り込み時には原文のPCGL両ファイルとwphiの出典READMEを保持します。
+寿司画像はPCGLの対象外とされ、原典ではMIT（Copyright 2026 s7k）と指定されているため、
+そのMIT表記も保持します。Mineスキンの作者は**Cress**で、wphiには2026-11-07の
+保守者による再利用確認が記録されています。この確認を、スキン全体へのPCGL/MITの一括許諾とは扱いません。
+画像は外部のローカルフォルダーに置き、アプリのパッケージやソースリポジトリには同梱しません。
+対象範囲と出典は`tools\WphiGraphics-NOTICE.md`を参照してください。
+スクリーンショットや許可された再配布にも、これらの表記を添えてください。
+別途用意した素材には、それぞれの利用条件が適用されます。
 
-The app itself does not download images or connect while loading graphics.
-Point at the directory containing these paths:
+アプリの素材読み込みはローカルファイルを対象とし、画像のダウンロードやゲーム接続は行いません。
+次のファイルを含むフォルダーを指定します。
 
 ```text
 chara\<graphic-or-character-name>.bmp
@@ -327,77 +327,67 @@ Skins\Mine\Chara\<default-graphic>.bmp
 Skins\Mine\Images\Items.bmp
 ```
 
-Characters use the original 96-pixel-wide BMP sheet: four 32-pixel-high rows
-(back, right, front, left), two 16x32 frames followed by two 32x32 frames.
-The original bundled 96x160 sheets also contain a bottom portrait row, which
-is not part of map animation and is not drawn on the map.
-Exact RGB `(0,128,128)` is transparent. Larger `*` actors use the 32x32 frames;
-ordinary animated sheets alternate their two frames every 500 ms.
-This includes type `0x75`, as in wphi. Name-keyed `#ex-obj` instructions
-resize sprites with nearest-neighbor sampling and the original bottom anchor;
-the definition is captured when the actor's `O` row arrives.
+キャラクターは原典の横96pxのBMPを使います。高さ32pxの4行が背面・右・正面・左に対応し、
+各行には16×32の2コマ、32×32の2コマがあります。原典の96×160の画像には最下段に
+ポートレートもありますが、地図のアニメーションには使いません。
+RGBが正確に`(0,128,128)`の画素を透明にし、大きい`*`のactorには32×32のコマを使います。
+通常のアニメーションは500msごとに2コマを切り替えます。原典と同じく種別`0x75`も対象です。
+名前を指定する`#ex-obj`では、元の下端アンカーを保って最近傍で拡大します。
+その指定はactorの`O`行を受けた時点で取り込みます。
 
-Map sheets are 1024x96 BMPs: the left 512 pixels hold 32 chips, in 16 columns
-of 32x48; the right half is the opacity mask. Items use a horizontal strip,
-at least 256x64: the bottom half masks the top half. A mask pixel is opaque
-only when all RGB channels exceed 200. The map includes the top overhang,
-tree/ground composition, water edges, signs, item/circle clipping, row-ordered
-occlusion, and same-cell actor offsets. Attribute bits 0–1 select the four
-`#mapset` / `#mapset-define` sheets. Missing named mapsets use `Default.bmp`
-with a visible notice.
+マップは1024×96のBMPを使います。左512pxには32×48のチップ32個が16列に並び、
+右半分が透過マスクです。アイテムは256×64以上の横長画像で、下半分が上半分のマスクです。
+マスクのRGB全成分が200を超える画素だけを不透明にします。
+地形の上への張り出し、木と地面、水際、看板、アイテムと円の切り抜き、行順の重なり、
+同じマスのactor位置を処理します。属性のbit 0–1で4枚の`#mapset` / `#mapset-define`を選びます。
+指定されたmapsetがない場合は、その旨を表示して`Default.bmp`を使います。
 
-Rendering follows wphi commit `d8f11bf60c95d470fa14ca83bcc4c02d5c83fecc`.
-Maps default to 100%: 32 logical pixels per cell, with nearest-neighbor
-physical-DPI resampling rather than automatic fitting. Normal maps have a
-16-pixel transparent top margin; missing terrain displays black beneath any
-retained actors. The pointer coordinate transform uses that same margin.
-Noncentral names have white text with a black outline, strip PHI tags, and
-use the last nonempty name at a shared cell. The name list uses stable y order.
+描画の基準はwphi `d8f11bf60c95d470fa14ca83bcc4c02d5c83fecc`です。
+既定は100%、1マス32論理pxで、物理DPIへの変換にも最近傍を使います。窓に合わせた自動縮小は行いません。
+通常地図の上部には16pxの透明な余白があり、地形が欠けた部分は保持中のactorの下を黒く表示します。
+クリック座標にも同じ余白を反映します。中央以外の名前はPHIタグを除き、白字に黒縁で描きます。
+同じマスでは最後の空でない名前を採用し、名前一覧は同じy座標の順序を保ってy順に表示します。
 
-EagleEye uses a square of the maximum received width/height, padding with `?`.
-It has no top margin, always uses frame 0 and mapset 0, and scrolls rather
-than shrinking to the pane. Attribute `0x58` becomes a nameless, front-facing
-large `t_man` / type `0x40` actor, not a sign or an item. Supply
-`chara\t_man.bmp` or the type's permitted default graphic.
+EagleEyeは受信した幅・高さの大きい方を一辺とする正方形にし、不足部分を`?`で補います。
+上余白は付けず、コマ0・mapset 0を使います。欄に収まらない部分はスクロールできます。
+属性`0x58`は看板やアイテムではなく、名前が空・正面向き・大きい`t_man` / 種別`0x40`のactorです。
+`chara\t_man.bmp`か、その種別で許可された既定画像を用意してください。
 
-Character resolution follows the original priority: `.ali` alias, graphic name,
-character name, then the type default in `Skins\Mine\Chara\Index.txt`;
-`setcg` type `0x40` tries the graphic name before aliases. Index/alias text uses
-CP932. Default files are searched in the skin's Chara folder and then `chara`.
-Repeated aliases are last-wins in file enumeration order; multiple alias files
-have no guaranteed ordering. `LANU_` graphic filenames are excluded.
-Reload the folder after modifying images; file and resolved-name caches are
-bounded. Sheets are limited to 8 MiB / 2048 pixels per side.
+画像の検索順は原典に従い、`.ali`の別名、画像名、キャラクター名、
+`Skins\Mine\Chara\Index.txt`の種別既定画像です。`setcg`の種別`0x40`は別名より画像名を優先します。
+Indexと別名ファイルはCP932で読みます。既定画像はスキンのChara、その後`chara`を探します。
+別名の重複は列挙順の後勝ちで、複数ファイル間の順序は保証されません。
+`LANU_`で始まる画像名は対象外です。画像変更後はフォルダーを読み直してください。
+ファイルと解決済みの名前のキャッシュには上限があり、画像は8MiB・一辺2048pxまでです。
 
-The configured folder is saved as `graphics-folder.txt` beside the profile file.
-Leave it blank and Load to return to the explicitly labelled schematic map.
-Missing or corrupt files are reported on screen; missing actors use their
-tag-stripped initial in yellow (or `?` for an empty name).
+フォルダー指定は登録データの隣の`graphics-folder.txt`に保存します。
+空欄で読み込むと、簡易表示であることを示した地図へ戻ります。
+欠落・破損は画面に表示し、画像がないactorにはタグを除いた名前の頭文字を黄色で表示します。
+名前が空の場合は`?`を使います。
 
-The importer checks are reproducible with the downloaded original archive:
+取得済みの原典アーカイブから、素材取り込みの検証を再実行できます。
 
 ```powershell
 .\tools\Test-WphiGraphics.ps1 -ArchivePath C:\Downloads\wphi-original.zip -ArtifactDirectory C:\Temp\wphi-import-check
 ```
 
-Use a new artifact directory. These checks compare every imported file against
-the untouched archive, require the license/author notices, allow only the reviewed MasterMagic menu from Config,
-and reject altered archives and attempts to overwrite an existing collection.
+新しい成果物フォルダーを指定してください。取り込んだ全ファイルを原典アーカイブと比較し、
+ライセンス・作者表記の保持、Configの許可対象がMasterMagicメニューだけであること、
+改変されたアーカイブと既存フォルダーへの上書きを拒否することを確認します。
 
-## Data and trust
+## データの保存と通信上の注意
 
-Profiles (name, host, port and a random credential key) are stored in
-`%LOCALAPPDATA%\PhiClient\characters.json`; **Open settings folder** opens the
-effective location, including any Windows package redirection.
-Character IDs are stored separately in Windows Credential Manager under
-`PhiClient.Character`, not in JSON or source control. Registration passwords
-are not saved. A server-created character remains on the server if saving its
-local profile subsequently fails. In that case the returned ID remains in the
-existing-ID form so saving can be retried without creating another character.
+表示名・ホスト・ポート・ランダムな資格情報キーは
+`%LOCALAPPDATA%\PhiClient\characters.json`に保存します。
+**設定フォルダーを開く** から、Windowsのパッケージ転送を反映した実際の保存先を確認できます。
+キャラクターIDはWindows資格情報マネージャーの`PhiClient.Character`へ別に保存し、
+JSONやソース管理には含めません。作成時のパスワードも保存しません。
+サーバーで作成に成功したあとローカル保存だけに失敗した場合、作成済みキャラクターはサーバーに残ります。
+返されたIDを既存IDの登録欄に保持するので、作成を繰り返さず保存を再試行できます。
 
-PHI uses **unencrypted TCP**. IDs and registration details are visible to the
-server and network path. Use only a trusted server; the credential vault protects
-storage, not network transport.
+PHIは**暗号化されていないTCP**を使います。IDや登録情報は接続先サーバーと通信経路から読み取れます。
+信頼できるサーバーだけを利用してください。Windowsの資格情報保管は保存時の保護であり、
+ネットワーク通信を暗号化するものではありません。
 
 サーバーから世界移動を要求された場合は、原典と同じ
 `#reserve` → `#rsv-ok` → `#trans` → `#trs-ok` → `#ch-srv-ok` の順で接続を切り替えます。
@@ -443,21 +433,18 @@ GIFにはさらに64コマ・論理キャンバス全コマ合計4194304画素�
 処理中の書き込みを完了させられません。
 保存した HTML からもスクリプトや画像を自動取得・実行しない制限を付けています。
 
-Connections use CP932, LF delimiters, a 10-second connect timeout, a 30-second
-send timeout and bounded 64 KiB incoming lines. Oversized lines are discarded
-until the next LF with a visible diagnostic. Keepalive starts after two minutes
-without receiving data; a three-minute warning is shown. `#lag` and `#remap` are
-answered automatically, except inside literal `#more` blocks. Display history
-is bounded to 2,000 rows / 2 MiB of raw text, with individual displayed plain rows
-truncated at 8,192 characters. Raw rows remain available for styled display and copy within that history bound.
+接続はCP932・LF区切りで、接続期限10秒・送信期限30秒、受信1行64KiBまでです。
+超過した行は次のLFまで破棄し、理由を表示します。2分間受信がない場合はkeepaliveを開始し、
+3分で警告します。literalの`#more`本文以外では`#lag`と`#remap`へ自動応答します。
+表示履歴は2,000行・rawテキスト2MiBまで、各行のplain表示は8,192文字までです。
+その履歴上限内では、装飾表示とコピー用に元の行を保持します。
 
-## Implemented and not yet implemented
+## 実装範囲と残る確認
 
-Implemented: registration and creation, credential-backed profiles, independent
-native character tabs, menus, multiline/current-line/party input, HP/MP bars and
-named conditions, 7x7 and legacy 5x5 terrain, 15x15 EagleEye, user-supplied sprite
-and tile-sheet rendering, full-key movement and common actions, system-magic
-preparation, checked/paged selections, controlled dialogs, and sign editing.
+登録・新規作成、資格情報を分けた保存、キャラクターごとのnativeタブ、メニュー、
+複数行・現在行・Party入力、HP/MPバーと状態名、7×7と旧5×5の地図、EagleEye、
+外部素材の描画、フルキー移動と主要操作、系統魔法の準備、ページ付き選択リスト、
+確認ダイアログ、看板編集を実装しています。
 
 今回の互換性監査で、設定の保存・元のINI取り込み、F8–F12 / Alt+G、対象魔法の再装備、
 50–400% の倍率、方位表示、世界別の地形記録、移動予測、滑らかな移動、
@@ -506,9 +493,13 @@ XMLの順番どおりに実行します。表示設定はメニューの切替�
 XMLは1MiB、項目は2,048件、手順は1項目4,096個までです。DTDと外部entityは読み込みません。
 超魔法の実UI総合確認は、全体の回帰確認とあわせて進行中です。
 
-未対応・確認中:
-Mine 以外のスキン、actor の状態装飾、旧5×5 actor の全仕様、
-更新確認、統合地図ペインのドラッグによる幅調整など。これらは要件から除外していません。
+確認中の範囲には、旧5×5 actorの実UIでの全組み合わせ、物理キー・IME、
+正常WAVの実音、前面／背面通知、別DPI間のドラッグと高コントラストがあります。
+更新確認は自製品のGitHub Releasesを対象に実装済みで、公開APIへの実通信は未確認です。
+従来この節で残差としていた他スキンとactor状態装飾は、対象原典も再確認しました。
+原典の`assets.rs:36–37`はMine固定で、`drawMap.ts:262–305`も状態値による画像装飾を行いません。
+状態値の受信・保持と状態表示は、画像装飾とは分けて扱います。これはwphiの拡張機能を
+要件から除外する判断ではなく、対象原典にある動作との照合結果です。
 生のコマンドを送れることを、対応するクライアント UI の実装済みとは扱いません。
 
 リストは番号のない説明行も保持し、原典と同じく先頭行から決めた番号のずれと行順で選択します。
@@ -516,47 +507,48 @@ Mine 以外のスキン、actor の状態装飾、旧5×5 actor の全仕様、
 続きがない場合や読み込み待ちの場合の `9` は送信しません。空の完了リストは既存の表示を
 消さず、明示的なリスト終了で閉じます。
 
-## Layout and verification
+## 構成と検証
 
-- `PhiClient.Core\ClientModel.cs`, `GameModel.cs`: UI-free state, typed messages
-  and pure update functions; selection updates are copy-on-write.
-- `PhiClient\App.cs`, `App.Game.cs`: Reactor views; `App.State.cs` connects the
-  actual `ClientModel` to Reactor's `UseReducer`, rather than a dummy counter.
-- `App.Effects.cs`, `App.Input.cs`, `App.GraphicsEffects.cs`, `App.Dialogs.cs`:
-  lifecycle/network commands, physical-key/IME adapters, graphics configuration,
-  and the native dialog bridge. Async results dispatch typed messages.
-- `CharacterStore`, `GraphicsStore`, `GameSession`: Windows persistence, bounded
-  local asset loading, and per-tab runtime handles. Connections/bitmaps/controls
-  are not stored in the core models; file loading never runs in the views or
-  pure updates. Graphics are prepared before rendering and exposed as live
-  native bitmaps.
-- Other `PhiClient.Core` files: transport, framing, parsing, input mapping and
-  platform-independent pixel composition. `MapPresentation.cs` holds pure
-  EagleEye conversion, names/initials and pointer-coordinate projection;
-  `App.MapEffects.cs` owns native bitmap/DPI lifecycle adaptation.
-- `PhiClient.Core.Tests`: loopback-server tests; no live game service is needed.
+- `PhiClient.Core\ClientModel.cs`、`GameModel.cs`: UIを含まない状態、型付きメッセージ、純粋なUpdate。
+  選択リストの更新は元の状態を変更せず、新しい状態を返します。
+- `PhiClient\App.cs`、`App.Game.cs`: ReactorのView。
+  `App.State.cs`で実際の`ClientModel`を公式`UseReducer`へ接続しています。
+- `App.Effects.cs`、`App.Input.cs`、`App.GraphicsEffects.cs`、`App.Dialogs.cs`:
+  起動・通信・物理キー/IMEのアダプター、素材設定、nativeダイアログ。
+  非同期処理の結果は型付きメッセージで返します。
+- `CharacterStore`、`GraphicsStore`、`GameSession`: Windowsへの保存、上限付きのローカル素材読み込み、
+  タブごとの実行時ハンドル。接続・bitmap・controlはCoreのModelに入れず、
+  Viewや純粋Updateからファイルを読みません。描画前に画像を準備し、native bitmapとして渡します。
+- その他の`PhiClient.Core`: 通信、行分割、解析、キーの対応、OSに依存しない画素合成。
+  `MapPresentation.cs`はEagleEye・名前/頭文字・クリック座標の純粋な変換、
+  `App.MapEffects.cs`はnative bitmapとDPIのライフサイクルを担当します。
+- `PhiClient.Core.Tests`: 所有loopbackモックと純粋テスト。実ゲームサービスは使いません。
 
-`dotnet test` exercises the wire-level login, split CP932 input, literal sign
-blocks, map bytes and packed actors, list numbering, server control replies,
-64 KiB framing boundaries, outbound injection rejection, and registration
-success/rejection, keyboard/modifier precedence, CR/LF current-line behavior,
-paged selections, magic preparation, sprite masks/occlusion, and immutable
-state transitions/session isolation. Native packaged checks use a synthetic
-loopback server and newly authored test graphics, not copied upstream art.
-The water-edge regression checks all 256 independent 8-neighbor combinations
-and all four quadrants against a separately transcribed source table.
-Synthetic fixtures verify numerical rendering rules; they do not establish
-visual equivalence to original artwork that is not licensed or supplied.
-Public-server interoperability, ARM64 execution, high-contrast rendering and
-other IME/input-method combinations remain unverified.
+`dotnet test`で、ログインの送受信、分割CP932、literal看板、地形とactorのbyte解析、
+リスト番号、制御応答、64KiBの行境界、不正な送信行の拒否、登録成功・拒否、
+キーの優先順位、CR/LF付き現在行、ページ選択、魔法準備、マスク・重なり、
+過去の状態を変更しない更新とタブの独立性を確認します。
+水際は独立8bitの全256通りと4象限を、別に書き起こした期待値表と照合します。
+合成素材のfixtureは数値仕様の確認であり、実素材との見た目の一致を証明するものではありません。
+native packaged試験は所有loopbackだけへ接続し、合成素材の試験と、
+利用条件に従って外部取り込みした実wphi素材の表示確認を分けて記録します。
+公開サーバーとの相互運用、ARM64実行、高コントラスト、今回対象版の物理キー・IME、
+別DPI間の実ドラッグ等には残確認があります。これらをUIAや純粋テストの合格で置き換えません。
 
-## Upstream and licensing
+Microsoft.UI.Reactor preview.17では、画面を切り替えたあと設定項目がnative UIAの列挙から
+消える事象を確認しました。主窓の`ReactorHost.Reconciler.Pool.Enabled`だけを
+公式の公開`configure` APIで無効にすると、幅変更後の設定保存を含む9項目が合格しました。
+独立地図窓は別のhostとpoolを持ち、今回の修正では変更していません。
+poolの無効化には新規controlの割り当てが増える可能性があり、性能ベンチマークは行っていません。
+ReflectionやReactorの非公開API、同名の代替実装は使っていません。
 
-Behavior reference: [s7k/wphi](https://github.com/s7k/wphi) at
-`aafc1f137f8cba8894153a7a97c2a15878420c8d`.
-Its workspace `Cargo.toml` declares MIT, but no root license text was present
-at the inspected revision. No wphi source files, images, fonts, sounds, skins
-or bundled third-party assets are copied into this repository.
-The client logic here is newly authored against the documented wire protocol.
-Reactor and the app scaffold come from Microsoft's official distribution;
-their applicable notices and licenses remain with their packages.
+## 原典とライセンス
+
+動作の参照元は[s7k/wphi](https://github.com/s7k/wphi)です。
+初回調査は`aafc1f137f8cba8894153a7a97c2a15878420c8d`、
+現在の描画・互換性照合は`d8f11bf60c95d470fa14ca83bcc4c02d5c83fecc`を基準としています。
+初回調査版のworkspace `Cargo.toml`にはMITの指定があり、ルートのライセンス本文はありませんでした。
+原典のソースファイル・画像・フォント・音声・スキン・同梱第三者素材は、このリポジトリへコピーしていません。
+クライアントの処理はプロトコル仕様に基づいて実装しています。
+外部取り込み素材には、前述の素材ごとの条件と表記が適用されます。
+Reactorとアプリの雛形はMicrosoftの公式配布を使い、適用される通知とライセンスを各パッケージに保持します。

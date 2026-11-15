@@ -240,16 +240,20 @@ partial class App
                 .Flex(shrink: 0)
         ).Flex(grow: 1, basis: 0);
 
-        var map = MapPane(session);
         var integratedMap = showMap && model.Options.SingleWindow && !showCharacters;
         var compact = windowWidth < 1000;
+        var mapWidth = compact ? Math.Min(model.Options.MapPaneWidth, Math.Max(200, windowWidth - 48)) :
+            MapPaneLayout.Width(model.Options.MapPaneWidth, MapAvailableWidth);
+        var map = MapPane(session, mapWidth - 16);
+        var mapHeight = Math.Max(200, windowHeight - 260);
         var gameBody = compact
             ? (Element)ScrollViewer(VStack(12,
-                integratedMap ? ScrollViewer(map).Width(360).Height(430) : Empty(),
+                integratedMap ? ScrollViewer(map).Width(mapWidth).Height(430) : Empty(),
                 chat.Height(560).Flex(grow: 0, basis: 560),
                 session.Model.Priv.Visible ? PrivView(session).Height(520) : Empty()))
             : FlexRow(integratedMap
-                    ? ScrollViewer(map).Width(360).Height(Math.Max(200, windowHeight - 260)).Flex(shrink: 0) : Empty(),
+                    ? ScrollViewer(map).Width(mapWidth).Height(mapHeight).Flex(shrink: 0) : Empty(),
+                integratedMap ? MapSplitter(mapHeight) : Empty(),
                 chat, PrivView(session).Flex(shrink: 0));
         var connectionButton = Button(session.Connecting ? "接続しています…" : session.Connected ? "切断" : "再接続", ToggleConnection)
             .IsEnabled(!session.Connecting && !session.Closing).AutomationId("connection-toggle");
