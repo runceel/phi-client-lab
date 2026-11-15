@@ -207,8 +207,12 @@ public sealed partial class ProtocolParser
         if (raw.AsSpan().StartsWith("#m57 M"u8) || raw.AsSpan().StartsWith("#map M"u8))
         {
             size = raw[2] == '5' ? 7 : 5;
-            if (size == 5 && raw.Length >= 7 && raw.AsSpan(7).SequenceEqual("-"u8))
-                return [];
+            if (size == 5 && raw.Length >= 7)
+            {
+                var end = raw.Length;
+                while (end > 7 && raw[end - 1] is (byte)'\r' or (byte)'\n') end--;
+                if (raw.AsSpan(7, end - 7).SequenceEqual("-"u8)) return [];
+            }
             var cells = size * size;
             if (raw.Length > 7) direction = (char)raw[7];
             if (size == 7 && raw.Length < 18 + cells * 2)

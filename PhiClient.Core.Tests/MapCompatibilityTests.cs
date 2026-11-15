@@ -153,6 +153,40 @@ public sealed class MapCompatibilityTests
         return line;
     }
 
+    [Theory]
+    [InlineData("\r")]
+    [InlineData("\n")]
+    [InlineData("\r\n")]
+    public void LegacyUnchangedRowsPreserveSeparatePlanesDirectionAndActorsWithLineTerminators(string ending)
+    {
+        var parser = new ProtocolParser();
+        var terrain = Enumerable.Repeat((byte)' ', 118).ToArray();
+        "#map M E 00:      "u8.CopyTo(terrain);
+        terrain[18] = (byte)'#';
+        terrain[68] = (byte)'.';
+        terrain[69] = (byte)'-';
+        parser.Feed(terrain);
+        parser.Feed(ActorLine());
+        var previous = Assert.IsType<MapFrame>(Assert.Single(parser.Feed("#map ."u8.ToArray())));
+        parser.Feed(PhiWire.Encode("#map M -" + ending));
+        var unchanged = Assert.IsType<MapFrame>(Assert.Single(parser.Feed("#map ."u8.ToArray())));
+        Assert.Equal(5, unchanged.Size);
+        Assert.Equal('E', unchanged.Direction);
+        Assert.Equal(0x68, unchanged.Attributes[0]);
+        Assert.Equal(previous.Tiles, unchanged.Tiles);
+        Assert.Equal(previous.Attributes, unchanged.Attributes);
+        Assert.Equal(previous.Actors, unchanged.Actors);
+        var invalid = ActorLine("Invalid");
+        invalid[51] = (byte)'!';
+        parser.Feed(invalid);
+        Assert.Equal(previous.Actors,
+            Assert.IsType<MapFrame>(Assert.Single(parser.Feed("#map ."u8.ToArray()))).Actors);
+        parser.Feed(ActorLine("Replacement"));
+        var replaced = Assert.IsType<MapFrame>(Assert.Single(parser.Feed("#map ."u8.ToArray())));
+        Assert.Equal("Replacement", Assert.Single(replaced.Actors).Name);
+        Assert.Equal(previous.Tiles, replaced.Tiles);
+    }
+
     [Fact]
     public void InvalidRequiredActorFieldsDoNotClearPriorActorsAndMagnificationIsCapturedOnArrival()
     {
