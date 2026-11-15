@@ -2,9 +2,9 @@ using System.Net.Sockets;
 
 namespace PhiClient.Core;
 
-public sealed class PhiConnection : IDisposable
+public sealed partial class PhiConnection : IDisposable
 {
-    private readonly TcpClient client = new() { NoDelay = true };
+    private TcpClient client = new() { NoDelay = true };
     private readonly SemaphoreSlim sending = new(1, 1);
     private readonly SemaphoreSlim actions = new(1, 1);
     private readonly object automation = new();
@@ -33,13 +33,18 @@ public sealed class PhiConnection : IDisposable
         timeout.CancelAfter(TimeSpan.FromSeconds(10));
         await client.ConnectAsync(host, port, timeout.Token);
         stream = client.GetStream();
+        Tune(client);
+    }
+
+    private void Tune(TcpClient target)
+    {
         if (OperatingSystem.IsWindows())
         {
             // SIO_TCP_SET_ACK_FREQUENCY: do not delay maps behind legacy servers' Nagle.
             const int setAckFrequency = unchecked((int)0x98000017);
             try
             {
-                client.Client.IOControl(setAckFrequency, BitConverter.GetBytes(1), null);
+                target.Client.IOControl(setAckFrequency, BitConverter.GetBytes(1), null);
             }
             catch (SocketException ex)
             {
@@ -57,7 +62,7 @@ public sealed class PhiConnection : IDisposable
         Received?.Invoke(new ConnectionReady());
         Received?.Invoke(new LogLine("[Connected]"));
         lastReceive = Environment.TickCount64;
-        var reader = ReadAsync(linked.Token);
+        var reader = ReadAsync(host, id, linked.Token);
         var keepAlive = KeepAliveAsync(linked.Token);
         try
         {
@@ -76,12 +81,16 @@ public sealed class PhiConnection : IDisposable
         }
     }
 
-    public async Task SendAsync(string[] commands, CancellationToken token = default, int suppressLists = 0)
+    public Task SendAsync(string[] commands, CancellationToken token = default, int suppressLists = 0) =>
+        SendBatchAsync(commands, token, suppressLists, Volatile.Read(ref transportGeneration));
+
+    private async Task SendBatchAsync(string[] commands, CancellationToken token, int suppressLists, int generation)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(suppressLists);
         var lines = commands.ToArray();
         foreach (var line in lines)
             PhiWire.ValidateLine(line);
+        RejectTransferInput(generation);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token, lifetime.Token);
         timeout.CancelAfter(TimeSpan.FromSeconds(30));
         await sending.WaitAsync(timeout.Token);
@@ -89,6 +98,7 @@ public sealed class PhiConnection : IDisposable
         {
             if (stream is null)
                 throw new InvalidOperationException("Not connected.");
+            RejectTransferInput(generation);
             if (suppressLists > 0)
                 lock (automation)
                 {
@@ -107,12 +117,15 @@ public sealed class PhiConnection : IDisposable
 
     public async Task SendActionAsync(InputAction action, CancellationToken token = default)
     {
+        var generation = Volatile.Read(ref transportGeneration);
         foreach (var line in action.Commands)
             PhiWire.ValidateLine(line);
+        RejectTransferInput(generation);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, lifetime.Token);
         await actions.WaitAsync(linked.Token);
         try
         {
+            RejectTransferInput(generation);
             var commands = action.Commands;
             if (action.AutoUnequip)
             {
@@ -122,7 +135,7 @@ public sealed class PhiConnection : IDisposable
                 Choices? list;
                 try
                 {
-                    await SendAsync(["unequip"], linked.Token);
+                    await SendBatchAsync(["unequip"], linked.Token, 0, generation);
                     list = await response.Task.WaitAsync(TimeSpan.FromSeconds(5), linked.Token);
                 }
                 catch (TimeoutException ex)
@@ -141,7 +154,7 @@ public sealed class PhiConnection : IDisposable
                     commands = [weapon ? "1" : ".", .. commands];
                 }
             }
-            await SendAsync(commands, linked.Token, action.HiddenLists);
+            await SendBatchAsync(commands, linked.Token, action.HiddenLists, generation);
         }
         finally
         {
@@ -187,35 +200,46 @@ public sealed class PhiConnection : IDisposable
         }
     }
 
-    private async Task ReadAsync(CancellationToken token)
+    private async Task ReadAsync(string host, string id, CancellationToken token)
     {
         var framer = new LineFramer();
         var parser = new ProtocolParser();
+        var pending = new Queue<byte[]>();
         var bytes = new byte[8192];
         while (true)
         {
-            var count = await stream!.ReadAsync(bytes, token);
-            if (count == 0)
+            if (pending.Count == 0)
             {
-                Received?.Invoke(new LogLine("[Disconnected by server]"));
-                return;
-            }
-            Interlocked.Exchange(ref lastReceive, Environment.TickCount64);
-            var dropped = framer.DroppedLines;
-            foreach (var line in framer.Push(bytes.AsSpan(0, count)))
-            {
-                foreach (var item in parser.Feed(line))
+                var count = await stream!.ReadAsync(bytes, token);
+                if (count == 0)
                 {
-                    if (item is Reply reply)
-                        await SendAsync([reply.Command], token);
-                    else if (parser.InLiteralBlock || !ConsumeAutomation(item))
-                        Received?.Invoke(item);
-                    if (item is Closed)
-                        return;
+                    Received?.Invoke(new LogLine("[Disconnected by server]"));
+                    return;
                 }
+                Interlocked.Exchange(ref lastReceive, Environment.TickCount64);
+                var dropped = framer.DroppedLines;
+                foreach (var line in framer.Push(bytes.AsSpan(0, count))) pending.Enqueue(line);
+                if (framer.DroppedLines != dropped)
+                    Received?.Invoke(new LogLine("[Protocol] A line over 64 KiB was discarded."));
+                continue;
             }
-            if (framer.DroppedLines != dropped)
-                Received?.Invoke(new LogLine("[Protocol] A line over 64 KiB was discarded."));
+            foreach (var item in parser.Feed(pending.Dequeue()))
+            {
+                if (item is WorldTransferRequest request)
+                {
+                    if (await TransferAsync(host, id, request, framer, pending, token) is { } destination)
+                    {
+                        (framer, pending) = destination;
+                        parser = new ProtocolParser();
+                        host = request.Host;
+                    }
+                }
+                else if (item is Reply reply)
+                    await SendAsync([reply.Command], token);
+                else if (parser.InLiteralBlock || !ConsumeAutomation(item))
+                    Received?.Invoke(item);
+                if (item is Closed) return;
+            }
         }
     }
 
@@ -226,6 +250,7 @@ public sealed class PhiConnection : IDisposable
         var warned = false;
         while (await timer.WaitForNextTickAsync(token))
         {
+            if (transferring) continue;
             var quiet = Environment.TickCount64 - Interlocked.Read(ref lastReceive);
             if (quiet < 120000)
             {
@@ -234,7 +259,14 @@ public sealed class PhiConnection : IDisposable
             }
             if (quiet >= 120000 && !pinged)
             {
-                await SendAsync(["#code-sjis"], token);
+                var generation = Volatile.Read(ref transportGeneration);
+                try { await SendBatchAsync(["#code-sjis"], token, 0, generation); }
+                catch (InvalidOperationException) when (transferring ||
+                    generation != Volatile.Read(ref transportGeneration))
+                {
+                    // A transport change restarts the idle clock; do not terminate the session over an obsolete ping.
+                    continue;
+                }
                 pinged = true;
             }
             if (quiet >= 180000 && !warned)
@@ -271,9 +303,18 @@ public sealed class PhiConnection : IDisposable
                     await connection.SendAsync(["#x"], timeout.Token);
                     return id;
                 }
-                if (text.StartsWith("#ex-register reject", StringComparison.Ordinal) ||
-                    text is "#x" or "#close")
-                    throw new IOException($"Registration rejected: {text}");
+                if (text.StartsWith("#ex-register reject", StringComparison.Ordinal))
+                {
+                    var fields = text[19..].Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
+                        .Where(field => field is "name" or "pass" or "image" or "mail").Distinct();
+                    throw new IOException("キャラクターの作成が拒否されました。確認する項目: " +
+                        string.Join(", ", fields.Select(field => field switch
+                        {
+                            "name" => "名前", "pass" => "パスワード", "image" => "初期画像", _ => "メールアドレス"
+                        })));
+                }
+                if (text is "#x" or "#close")
+                    throw new IOException("キャラクターの作成結果を受け取る前にサーバーから切断されました。");
                 if (text == "#lag")
                     await connection.SendAsync(["#end-lag"], timeout.Token);
             }

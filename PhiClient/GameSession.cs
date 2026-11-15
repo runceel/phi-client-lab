@@ -5,7 +5,7 @@ namespace PhiClient;
 
 internal sealed class GameSession(SavedCharacter character, Func<GameModel> read, Action<GameMessage> dispatch)
 {
-    public SavedCharacter Character { get; } = character;
+    public SavedCharacter Character { get; set; } = character;
     private GameModel? detachedModel;
     public GameModel Model => detachedModel ?? read();
     public void Dispatch(GameMessage message)

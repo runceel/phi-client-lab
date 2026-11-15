@@ -15,6 +15,9 @@ public sealed record GameModel
     public bool AttackMode { get; init; }
     public bool MagicMode { get; init; }
     public bool PreparingMagic { get; init; }
+    public bool Transferring { get; init; }
+    public string PlayerName { get; init; } = "";
+    public ImmutableArray<User> Users { get; init; } = [];
     public string World { get; init; } = "";
     public string Area { get; init; } = "";
     public string Input { get; init; } = "";
@@ -55,7 +58,8 @@ public static class GameUpdate
             Append(new GameModel { Input = model.Input, BoardText = model.BoardText, Log = model.Log,
                 LogCharacters = model.LogCharacters, Phase = ConnectionPhase.Connecting }, "[Connecting...]"),
         GameMessage.PhaseChanged { Phase: ConnectionPhase.Offline } =>
-            model with { Phase = ConnectionPhase.Offline, Selection = new(), Editing = false, PreparingMagic = false },
+            model with { Phase = ConnectionPhase.Offline, Selection = new(), Editing = false,
+                PreparingMagic = false, Transferring = false },
         GameMessage.PhaseChanged phase => model with { Phase = phase.Phase },
         GameMessage.InputChanged input => model with { Input = input.Text },
         GameMessage.BoardChanged board => model with { BoardText = board.Text },
@@ -74,6 +78,11 @@ public static class GameUpdate
     private static GameModel Receive(GameModel model, ServerEvent item) => item switch
     {
         ConnectionReady when model.Phase != ConnectionPhase.Closing => model with { Phase = ConnectionPhase.Connected },
+        PlayerName name => model with { PlayerName = name.Name },
+        UserList list => model with { Users = list.Users.ToImmutableArray() },
+        TransferProgress progress => model with { Transferring = progress.Active },
+        WorldMoved => model with { Map = null, Eagle = null, ShowEagle = false, World = "", Area = "",
+            Users = [], Selection = new(), Editing = false, PreparingMagic = false },
         LogLine line => Append(model, line.Text),
         StatusLine status => model with { Status = status.Text, Stats = PlayerStatus.Parse(status.Text) },
         MapFrame map => model with { Map = map },

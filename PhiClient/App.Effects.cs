@@ -74,9 +74,8 @@ partial class App
         {
             if (sessions.Any(s => s.Character.Key == character.Key))
                 throw new InvalidOperationException("Close this character's tab before deleting it.");
-            var remaining = characters.Where(c => c.Key != character.Key).ToList();
-            await store.RemoveAsync(character, remaining);
-            characters = remaining;
+            await store.RemoveAsync(character);
+            characters = characters.Where(c => c.Key != character.Key).ToList();
             pendingDelete = null;
             notice = "Character removed.";
         });
@@ -120,14 +119,13 @@ partial class App
             refresh();
         }
         PhiWire.Login(characterId);
-        var updated = characters.Append(character).ToList();
-        try { await store.AddAsync(character, characterId, updated); }
+        try { await store.AddAsync(character, characterId); }
         catch (Exception ex) when (createdPassword.Length > 0 && IsExpected(ex))
         {
             throw new IOException("世界での作成は完了していますが、このPCへの保存に失敗しました。" +
                 "IDを入力欄に保持しています。保存先を確認して「保存」を再試行し、新規作成を繰り返さないでください。", ex);
         }
-        characters = updated;
+        characters = characters.Append(character).ToList();
         id = "";
         password = "";
         notice = "接続情報を保存しました。「接続」でゲームを開始できます。";
@@ -160,6 +158,8 @@ partial class App
             throw new InvalidOperationException("The previous connection is still closing.");
         var characterId = store.GetId(session.Character);
         var connection = new PhiConnection();
+        connection.ConfirmTransferAsync = (targetHost, targetPort, token) =>
+            ConfirmWorldTransferAsync(session, connection, targetHost, targetPort, token);
         session.Connection = connection;
         session.Dispatch(new GameMessage.PhaseChanged(ConnectionPhase.Connecting));
         connection.Received += item => dispatcher?.TryEnqueue(() =>
@@ -167,8 +167,15 @@ partial class App
             if (disposed || session.Connection != connection)
                 return;
             session.Dispatch(new GameMessage.Received(item));
+            if (item is WorldMoved moved)
+            {
+                session.Character = session.Character with { Host = moved.Host, Port = moved.Port };
+                characters = characters.Select(character => character.Key == session.Character.Key
+                    ? session.Character : character).ToList();
+                _ = SessionOperationAsync(session, () => store.UpdateEndpointAsync(session.Character));
+            }
             if (item is InputRequested && active == session) inputControl?.Focus(FocusState.Programmatic);
-            if (item is MapFrame or EagleFrame or MapSetNotice)
+            if (item is MapFrame or EagleFrame or MapSetNotice or WorldMoved)
                 _ = SessionOperationAsync(session, () => graphics.PrepareAsync(session));
         });
         session.ConnectionTask = RunSessionAsync(session, connection, characterId);
@@ -209,7 +216,7 @@ partial class App
         session.Dispatch(new GameMessage.PhaseChanged(ConnectionPhase.Closing));
         try
         {
-            if (connected)
+            if (connected && !session.Model.Transferring)
                 await connection.SendAsync(["#x"]);
         }
         finally
@@ -256,7 +263,7 @@ partial class App
     }
 
     private static bool IsExpected(Exception ex) =>
-        ex is IOException or SocketException or ArgumentException or InvalidOperationException
+        ex is IOException or InvalidDataException or SocketException or ArgumentException or InvalidOperationException
             or UnauthorizedAccessException or JsonException or COMException or OperationCanceledException;
 
 }

@@ -10,6 +10,7 @@ public sealed class CharacterStore
 {
     private const string Resource = "PhiClient.Character";
     private readonly PasswordVault vault = new();
+    private readonly SemaphoreSlim writes = new(1, 1);
     public string Folder { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PhiClient");
 
@@ -41,12 +42,12 @@ public sealed class CharacterStore
 
     public void RemoveId(SavedCharacter character) => vault.Remove(vault.Retrieve(Resource, character.Key));
 
-    public async Task AddAsync(SavedCharacter character, string id, IReadOnlyList<SavedCharacter> updated)
+    public async Task AddAsync(SavedCharacter character, string id)
     {
         AddId(character, id);
         try
         {
-            await SaveAsync(updated);
+            await ChangeAsync(list => list.Where(item => item.Key != character.Key).Append(character).ToList());
         }
         catch (Exception saveError) when (saveError is IOException or UnauthorizedAccessException)
         {
@@ -60,13 +61,13 @@ public sealed class CharacterStore
         }
     }
 
-    public async Task RemoveAsync(SavedCharacter character, IReadOnlyList<SavedCharacter> remaining)
+    public async Task RemoveAsync(SavedCharacter character)
     {
         var id = GetId(character);
         RemoveId(character);
         try
         {
-            await SaveAsync(remaining);
+            await ChangeAsync(list => list.Where(item => item.Key != character.Key).ToList());
         }
         catch (Exception saveError) when (saveError is IOException or UnauthorizedAccessException)
         {
@@ -81,6 +82,29 @@ public sealed class CharacterStore
     }
 
     public async Task SaveAsync(IReadOnlyList<SavedCharacter> characters)
+    {
+        await writes.WaitAsync();
+        try { await SaveCoreAsync(characters); }
+        finally { writes.Release(); }
+    }
+
+    public Task UpdateEndpointAsync(SavedCharacter character) => ChangeAsync(list =>
+    {
+        PhiConnection.ValidateEndpoint(character.Host, character.Port);
+        if (!list.Any(item => item.Key == character.Key))
+            throw new InvalidDataException("移動したキャラクターの登録情報が見つかりません。");
+        return list.Select(item => item.Key == character.Key
+            ? item with { Host = character.Host, Port = character.Port } : item).ToList();
+    });
+
+    private async Task ChangeAsync(Func<List<SavedCharacter>, List<SavedCharacter>> change)
+    {
+        await writes.WaitAsync();
+        try { await SaveCoreAsync(change(await LoadAsync())); }
+        finally { writes.Release(); }
+    }
+
+    private async Task SaveCoreAsync(IReadOnlyList<SavedCharacter> characters)
     {
         Directory.CreateDirectory(Folder);
         var path = Path.Combine(Folder, "characters.json");

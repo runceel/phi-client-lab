@@ -13,14 +13,20 @@ partial class App
     private async Task<bool> SessionDialogAsync(string title, string text, string? accept = null) =>
         (await RequestDialogAsync(new(title, text, accept))).Accepted;
 
-    private async Task<DialogAnswer> RequestDialogAsync(DialogModel dialog)
+    private async Task<DialogAnswer> RequestDialogAsync(DialogModel dialog, CancellationToken token = default)
     {
-        await dialogRequests.WaitAsync(worldLifetime.Token);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, worldLifetime.Token);
+        await dialogRequests.WaitAsync(linked.Token);
         try
         {
-            dialogCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            var completion = new TaskCompletionSource<DialogAnswer>(TaskCreationOptions.RunContinuationsAsynchronously);
+            dialogCompletion = completion;
+            using var registration = linked.Token.Register(() => dispatcher?.TryEnqueue(() =>
+            {
+                if (dialogCompletion == completion) Dispatch(new ClientMessage.DialogChanged(null));
+            }));
             Dispatch(new ClientMessage.DialogChanged(dialog));
-            return await dialogCompletion.Task;
+            return await completion.Task;
         }
         finally { dialogRequests.Release(); }
     }

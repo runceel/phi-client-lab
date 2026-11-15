@@ -276,8 +276,16 @@ existing-ID form so saving can be retried without creating another character.
 
 PHI uses **unencrypted TCP**. IDs and registration details are visible to the
 server and network path. Use only a trusted server; the credential vault protects
-storage, not network transport. Server-requested world transfers are rejected
-with `#no-srv` rather than forwarding credentials to a different host.
+storage, not network transport.
+
+サーバーから世界移動を要求された場合は、原典と同じ
+`#reserve` → `#rsv-ok` → `#trans` → `#trs-ok` → `#ch-srv-ok` の順で接続を切り替えます。
+移動先に `#open` を再送せず、ログイン設定だけを送ります。別ホストへの移動はID送信前に確認し、
+取り消した場合は移動先へ接続しません。失敗時は元世界の未処理行を順序どおり処理します。
+移動中の操作や、古い世界で確認待ちになった操作は新しい世界へ持ち越しません。
+成功後は同じ登録キャラクターの接続先を保存します。保存に失敗した場合も実際の移動は取り消されないため、
+画面のエラーを確認してからアプリを終了してください。
+
 Logs render as native plain text: PHI formatting tags are stripped, and remote
 HTML, links and images are not executed or downloaded.
 
@@ -302,7 +310,7 @@ image selection previews, automatic asset downloads, configurable skins other
 than the Mine directory layout, rich speech styling, overlaid actor status
 decorations, legacy 5x5 actor decoding, configurable 50–400% map zoom,
 extended maps / movement prediction, automatic re-equipping, dedicated
-private-message UI, master-magic menus, world transfers, configurable F8–F12 /
+private-message UI, master-magic menus, configurable F8–F12 /
 Alt+G keymaps, window-layout persistence and updates. The map is integrated,
 not a separate floating window. The title/direction display remains textual,
 not wphi's compass. Extended maps and movement prediction remain requested

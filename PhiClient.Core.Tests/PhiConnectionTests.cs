@@ -197,12 +197,13 @@ public sealed class PhiConnectionTests
             using var reader = new StreamReader(stream, PhiWire.Encoding, false, 1024, true);
             for (var i = 0; i < 3; i++)
                 await reader.ReadLineAsync(timeout.Token);
-            await stream.WriteAsync("#ex-register reject name\n"u8.ToArray(), timeout.Token);
+            await stream.WriteAsync("#ex-register reject name server-must-not-be-echoed\n"u8.ToArray(), timeout.Token);
         }, timeout.Token);
         var error = await Assert.ThrowsAsync<IOException>(() => PhiConnection.RegisterAsync("127.0.0.1",
             ((IPEndPoint)listener.LocalEndpoint).Port, "Tester", "abc123", "2", "test@example.invalid", timeout.Token));
         await server;
-        Assert.Contains("reject name", error.Message);
+        Assert.Contains("名前", error.Message);
+        Assert.DoesNotContain("server-must-not-be-echoed", error.Message);
     }
 
     [Fact]

@@ -19,8 +19,18 @@ public sealed record Actor(int X, int Y, string Name, string Graphic = "", char 
     char Size = '#', int Layer = 0, int DefaultGraphic = 1, int Status = 0, Magnify? Magnify = null);
 public sealed record Magnify(long Width, long Height, long Z);
 public sealed record MapSetNotice(int Index, string Name) : ServerEvent;
-public sealed record MapFrame(char Direction, byte[] Tiles, byte[] Attributes, IReadOnlyList<Actor> Actors, int Size = 7) : ServerEvent;
+public sealed record MapFrame(char Direction, byte[] Tiles, byte[] Attributes, IReadOnlyList<Actor> Actors, int Size = 7) : ServerEvent
+{
+    public MapPosition? Position { get; init; }
+}
 public sealed record MapStyle(bool NorthUp) : ServerEvent;
+public sealed record PlayerName(string Name) : ServerEvent;
+public sealed record User(int Number, string Name);
+public sealed record UserList(IReadOnlyList<User> Users) : ServerEvent;
+public sealed record MapPosition(long X, long Y);
+public sealed record WorldTransferRequest(string Host, int Port) : ServerEvent;
+public sealed record WorldMoved(string Host, int Port) : ServerEvent;
+public sealed record TransferProgress(bool Active) : ServerEvent;
 
 public static class PhiWire
 {
@@ -60,13 +70,16 @@ public static class PhiWire
         if (string.IsNullOrWhiteSpace(id) || id.Any(char.IsWhiteSpace))
             throw new ArgumentException("A character ID must be a non-empty single token.");
         ValidateLine(id);
-        return [
-            $"#open {id}", "#version-cli 05107100", "#map-iv 2", "#status-iv 2",
+        return [$"#open {id}", .. LoginSettings()];
+    }
+
+    public static string[] LoginSettings() =>
+        [
+            "#version-cli 05107100", "#map-iv 2", "#status-iv 2",
             "#ex-switch eagleeye=form", "#ex-map size=57", "#ex-map style=solid",
             "#ex-switch ex-move-recv=true", "#ex-switch ex-list-mode-end=true",
             "#ex-switch ex-disp-magic=false", "#ex-switch ex-abspos=true"
         ];
-    }
 
     public static string[] Registration(string name, string password, string image, string email)
     {
@@ -149,6 +162,8 @@ public sealed partial class ProtocolParser
     private readonly List<Actor> actors = [];
     private bool clearActors = true;
     private readonly Dictionary<string, Magnify> magnifications = new(StringComparer.Ordinal);
+    private MapPosition? position;
+    private readonly Dictionary<string, int> users = new(StringComparer.Ordinal);
     private byte[]? eagleTiles;
     private byte[]? eagleAttributes;
     private int eagleWidth, eagleHeight, eagleX = -1, eagleY = -1;
@@ -205,9 +220,13 @@ public sealed partial class ProtocolParser
         }
         if (text is "#m57 ." or "#map .")
         {
+            size = text == "#map ." ? 5 : 7;
             clearActors = true;
-            return [new MapFrame(direction, tiles is null ? [] : tiles.Take(size * size).ToArray(),
-                attributes is null ? [] : attributes.Take(size * size).ToArray(), actors.ToArray(), size)];
+            var frame = new MapFrame(direction, tiles?.Length >= size * size ? tiles.Take(size * size).ToArray() : [],
+                attributes?.Length >= size * size ? attributes.Take(size * size).ToArray() : [], actors.ToArray(), size)
+                { Position = position };
+            position = null;
+            return [frame];
         }
         if (text.StartsWith("#ex-obj ", StringComparison.Ordinal))
         {
@@ -254,8 +273,41 @@ public sealed partial class ProtocolParser
         }
         if (text.StartsWith("#status ", StringComparison.Ordinal))
             return [new StatusLine(PlainText(text[8..]))];
+        if (text.StartsWith("#name ", StringComparison.Ordinal))
+            return [new PlayerName(text[6..])];
+        if (text.StartsWith("#user ", StringComparison.Ordinal))
+        {
+            if (raw.Length < 42 || raw.AsSpan(6, 4).ContainsAnyExceptInRange((byte)0, (byte)127) ||
+                !int.TryParse(Encoding.ASCII.GetString(raw, 6, 4), NumberStyles.Integer,
+                    CultureInfo.InvariantCulture, out var number))
+                return [new LogLine("[Protocol] Invalid user entry ignored.")];
+            var name = PhiWire.Encoding.GetString(raw, 11, 31).TrimEnd();
+            if (name.Length == 0) return [];
+            if (users.Count >= 10000 && !users.ContainsKey(name))
+                return [new LogLine("[Protocol] User-list limit reached.")];
+            users[name] = number;
+            return [new UserList(users.Select(entry => new User(entry.Value, entry.Key)).ToArray())];
+        }
+        if (text.StartsWith("#ex-chr-conflict", StringComparison.Ordinal))
+            return [new LogLine("3重状態で消えています。移動してください")];
+        if (text.StartsWith("#ex-pos ", StringComparison.Ordinal))
+        {
+            var fields = text[8..].Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+            if (fields.Length >= 2 &&
+                uint.TryParse(fields[0], NumberStyles.None, CultureInfo.InvariantCulture, out var x) &&
+                uint.TryParse(fields[1], NumberStyles.None, CultureInfo.InvariantCulture, out var y))
+                position = new(x, y);
+            else return [new LogLine("[Protocol] Invalid absolute position ignored.")];
+            return [];
+        }
         if (text.StartsWith("#ch-srv ", StringComparison.Ordinal))
-            return [new Reply("#no-srv"), new LogLine("[World transfer] Not supported yet; staying on the current server.")];
+        {
+            var fields = text[8..].Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+            return fields.Length >= 2 && int.TryParse(fields[1], NumberStyles.Integer,
+                CultureInfo.InvariantCulture, out var port)
+                ? [new WorldTransferRequest(fields[0], port)]
+                : [new Reply("#no-srv"), new LogLine("世界移動先の指定が不正なため、元の世界に留まります。")];
+        }
         if (text.StartsWith("#cond ", StringComparison.Ordinal))
             return [new Conditions(text[6..])];
         foreach (var prefix in new[] { "#ex-notice land=", "#ex-notice area=" })

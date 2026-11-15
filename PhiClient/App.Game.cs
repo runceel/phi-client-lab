@@ -15,7 +15,7 @@ partial class App
         var session = active;
         MenuFlyoutItemData Action(string label, InputAction action) =>
             MenuItem(label, () => { if (session is not null) Execute(session, action); })
-                with { IsEnabled = session?.Connected == true };
+                with { IsEnabled = session?.Connected == true && !session.Model.Transferring };
         MenuFlyoutItemData Key(string label, ConsoleKey key, bool alt = false, bool shift = false) =>
             Action(label, GameInput.Resolve(key, session?.NorthFixed ?? true, false,
                 alt: alt, shift: shift) ?? throw new InvalidOperationException("Missing menu binding."));
@@ -219,7 +219,8 @@ partial class App
                     .AutomationId("movement-mode"),
                 Button("Close tab", () => CloseTab(session)).IsEnabled(!session.Connecting && !session.Closing)
                     .AutomationId("close-tab")).Flex(shrink: 0),
-            Caption(session.PreparingMagic ? "Preparing magic: waiting for equipment response; other input is paused." :
+            Caption(session.Model.Transferring ? "世界移動中です。操作は送信しません。「切断」で移動を中止できます。" :
+                session.PreparingMagic ? "Preparing magic: waiting for equipment response; other input is paused." :
                 $"Esc: movement  |  Tab: input  |  Ctrl+Tab: next character  |  {(fullKeys ? "Full-key movement on" : "Full-key movement off")}")
                 .AutomationId("input-mode").Flex(shrink: 0),
             FlexRow(showMap && !showCharacters ? ScrollViewer(map).Width(360).Flex(shrink: 0) : Empty(), chat)

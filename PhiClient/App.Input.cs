@@ -97,6 +97,10 @@ partial class App
 
     private void Execute(GameSession session, InputAction action)
     {
+        if (session.Model.Transferring && action.Intent is not
+            (InputIntent.ForceDisconnect or InputIntent.ForceDisconnectAll or InputIntent.NextTab or
+                InputIntent.PreviousTab or InputIntent.FocusInput))
+            return;
         var selection = session.Selection;
         switch (action.Intent)
         {
@@ -130,9 +134,12 @@ partial class App
     {
         if (!session.Connected || session.Connection is null)
             throw new InvalidOperationException("Connect before sending a command.");
+        if (session.Model.Transferring)
+            throw new InvalidOperationException("世界移動中です。移動が終わってから再度操作してください。");
         if (session.PreparingMagic)
             throw new InvalidOperationException("Wait for the equipment response before sending another command.");
         var connection = session.Connection;
+        var transportVersion = connection.TransportVersion;
         if (action.Confirmation is not null &&
             !await SessionDialogAsync("Confirm magic", action.Confirmation, "Cast"))
             return;
@@ -149,6 +156,8 @@ partial class App
         }
         if (session.Connection != connection || !session.Connected)
             throw new InvalidOperationException("The session disconnected while the dialog was open.");
+        if (transportVersion != connection.TransportVersion)
+            throw new InvalidOperationException("確認中に世界移動が始まったため、操作を取り消しました。");
         if (!keepSelection)
             session.Dispatch(new GameMessage.SelectionCleared());
         if (action.Intent == InputIntent.WriteSign)
