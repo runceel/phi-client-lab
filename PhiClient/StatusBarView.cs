@@ -1,6 +1,7 @@
 using Microsoft.UI;
 using Microsoft.UI.Reactor;
 using Microsoft.UI.Reactor.Core;
+using Microsoft.UI.System;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
@@ -62,29 +63,35 @@ internal static class StatusBarView
                 var surface = new Microsoft.UI.Xaml.Controls.Grid();
                 surface.Children.Add(progress);
                 surface.Children.Add(backing);
-                var accessibility = new AccessibilitySettings();
+                ThemeSettings? themeSettings = null;
                 var colors = new UISettings();
-                void ApplyColors()
+                void ApplyColors(bool highContrast)
                 {
-                    text.Foreground = new SolidColorBrush(accessibility.HighContrast
+                    text.Foreground = new SolidColorBrush(highContrast
                         ? colors.UIElementColor(UIElementType.WindowText) : Colors.White);
-                    backing.Background = accessibility.HighContrast
+                    backing.Background = highContrast
                         ? new SolidColorBrush(colors.UIElementColor(UIElementType.Window)) : null;
                 }
-                void ColorsChanged(object sender, object args) =>
-                    host.DispatcherQueue.TryEnqueue(() => { if (host.IsLoaded) ApplyColors(); });
+                void ColorsChanged(ThemeSettings sender, object args) =>
+                    host.DispatcherQueue.TryEnqueue(() =>
+                    {
+                        if (host.IsLoaded && ReferenceEquals(themeSettings, sender))
+                            ApplyColors(sender.HighContrast);
+                    });
                 surface.Loaded += (_, _) =>
                 {
-                    accessibility.HighContrastChanged += ColorsChanged;
-                    colors.ColorValuesChanged += ColorsChanged;
-                    ApplyColors();
+                    themeSettings = ThemeSettings.CreateForWindowId(surface.XamlRoot.ContentIslandEnvironment.AppWindowId);
+                    themeSettings.Changed += ColorsChanged;
+                    ApplyColors(themeSettings.HighContrast);
                 };
                 surface.Unloaded += (_, _) =>
                 {
-                    accessibility.HighContrastChanged -= ColorsChanged;
-                    colors.ColorValuesChanged -= ColorsChanged;
+                    if (themeSettings is not null)
+                    {
+                        themeSettings.Changed -= ColorsChanged;
+                        themeSettings = null;
+                    }
                 };
-                ApplyColors();
                 host.Child = surface;
             });
     }

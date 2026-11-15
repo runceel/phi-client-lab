@@ -46,7 +46,43 @@ compact表示でも同じバーを使い、操作パッドより上へ置きま�
 未知・最大値0・負値・最大超過・long上限を含む塗りの計算と、既存statusの関連テストは15件成功。
 packaged x64 buildも成功しています。theme resourceのLight/Darkと標準HighContrast、
 高コントラスト時のシステム前景/背景を使い、OSの配色変更購読は表示中だけ保持します。
-ただし実画面の色・太さ・狭幅/独立・値変化・高コントラスト・入力非横取りは未受け入れです。
+初回native検証（commit `8ccbe54`）は、所有fixtureの合成loopback接続直後に
+クラッシュしてFAILとなりました。バー観測前のため、実画面の色・太さ・狭幅/独立・
+値変化・高コントラスト・入力非横取りは、この初回試行ではすべて未受け入れでした。
+初回のEvent1000 Record114043（所有PID28372、例外`0xc000027b`）とminidumpだけでは、
+元のmanaged例外を回収できませんでした。初回の実exit codeは不明です。
+そのため、first/second-chance・EOF時のdetachを非UIで実証したcollectorを使い、
+承認された追加1回だけ、別identityの所有PIDへattachして最初の合成接続を採取しました。
+full dumpの元例外は`COMException: Element not found. (0x80070490)`で、
+`AccessibilitySettings.add_HighContrastChanged` → `StatusBarView.Bar`のLoaded handlerへ対応しました。
+DLL offsetの一致ではなく、managed stackと同じdumpのcall先から原因を特定しています。
+
+この購読と、直後にある`UISettings.ColorValuesChanged`は、どちらも
+[desktop非対応のイベント](https://learn.microsoft.com/windows/apps/desktop/modernize/winrt-api-desktop-app-support)です。
+両方を、restored APIと[公式例](https://learn.microsoft.com/windows/windows-app-sdk/api/winrt/microsoft.ui.system.themesettings)で
+確認した`ThemeSettings.CreateForWindowId` / `Changed`へ置き換えました。
+Loadedで対象ウィンドウに結びつけ、Unloadedで解除します。遅延通知は同じ購読が有効な間だけ反映します。
+修正後も関連テスト15件とpackaged x64 buildは成功しています。
+
+修正版`1eabab3`のfresh専用identityによる1回起動・所有合成接続1回の限定再確認では、
+Loaded例外を再現せず、通常・独立地図の両方でバーを描画できました。
+独立地図のバーは各42物理pxの高さ、左右と段間は6物理pxで、
+sourceの28 DIP / 4 DIP指定と整合する太さ・余白を確認しました。
+HP赤/MP青、`30/100・10/200`から`85/100・150/200`への文字と塗りの更新、
+最大値0では実値を残して塗り0、未知値では`-- / --`と塗り0を確認しました。
+通常窓への切替後も同じバーと未送信下書きが残り、ログ・入力との重なりはありませんでした。
+より狭い幅へのwindow dragは座標範囲外で拒否、別の幅control操作も値の検証に失敗したため、
+狭幅到達の合格には数えていません。実高コントラストと物理focus/key非横取りも未確認です。
+cleanupは正規UI削除・自然Close exit0・所有error/WER0・専用登録/layout/data解除まで完了し、
+製品と3組の永続backupの不変を確認しました。
+詳細はsession `files\hp-mp-acceptance\results.json`と`cleanup.json`へ保存しています。
+
+追加採取の所有PID23876は実exit `-1073740286`で終了し、cleanup強制停止ではありません。
+採取後は、正規UIで接続せず合成profile/資格情報を削除するcleanup専用起動を1回行い、
+自然Close exit0と所有error/WER一致0を確認しました。ExecutionPolicyの変更・迂回はしていません。
+専用登録・mock・layout/dataもcleanupし、製品と新旧永続backupの不変を確認しました。
+結果はsession `files\hp-mp-native\results.json`と`files\hp-mp-capture-once\results.json`へ保存し、
+dump・localsは私的に保持しています。
 ビルド・純粋テストをnative確認の代わりにせず、#22はOpenで追跡します。
 #11ログ検索・#12地図効果・#20 Auto倍率の差分は含みません。
 
