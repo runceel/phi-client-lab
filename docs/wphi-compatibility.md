@@ -1,0 +1,242 @@
+# wphi互換性・日本語UXの照合記録
+
+## 対象と現在の判定
+
+原典は[s7k/wphi](https://github.com/s7k/wphi/tree/d8f11bf60c95d470fa14ca83bcc4c02d5c83fecc)
+の`d8f11bf60c95d470fa14ca83bcc4c02d5c83fecc`です。
+README、`docs/04-client-spec.md`、parser、通信、描画、設定、画面、キー処理を基準に、
+下表の56項目を照合しました。地図幅/UIA修正は`30b96a7`、
+主窓の再起動位置の修正は`f693173`です。
+経緯は[#1](https://github.com/runceel/phi-client-lab/issues/1)と
+[#2](https://github.com/runceel/phi-client-lab/pull/2)へ記録します。
+
+**機能実装と所有モックによる確認を進めましたが、総合受け入れは継続中です。**
+前面化を要する物理キー・IME等と、下記の残確認を完了扱いにしていません。
+UIAのInvoke・Toggle・RangeValue・TextPatternによる操作は、物理入力の代わりには数えません。
+本物のゲームサーバーへの接続・登録、公開世界一覧の更新は行っていません。
+
+UIは正式な`Microsoft.UI.Reactor 0.1.0-preview.17`を使用しています。
+Model/Update/Viewと、通信・保存・native操作を分けています。
+実素材は利用条件付きの外部フォルダー取り込みであり、ソースやMSIXへ同梱していません。
+
+## 56項目の最終照合表
+
+実装欄のパスは、`Core:`が`PhiClient.Core`、`UI:`が`PhiClient`、
+試験欄は`PhiClient.Core.Tests`を基準とします。
+「native」は後掲の所有loopback/UIA試験です。
+試験ファイルの対応は各機能の根拠であり、全組合せ・全端末での合格を意味しません。
+
+| ID | 実装・照合対象 | 試験と残確認 |
+|---|---|---|
+| 001 | CP932分割受信、LF/CR、置換、行上限。Core: `Protocol.cs`, `PhiConnection.cs` | `PhiConnectionTests`。byte単位分割、過大行からの復帰、login交換。 |
+| 002 | login11行、TCP設定、接続・送信期限。Core: `PhiConnection.cs` | `PhiConnectionTests`で11行と送信を照合。実ネットワーク障害下の端末試験は対象外。 |
+| 003 | keepalive、lag/remap、無応答案内。Core: `PhiConnection.cs` | `PhiConnectionTests`でlag/remap応答とliteral抑制。長時間の実サーバー運用は未確認。 |
+| 004 | 通常・強制・server切断。Core: `PhiConnection.cs`; UI: `App.Effects.cs` | native全切断・全強制切断、Core接続試験。 |
+| 005 | `#more`本文を命令・効果音にしない。Core: `Protocol.cs`, `SoundRules.cs` | `PhiConnectionTests`, `SoundRulesTests`, `WorldTransferTests`。 |
+| 006 | status/conditions/attack/magic。Core: `PlayerStatus.cs`, `Protocol.cs`; UI: `GameViews.cs` | `GameDisplayTests`、native地図・超魔法の状態更新。 |
+| 007 | name/user固定byte欄と更新。Core: `Protocol.cs`, `UserListRefresh.cs` | `WorldTransferTests`, `PhiConnectionTests`、native priv。 |
+| 008 | 三重重なりの案内。Core: `Protocol.cs`; UI: `GameViews.cs` | parserと状態の照合。実素材の重なりは描画試験でも確認。 |
+| 009 | ex-posを次の地図だけへ付ける。Core: `Protocol.cs` | `WorldTransferTests.NamesUsersAndAbsolutePositionsUseOriginalFieldsAndSingleFrameConsumption`。 |
+| 010 | 7×7、O/W、属性、透過、向き、重なり。Core: `Protocol.cs`, `MapGraphics.cs` | `MapGraphicsTests`, `MapCompatibilityTests`、実素材native地図。 |
+| 011 | 旧5×5別平面、変更なし、actor保持。Core: `Protocol.cs` | `GameDisplayTests`, `MapCompatibilityTests`でCR/LF/CRLFと不正actor後の保持。 |
+| 012 | mapset/define、alias、cache更新。Core: `MapGraphics.cs`; UI: `App.GraphicsEffects.cs` | `MapGraphicsTests`, `ModelUpdateTests`、原典素材取り込み試験。 |
+| 013 | 名前、欠落時頭文字、一覧、巨大画像。Core: `MapPresentation.cs`, `MapGraphics.cs` | `MapCompatibilityTests`、実素材native/PNG。 |
+| 014 | 水際256通り、4象限、マスク、item切り抜き。Core: `MapGraphics.cs` | 独立した4象限期待表による`MapCompatibilityTests`、`MapGraphicsTests`。 |
+| 015 | EagleEye、0x58、コマ0、座標。Core: `Protocol.cs`, `MapGraphics.cs` | `GameDisplayTests`, `MapCompatibilityTests`、native PNG。 |
+| 016 | 方位・地域・世界、倍率、クリック座標。Core: `MapPresentation.cs`, `GameInput.cs` | `MapCompatibilityTests`, `GameInputTests`。別DPI間の実操作は保留。 |
+| 017 | 世界別記録、未知・盲目除外、暗い外周。Core: `Automap.cs`, `AutomapStore.cs` | `AutomapTests`で保存・同時変更・所有loopback。 |
+| 018 | 移動予測、120–1000ms、応答・失敗・warp。Core: `MovePrediction.cs` | `MovePredictionTests`, `AutomapTests`。追加の移動命令が発生しないことも確認。 |
+| 019 | 長押し待機・repeat・smoothMove。UI: `App.Input.cs`; Core: `MapMotion.cs` | `MapMotionTests`で90msと描画。物理長押し・repeatは保留。 |
+| 020 | リスト番号・ページ・選択・待機・取消。Core: `ChoiceSelection.cs`, `GameInput.cs` | `GameInputTests`、native privバッチでページの保持と番号。待機表示の実画面は未確認。 |
+| 021 | 非番号行の保持、list終了、他送信での終了。Core: `Protocol.cs`, `ChoiceSelection.cs` | `GameInputTests`でraw・offset・継続境界・空list。 |
+| 022 | 装備解除、隠すlist、期限。Core: `PhiConnection.cs` | `PhiConnectionTests`で中間listだけの抑制、期限後の次のlist保持。 |
+| 023 | 魔法別再装備、実際に外した武器名。Core: `PhiConnection.cs`, `SettingsStore.cs` | `PhiConnectionTests`, `SettingsTests`で対象選択・設定無効・確認行。 |
+| 024 | 系統魔法、検索、召喚、金額、確認。Core: `GameInput.cs`; UI: `App.Dialogs.cs` | 入力解決・確認のCore試験。全dialogの物理キーは保留。 |
+| 025 | XML超魔法、順序、変数、隠すlist、資格。Core: `MasterMagic.cs`; UI: `App.MasterEffects.cs` | `MasterMagicTests`, `PhiConnectionTests`、未改変原典XMLのnative 9項目。 |
+| 026 | フルキー・修飾キー・list中の操作。Core: `GameInput.cs`; UI: `App.Input.cs` | `GameInputTests`。実キーによるfocus・修飾キーの経路は保留。 |
+| 027 | F8–F12、list用shortcut、Alt+G、literal改行。Core: `SettingsStore.cs`, `GameInput.cs` | 設定往復と入力優先順位。実キー経路は保留。 |
+| 028 | Enter/Shift/Ctrl、行保持、空行、大声保護。Core: `GameInput.cs`; UI: `App.ChatEffects.cs` | `GameInputTests`、nativeボタン送信・行保持・大声。実キー経路は保留。 |
+| 029 | IME確定Enterの抑制、編集中のゲームキー除外。UI: `App.Input.cs`, `App.TagInput.cs` | 実装・ビルド確認。日本語IMEの実変換・確定は保留。 |
+| 030 | 大声今回/継続、全タブ発言、prefix。UI: `App.ChatEffects.cs` | `GameInputTests`、所有2タブnative 9項目。 |
+| 031 | 複数行看板、空行、終端、取消、server終了。Core: `GameInput.cs`; UI: `App.Game.cs` | 入力・protocol照合、nativeタグ挿入と看板取消。全server終了状態の実画面は未確認。 |
+| 032 | priv一覧・番号・複数宛先・self echo・不明相手。Core: `Priv.cs`, `UserListRefresh.cs` | `PrivTests`, `PhiConnectionTests`、native priv 9項目。 |
+| 033 | 参加者組別priv、多人数初回返信確認。Core: `Priv.cs`; UI: `App.PrivEffects.cs` | `PrivTests`、native取消・下書き保持・承認後の送信。 |
+| 034 | reserve/trans/ok、移動先へopen再送なし。Core: `PhiConnection.Transfer.cs` | `WorldTransferTests`で成功・両側拒否・literal。追加native 5項目で予約待ち/移動完了/設定10行も確認。 |
+| 035 | 移動先確認、失敗時の行保持、接続先保存。UI: `App.TransferEffects.cs`, `App.Effects.cs` | `WorldTransferTests`で未承認先への接続抑制、行順と世代。追加nativeで移動中の送信拒否、同じ合成登録への移動先保存を確認。別ホスト確認画面のnative操作は未確認。 |
+| 036 | 空欄時のみ暗号学的6文字生成、本人確認。Core: `Protocol.cs`; UI: `App.RegistrationEffects.cs` | `PhiConnectionTests`, `ModelUpdateTests`、独立画面評価。秘密値は成果物に含めない。 |
+| 037 | Unicode文字数、禁止文字、メール任意。Core: `Protocol.cs` | `PhiConnectionTests.RegistrationUsesOriginalUnicodeValidationAndCryptographicAlphabet`。 |
+| 038 | REGINFO IMG、0基準番号、実画像。Core: `PhiConnection.cs`; UI: `App.RegistrationEffects.cs` | `RegistrationGraphicsTests`、native 5項目。取得は一覧要求だけでlogin/作成なし。 |
+| 039 | 作成・拒否・期限、ローカル保存の再試行。UI: `App.Effects.cs`, `CharacterStore.cs` | Core登録試験。追加native 5項目で作成成功後の保存故障、ID保持、作成を繰り返さない再保存、伏せた6文字の確認画面、復元。独立評価は未提供。 |
+| 040 | 世界一覧取得元、cache/import/選択/失敗。Core: `WorldDirectoryClient.cs`, `WorldList.cs` | `WorldListTests`、native 9項目。公開一覧更新なし。 |
+| 041 | 複数タブ、登録選択、全接続/切断/強制。UI: `App.Effects.cs` | 所有2タブnative 9項目。既存の実プロフィールを接続対象にしていない。 |
+| 042 | Philly登録・設定取り込み、秘密の保管。Core: `PhillyProfiles.cs`, `SettingsStore.cs`; UI: `App.ProfileImportEffects.cs` | `PhillyProfilesTests`、native 6項目。保存故障・同名置換・元データ保持。 |
+| 043 | 設定保存/復元、失敗表示。Core: `SettingsStore.cs`; UI: `App.SettingsEffects.cs` | `SettingsTests`、native設定取り込み4項目、地図幅保存。 |
+| 044 | raw/time/channel/from、表示上限。Core: `LogEntry.cs`, `ClientModel.cs` | `LogEntryTests`, `ModelUpdateTests`、nativeログ保存。 |
+| 045 | 色・size・font・style・close・br・語置換。Core: `LogMarkup.cs`; UI: `LogPresenter.cs` | `LogMarkupTests`、native上線・折返し・選択、変換後HTML桁数。 |
+| 046 | URL/画像、HTMLを実行しない、非公開宛先抑制。Core: `LogImageClient.cs`, `LogImages.cs`; UI: `App.LogImageEffects.cs` | 画像関連3試験ファイル、別identityのnative静止画/GIF fixture。製品の任意外部画像を試す通信はしていない。 |
+| 047 | 行コピー、タグ/時刻/名前の除去。Core: `LogFormat.cs`; UI: `LogPresenter.cs` | `LogEntryTests`、nativeコピー・範囲選択。幅だけの変更後も選択を保持。 |
+| 048 | 入力/看板のタグ、選択とカーソル。Core: `TagEditing.cs`; UI: `App.TagInput.cs` | `TagEditingTests`、native 5項目。物理右クリック・IME中の実入力は保留。 |
+| 049 | 自動/HTML/text/buffer保存、folder、follow。Core: `LogStore.cs`; UI: `App.LogEffects.cs`, `App.ShutdownEffects.cs` | `LogStoreTests`、nativeログ・終了保存故障/復旧。folderを実際に開く操作は残確認。 |
+| 050 | SoundRegexp/File、NotFlash、前面抑制。Core: `SoundRules.cs`, `SoundFiles.cs`; UI: `App.SoundEffects.cs` | 純粋/CP932試験、native 6項目で失敗通知・復元。正常WAV実音、前面/背面通知は保留。 |
+| 051 | 実素材、優先順、reload、欠落、利用条件。Core: `MapGraphics.cs`; UI: `App.GraphicsEffects.cs` | 描画試験、`tools\Test-WphiGraphics.ps1`、実素材native。素材設定の独立評価は未提供。 |
+| 052 | 通常/EagleEye PNG、folder。UI: `App.MapEffects.cs` | native 5項目、独立PNGデコード・寸法/透明画素・目視。保存先を開く操作は残確認。 |
+| 053 | 独立/統合窓、配置、統合幅。UI: `App.MapWindow.cs`, `App.MapLayoutEffects.cs`, `MapPaneSplitter.cs`, `App.ShutdownEffects.cs` | native 9項目と製品主窓のprocess跨ぎ配置。別identity配置fixtureも確認。地図窓の再起動跨ぎ配置・reset肯定実行・別DPIドラッグは残確認。 |
+| 054 | 版情報、明示的更新確認、時刻trace。Core: `ProductRelease.cs`, `DiagnosticTrace.cs`; UI: `App.DiagnosticsEffects.cs` | 両Core試験、native 5項目。公開Releasesの実取得・外部ページ起動は試験対象外。 |
+| 055 | 初回/登録/接続/切断/失敗/busyの日本語UX。UI: `App.RegistrationView.cs`, `App.Settings.cs`等 | R1–R12反映、提供17画面の独立再確認、N1/P2と保存結果4項目。未提供状態は下記参照。 |
+| 056 | 狭幅、DPI、IME、focus、読み上げ。UI: 各Viewとnative peer | 狭幅900×1000px/144DPI、幅200 DIP、UIA復旧。物理IME/focus、複数DPI、高contrast、読み上げ実音は保留。 |
+
+## 直近の修正とUIAのA/B
+
+`30b96a7`で統合地図の幅を200–1600 DIPに調整・保存できるようにしました。
+ログ用の領域を残して現在の窓幅へ収め、窓を狭めたときも希望幅を保持します。
+native ThumbとRangeValue peerを使い、左右/Home/Endの処理を実装しています。
+独立地図窓は実際の表示幅へ追従します。幅だけの変更でログを作り直さず、
+native範囲選択を保持します。
+
+同じ所有モック/UIA手順で、pool有効時は地図幅の変更後に設定のUIA子孫が欠け、
+保存ボタンも取得できませんでした。画面自体には表示されていました。
+深さ/ノード数制限なしの別プロセスによる列挙でも21要素にとどまりました。
+部分一致の修正、UI threadへのqueue、leaf peer、Viewのkeyでは回復しませんでした。
+根拠のなかった設定Viewのkeyは除去しました。
+
+主窓だけ、正式な公開API
+`configure: host => host.Reconciler.Pool.Enabled = false`へ変更すると、
+同条件の9項目が合格しました。設定子孫/保存操作、幅保存、実viewport、
+ログ選択保持、独立窓復帰、同HWND、地図close/reopen、後片付けを確認しています。
+内部のpeer親参照が残るという説明は原因仮説であり、内部原因を確定したものではありません。
+
+独立窓は独立したhost/Reconciler/poolを持つため、無効化は主窓へ限定しています。
+根拠は公式固定source
+[`ReactorApp.cs`](https://github.com/microsoft/microsoft-ui-reactor/blob/a61657ff404c180464061912b0c02d4a4560492a/src/Reactor/Hosting/ReactorApp.cs#L749)
+ほかの公開構造です。reflection/非公開APIは使用していません。
+pool無効化ではcontrolの新規割当が増える可能性があります。
+性能ベンチマークは未実施であり、性能改善とは主張しません。
+
+## native証拠
+
+次は作業セッション成果物内の相対パスです。ソースやパッケージへの素材同梱ではありません。
+保存済み設定の復元と、試験で作成した合成プロフィールだけの削除を各バッチで行いました。
+結果形式はarrayまたは`results`配列なので、どちらも確認対象にしています。
+
+| 証拠 | 合格した範囲 |
+|---|---|
+| `files\ui-map-windows-20261115-163817\results.json` | 9項目。主窓pool無効版の幅・地図窓・設定・ログ選択・復元。 |
+| `files\ui-alltabs-20261115-164117\results.json` | 9項目。2タブ発言、大声、prefix、全接続/切断/強制、取消、復元。 |
+| `files\ui-master-20261115-164545\results.json` | 9項目。原典XML、資格、順序、整数/文字、危険操作取消、不正整数拒否、復元。hover/focus/物理キーなし。 |
+| `files\ui-settings-copy-20261115-145837\results.json` | 4項目。N1全文表示、取り込みだけでは未保存、保存による適用、元の設定とModelの復元。 |
+| `files\ui-shutdown-20261115-135447\results.json` | 5項目。ログ保存故障、終了保留/記録保持、障害除去後のHTML救済保存、process終了と再起動。地図保存の故障注入ではない。 |
+| `files\ui-world-directory-20261115-091552\results.json` | 9項目。取得元、import/cache、選択、失敗。 |
+| `files\ui-priv-20261115-112435\results.json` | 9項目。宛先、初回確認取消/送信、下書き、コピー、未解決相手。 |
+| `files\ui-profile-import-20261115-124849\results.json` | 6項目。登録取り込み、置換、保存故障、既存データ保持。 |
+| `files\ui-reginfo-20261115-113653\results.json` | 5項目。一覧要求、番号、実素材、欠落、古い結果破棄。 |
+| `files\ui-tags-20261115-130024\results.json` | 5項目。発言/看板タグ、カーソル、取消。 |
+| `files\ui-maps-20261115-131249\results.json` | 5項目。通常/EagleEye PNGと画素/寸法。 |
+| `files\ui-sounds-20261115-133643\results.json` | 6項目。設定、CP932、native decode失敗通知、復元。正常WAV実音の証明ではない。 |
+| `files\native-log-animation\gif-results.json` | 4項目。別identityのnative GIF連続表示で赤/青のコマ変化。 |
+| `files\native-log-animation\results.json` | 5項目。別identityのnative静止画fixture。 |
+| `files\native-log-images\placement-results.json` | 1項目。別identity窓の破棄/再生成後の位置/寸法。製品窓の再起動試験とは区別。 |
+| `files\native-transfer-verified\results.json` | 5項目。所有2 listener、予約応答保留中の表示、発言の拒否、同じIDのreserve/trans、open再送なし、接続先保存、復元。 |
+| `files\ui-registration-save-20261115-165802\results.json` | 5項目。空欄パスワードの作成、metadata一時ファイルlockによる保存失敗、ID保持、作成要求1回のまま再保存、伏せた6文字の完了画面、設定/metadata/draft復元。 |
+| `files\final-regression\placement-after-fix.json` | `f693173`で、製品主窓の通常終了/packaged再起動を跨いで304,304px・1800×1275pxが一致。 |
+| `files\final-regression\final-core.trx` | Core Passed: 242, Failed: 0, Skipped: 0。x64ビルドは警告/エラー0。 |
+
+地図幅の失敗結果`ui-map-windows-20261115-161933/162406/162724/162959`と、
+以前の会話/超魔法の失敗結果も保持しています。後続の合格結果で、失敗記録を消していません。
+追加の転送試験はボタンの無効化を誤って期待した初回、登録試験は伏せたread-only欄を
+PasswordBoxと誤認した初回と正常切断`#x`を数え落とした回を保持しています。
+実際の送信拒否、6文字の伏せ字、原典どおりの切断を検査するようharnessを修正しました。
+登録の初回に残った合成登録は対象key/名前/所有endpointを照合して別途削除し、
+最終バッチでは通常cleanupまで合格しています。
+
+代表画像は`files\ui-map-windows-20261115-163817`の
+`01-separate-map.png`、`02-integrated-map.png`、`03-resized-map.png`、
+`04-minimum-map.png`です。画像と併せてPCGL原文、適用範囲、作者表記、
+素材README、寿司素材のMIT表記を同フォルダーへ保存しています。
+公開・共有するときもこれらの条件を維持してください。
+追加画像は`files\native-transfer-verified\01-transfer-wait.png`と
+`02-transfer-complete.png`、`files\ui-registration-save-20261115-165802`の
+`01-created-local-save-failed.png`と`02-local-save-retried-password-masked.png`です。
+これら4枚も実装側で目視しました。ID/パスワードの実値は含めていません。
+
+最後の通常再起動で主窓が76pxずれることを検出し、`f693173`で修正しました。
+データflush後、native `AppWindow.Destroy`の前に公式`SavePlacement`を明示的に呼びます。
+修正後の製品process間で位置/寸法の一致を確認しました。
+失敗時の`files\final-regression\restart-cleanup.json`も保持しています。
+同ファイルでは保存済みsettings/characters/素材指定がbyte単位で不変だったことも確認しています。
+
+## 日本語UX評価の範囲
+
+impeccableのnative Operate方針に従い、既存の画面・素材・操作を改善しました。
+文言は「ここで何を伝えるか」を整理し、周囲の表示を読んだうえで、
+口頭ならどう説明するかを考え、条件を保って短くしています。
+
+| 指摘 | 反映した内容 |
+|---|---|
+| R1 | privの確認待ち・相手番号取得・送信中を状態別に分けました。一括置換ではありません。 |
+| R2 | 終了保存失敗を日本語の主通知にし、記録保持と再試行を案内しました。 |
+| R3 | ゲームサーバー入力の修正動作とラベルを揃えました。 |
+| R4 | 未暗号化TCPとID/登録情報の注意を日本語で保持しました。 |
+| R5–R10 | ボタン名と動作を一致させ、実装者用語を利用者の操作へ置き換えました。取得元ごとの説明と重要な制約は維持しました。 |
+| R11 | 提供画面の基本操作ラベルを日本語へ統一しました。全メニューを翻訳済みという意味ではありません。 |
+| R12 | 狭い登録画面の世界一覧説明を折り返し、接続条件も全文へ到達できるようにしました。 |
+| N1/P2 | 「設定を編集画面へ取り込みました。『設定を保存』で適用します。」とし、取り込みと適用を区別しました。 |
+
+`552c33c`の提供17画面について、独立評価者はR1–R12の重大な指摘箇所を
+改善済みと判定しました。`9b2394a`でN1/P2を反映しています。
+独立評価は画面と文言の確認であり、通信やファイル保存の試験結果ではありません。
+保存結果は上記の実装側UIAバッチで別に確認しました。
+
+たとえば「設定を取り込む」だけでは適用時点が分かりにくいため、
+「編集画面へ取り込み、『設定を保存』で適用する」と行動を分けました。
+privも単なる「処理中」ではなく、その時点の確認/宛先取得/送信を表示します。
+未暗号化通信やID送信の注意は、否定形を一律に削る対象にはしていません。
+
+実送信中、待機/世界移動、素材設定、作成完了/部分保存失敗、設定下部、
+実キー/IME等の未提供状態を、独立レビュー済みには数えません。
+独立の一括再確認は終了しており、追加の微調整レビューは依頼していません。
+
+## 原典との差異と受け入れの残確認
+
+安全上の入力/画像/通信/設定サイズ上限、非公開宛先/redirect/共有パスの拒否、
+HTMLを実行しない処理はREADMEに記載しています。
+原典と完全同一という意味ではなく、意図した差異です。
+移植版の更新確認はこのリポジトリの公開Releasesを対象とし、wphiの配布物を導入しません。
+
+他スキンとactor状態装飾は、以前の残差記述を訂正しました。
+原典`src-tauri/src/assets.rs:36–37`はMine固定で、
+`ui/src/drawMap.ts:262–305`もstatusによる画像装飾をしていません。
+wphiにある機能を対象から外したという判断ではありません。
+
+残る実操作は次のとおりです。前面ガードを回避する代替操作は行いません。
+
+| 残確認 | 必要な操作と影響 |
+|---|---|
+| 物理キー/IME/focus | 所有モックへ接続し、日本語変換の確定Enterで送信されないこと、Esc/Tab、修飾移動、F8–F12/Alt+G、list優先、看板/priv/タグ編集中の競合、長押しを実キーで確認。REQ-019/026–029/048/056の受け入れに影響。 |
+| 音声/通知 | 利用可能なローカルWAVで正常再生、利用者の前面/背面切替で点滅抑制を確認。REQ-050の受け入れに影響。 |
+| 配置/DPI/アクセシビリティ | 製品の地図窓の再起動跨ぎ配置、resetを承認して現在画面への復帰、統合境界の物理ドラッグ、別DPI間移動、高contrastと読み上げを確認。主窓の通常再起動配置は修正/確認済み。REQ-053/056の受け入れに影響。 |
+| 残る所有native状態 | list待機、priv実送信中、別ホスト確認の製品画面。世界移動の予約待ち/成功後の保存と、登録成功後の保存失敗/再試行は今回の追加5項目ずつで確認済み。独立レビューへは追加していない。 |
+| その他の未実施操作 | 保存先folderの起動、更新ページの実起動、dialog中の独立窓操作抑制。実装と試験済み範囲を区別する。 |
+
+ユーザー不在による前面化の制約は未確認として記録します。
+必須checksが無いことやGitHub上のmergeable判定だけを、上記の受け入れ完了とは扱いません。
+未解決の今回要件を残したままマージする判断は行っていません。
+
+## 再実行と終了状態
+
+リポジトリ内で再実行できる回帰コマンドです。Coreとアプリの共有output更新が重ならないよう、
+順番に実行します。
+
+```powershell
+dotnet test .\PhiClient.Core.Tests\PhiClient.Core.Tests.csproj --no-restore --nologo -v:q
+dotnet build .\PhiClient\PhiClient.csproj -p:Platform=x64 --no-restore --nologo -v:q
+```
+
+native harnessは利用者のprofileへ接続しないため、固定された作業セッションと
+所有endpoint manifestを照合する専用手順です。任意のサーバーや既存プロフィールへ
+流用しないでください。`ui-chat.ps1 -MapWindowsOnly`、`ui-alltabs.ps1`、
+`ui-master.ps1`、`ui-transfer.ps1`、`ui-registration-save.ps1`の実行記録を保存しています。
+
+試験用サーバーは停止し、製品アプリは通常のpackaged起動で登録画面を残しています。
+試験用profileと保存故障用ファイルを片付け、設定・登録・実素材の指定を保持しました。
+PRはDraft、IssueはOpenのままです。物理キー/IME等の受け入れを完了扱いにせず、
+阻害条件を付けて引き継ぎます。
