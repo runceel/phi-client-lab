@@ -6,6 +6,7 @@ public sealed class LogScrollState
 {
     public bool Following { get; private set; } = true;
     public bool Enabled { get; private set; } = true;
+    public bool Searching { get; set; }
     public LogScrollAnchor? Anchor { get; set; }
     public double Offset { get; set; }
 
@@ -13,7 +14,11 @@ public sealed class LogScrollState
 
     public void Configure(bool enabled)
     {
-        if (enabled && !Enabled) Latest();
+        if (enabled && !Enabled)
+        {
+            if (Searching) Following = true;
+            else Latest();
+        }
         Enabled = enabled;
     }
 
@@ -31,6 +36,6 @@ public sealed class LogScrollState
     }
 
     public double Target(double maximum, Func<LogScrollAnchor, double?> resolve) =>
-        Math.Clamp(Enabled && Following ? maximum : Anchor is { } anchor
+        Math.Clamp(Enabled && Following && !Searching ? maximum : Anchor is { } anchor
             ? resolve(anchor) ?? Offset : Offset, 0, Math.Max(0, maximum));
 }

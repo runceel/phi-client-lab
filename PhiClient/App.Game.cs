@@ -65,6 +65,8 @@ partial class App
                     MenuItem(character.Name, () => _ = PerformAsync(() => OpenAsync(character)))).ToArray())),
             Menu("Operation",
                 ToggleMenuItem("Follow latest log", followLog, value => { followLog = value; refresh(); }),
+                MenuItem("ログを検索  |  Ctrl+F", () => { if (session is not null) OpenLogSearch(session); })
+                    with { IsEnabled = session is not null },
                 session is null ? MenuItem("ログ自動保存（キャラクター未選択）", () => { }) with { IsEnabled = false } :
                     ToggleMenuItem("このキャラクターのログを自動保存", session.Model.LogSaving,
                         value => ToggleLogSaving(session, value)),
@@ -220,7 +222,7 @@ partial class App
                 HStack(8, TextBlock("超魔法の手順を実行しています…").AutomationId("master-status"),
                     Button("残りの手順を中止", () => CancelMaster(session)).AutomationId("master-cancel")).Flex(shrink: 0),
             Caption($"{session.World} {session.Area}").AutomationId("world-location").Flex(shrink: 0),
-            log, choices.Flex(shrink: 0), SignEditor(session).Flex(shrink: 0),
+            log, LogSearchView(session).Flex(shrink: 0), choices.Flex(shrink: 0), SignEditor(session).Flex(shrink: 0),
             FlexRow(InputBox(session.Input, value =>
                 {
                     if (session.Input == value) return;
