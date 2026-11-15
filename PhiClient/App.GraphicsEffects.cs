@@ -7,7 +7,7 @@ partial class App
         var answer = await RequestDialogAsync(new("画像素材フォルダー",
             "tools\\Get-WphiGraphics.ps1で取得したwphi素材、wphiのソースフォルダー、または利用が許可されたPhillyフォルダーを指定してください。" +
             "画像は指定したローカルフォルダーのcharaとSkins\\Mineから読み込みます。素材ごとの利用条件を確認してください。" +
-            "空欄で読み込むと図形地図を表示します。",
+            "外部画像を優先し、欠落分は同梱の基本画像で補います。空欄で同梱画像だけに戻します。",
             "読み込む", "画像素材のローカルフォルダー", graphicsFolder, "graphics-folder"));
         if (!answer.Accepted) return;
         var folder = answer.Value.Trim();

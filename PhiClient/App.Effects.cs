@@ -41,7 +41,7 @@ partial class App
         animation.Interval = TimeSpan.FromMilliseconds(500);
         animation.Tick += (_, _) =>
         {
-            if (active is null || graphics.Folder.Length == 0 || !showMap) return;
+            if (active is null || !showMap) return;
             graphics.AnimationFrame ^= 1;
             refresh();
         };

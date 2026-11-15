@@ -159,7 +159,7 @@ partial class App
                 .IsEnabled(!busy && session.Map is not null).AutomationId("save-map-image"),
             WrappedMapButton("地図画像の保存先を開く", OpenMapImageFolder, Math.Max(120, width - 48))
                 .AutomationId("open-map-images"),
-            TextBlock("地図のクリックで移動、右クリックで攻撃します。\n簡易表示: ○はキャラクター、!は看板、*はアイテムです。")
+            TextBlock("地図のクリックで移動、右クリックで攻撃します。\n同梱の基本画像は、外部素材の固有の姿を再現するものではありません。")
                 .TextWrapping(Microsoft.UI.Xaml.TextWrapping.Wrap).FontSize(12)).Width(Math.Max(120, width - 48)))
             .HorizontalAlignment(Microsoft.UI.Xaml.HorizontalAlignment.Stretch).AutomationId("map-details")
     ).Width(width).IsEnabled(!busy && !dialogOpen && !closingApplication && model.SettingsEditor is null);

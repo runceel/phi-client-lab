@@ -267,7 +267,10 @@ partial class App
         var mapHeight = Math.Max(120, model.GameBodyHeight);
         var gameBody = compact
             ? replaceChatWithPriv ? (Element)PrivView(session, fill: true).Flex(grow: 1, basis: 0) : FlexColumn(
-                integratedMap ? ScrollViewer(map).Height(CompactMapHeight).Flex(shrink: 0) : Empty(), chat)
+                integratedMap ? (ScrollViewer(map) with
+                {
+                    VerticalScrollBarVisibility = Microsoft.UI.Xaml.Controls.ScrollBarVisibility.Visible
+                }).AutomationId("compact-map-scroll").Height(CompactMapHeight).Flex(shrink: 0) : Empty(), chat)
             : FlexRow(integratedMap
                     ? ScrollViewer(map).Width(mapWidth).Height(mapHeight).Flex(shrink: 0) : Empty(),
                 integratedMap ? MapSplitter(mapHeight) : Empty(),

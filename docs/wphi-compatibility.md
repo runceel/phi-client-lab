@@ -17,7 +17,8 @@ UIAのInvoke・Toggle・RangeValue・TextPatternによる操作は、物理入�
 
 UIは正式な`Microsoft.UI.Reactor 0.1.0-preview.17`を使用しています。
 Model/Update/Viewと、通信・保存・native操作を分けています。
-実素材は利用条件付きの外部フォルダー取り込みであり、ソースやMSIXへ同梱していません。
+原典の実素材は利用条件付きの外部フォルダー取り込みであり、ソースやMSIXへ同梱していません。
+別途制作したオリジナル基本画像だけを同梱しています。
 
 ## 追加の操作性改善
 
@@ -83,6 +84,41 @@ privは狭幅で会話を切り替え、同じ狭い領域へ2つのチャット
 独立identity試験で製品settingsのSHA256不変と、合成登録除去/metadata・試験設定の復元/終了code0を確認しました。
 これは失われた製品設定の復元ではありません。4値の確定と復旧は未解決のマージ阻害条件です。
 
+## オリジナル同梱画像の統合
+
+素材専用commit `505c89c`を`c2beffb`として取り込み、`assets\bundled-basic`のBMP14枚と
+manifest/素材専用MITライセンスをアプリContentへ追加しました。既存BMP decoderで透過を1回適用し、
+原典の画像や制作元PNGを加工・二重透過していません。actor12種で既定14コード、未知種別はwandererです。
+通常/独立/EagleEyeの既存renderer・座標・倍率を維持しました。
+外部のmapset→外部Default→同梱地形、外部items→同梱items、
+既存alias/画像名/名前/既定のactor→同梱actorの順で、読み込めた外部画像を優先します。
+候補プレビューは実画像だけのままで、同梱actorによる候補の偽装はしません。
+
+packaged x64は警告/エラー0、Coreは **Passed: 257, Failed: 0, Skipped: 0**。
+`files\bundled-regression\bundled-core.trx`へ結果を保存しました。
+別identityの最終残確認 `files\ui-bundled-20261115-200814\results.json` は **7/7 PASS**。
+package内14枚のSHA/ライセンス、未指定、外部地形/actorの優先と欠落item/actorの補完、
+外部item優先、空フォルダーからの復帰、独立地図/EagleEyeとPNGを確認しました。
+判定はbitmapの存在だけでなく、外部marker色と同梱画像の画素/マスクも照合しています。
+独立素材担当の画像単体検証とは区別した、アプリへ組み込んだ後の確認です。
+
+狭幅の状態行は`compact-map-scroll`の縦スクロール内へ収め、下端へ移動して
+HP/MP・Poison/Panicがログ境界より上に完全表示され、チャット入力が残ることを確認しました。
+証拠は `files\ui-bundled-20261115-200058\results.json` の
+`NarrowMapScrollExposesCompleteConditionsWithoutHidingChat` と `02-bundled-narrow-conditions.png`。
+このバッチの後続はdriver待機不足で失敗しており、バッチ全体の合格ではありません。
+その他の初期driverにもSelectionItem未対応、PNGの名前ラベルを含む外側寸法の誤期待、
+透過itemの空白画素での判定、円上itemの21px切り抜き範囲、複数行入力によるEagleEye要求の誤りがありました。
+中断結果は保持し、該当の残確認を上記最終7/7で完了しました。物理キー/IMEの試験には数えません。
+
+通常/狭幅の代表画像は`200058`の01/02、独立/EagleEyeは`200814`の06/07です。
+EagleEyeの07画像は外側スクロール上端で、下部補助情報は既存`detached-map-scroll`内です。
+独立窓の下端までのスクロール操作は今回の追加assertには含めていません。
+新たなレイアウト探索は行わず、新素材を含む予定した画面を確認しました。
+すべての独立試験後に合成登録を除去し、事前settings/metadata/素材指定のbytesまたは不在を復元、
+正常終了code0・製品3ファイルのSHA不変・app/mock停止・listener0を確認しました。
+これは前述した製品4値の復旧ではありません。
+
 ## 56項目の最終照合表
 
 実装欄のパスは、`Core:`が`PhiClient.Core`、`UI:`が`PhiClient`、
@@ -142,7 +178,7 @@ privは狭幅で会話を切り替え、同じ狭い領域へ2つのチャット
 | 048 | 入力/看板のタグ、選択とカーソル。Core: `TagEditing.cs`; UI: `App.TagInput.cs` | `TagEditingTests`、native 5項目。物理右クリック・IME中の実入力は保留。 |
 | 049 | 自動/HTML/text/buffer保存、folder、follow。Core: `LogStore.cs`; UI: `App.LogEffects.cs`, `App.ShutdownEffects.cs` | `LogStoreTests`、nativeログ・終了保存故障/復旧。folderを実際に開く操作は残確認。 |
 | 050 | SoundRegexp/File、NotFlash、前面抑制。Core: `SoundRules.cs`, `SoundFiles.cs`; UI: `App.SoundEffects.cs` | 純粋/CP932試験、native 6項目で失敗通知・復元。正常WAV実音、前面/背面通知は保留。 |
-| 051 | 実素材、優先順、reload、欠落、利用条件。Core: `MapGraphics.cs`; UI: `App.GraphicsEffects.cs` | 描画試験、`tools\Test-WphiGraphics.ps1`、実素材native。素材設定の独立評価は未提供。 |
+| 051 | 外部素材優先、同梱基本画像、reload、欠落、利用条件。Core: `MapGraphics.cs`; UI: `GraphicsStore.cs`, `App.GraphicsEffects.cs` | 描画試験、`tools\Test-WphiGraphics.ps1`、実素材native。同梱統合は`200814`の7項目と外部marker/同梱画素の照合。素材設定の独立評価は未提供。 |
 | 052 | 通常/EagleEye PNG、folder。UI: `App.MapEffects.cs` | native 5項目、独立PNGデコード・寸法/透明画素・目視。保存先を開く操作は残確認。 |
 | 053 | 独立/統合窓、配置、統合幅。UI: `App.MapWindow.cs`, `App.MapLayoutEffects.cs`, `MapPaneSplitter.cs`, `App.ShutdownEffects.cs` | native 9項目と製品主窓のprocess跨ぎ配置。別identity配置fixtureも確認。地図窓の再起動跨ぎ配置・reset肯定実行・別DPIドラッグは残確認。 |
 | 054 | 版情報、明示的更新確認、時刻trace。Core: `ProductRelease.cs`, `DiagnosticTrace.cs`; UI: `App.DiagnosticsEffects.cs` | 両Core試験、native 5項目。公開Releasesの実取得・外部ページ起動は試験対象外。 |
@@ -178,7 +214,7 @@ pool無効化ではcontrolの新規割当が増える可能性があります。
 
 ## native証拠
 
-次は作業セッション成果物内の相対パスです。ソースやパッケージへの素材同梱ではありません。
+次は作業セッション成果物内の相対パスです。原典素材をソースやパッケージへ同梱したという意味ではありません。
 以下の過去成功バッチでは設定復元と合成登録の削除を確認しました。
 後続`192504`の製品設定復元未完を、これらの過去結果で上書きしません。
 結果形式はarrayまたは`results`配列なので、どちらも確認対象にしています。
@@ -188,6 +224,8 @@ pool無効化ではcontrolの新規割当が増える可能性があります。
 | `files\ui-native-ux-20261115-192504\results.json` | 新登録等の前半7項目合格、後半はメニュー待機不足で中断、cleanup失敗。合格バッチではない。 |
 | `files\ui-native-ux-20261115-193809\results.json` | 別identityで候補取消/応答時scroll、明示接続、7パッドwire、整数倍率/再表示、狭幅会話/priv合格。狭幅titlebar不合格、cleanup/終了0は合格。 |
 | `files\ui-native-ux-20261115-194037\results.json` | 別identityの最終5/5。明示接続、狭幅map/chat/priv、titlebar/caption、独立地図150%/viewport、試験設定復元/終了0。製品settings hash不変。 |
+| `files\ui-bundled-20261115-200814\results.json` | 同梱統合の最終残確認7/7。package SHA、外部優先/欠落補完、空フォルダー指定保持、独立/EagleEyeとPNG、独立3ファイル復元/製品不変/終了0。 |
+| `files\ui-bundled-20261115-200058\results.json` | 狭幅の状態行下端到達は個別合格。後続driverの失敗を含むため全体合格ではない。 |
 | `files\ui-map-windows-20261115-163817\results.json` | 9項目。主窓pool無効版の幅・地図窓・設定・ログ選択・復元。 |
 | `files\ui-alltabs-20261115-164117\results.json` | 9項目。2タブ発言、大声、prefix、全接続/切断/強制、取消、復元。 |
 | `files\ui-master-20261115-164545\results.json` | 9項目。原典XML、資格、順序、整数/文字、危険操作取消、不正整数拒否、復元。hover/focus/物理キーなし。 |

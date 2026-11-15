@@ -34,6 +34,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="..\assets\bundled-basic\map.bmp;..\assets\bundled-basic\items.bmp;..\assets\bundled-basic\manifest.json;..\assets\bundled-basic\LICENSE.txt"
+             Link="Assets\BundledBasic\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\assets\bundled-basic\actors\*.bmp"
+             Link="Assets\BundledBasic\actors\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="Assets\AppIcon.ico" CopyToPublishDirectory="PreserveNewest" />
     <Manifest Include="$(ApplicationManifest)" />
   </ItemGroup>

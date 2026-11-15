@@ -9,6 +9,10 @@ namespace PhiClient;
 internal sealed class GraphicsStore
 {
     private readonly Dictionary<string, PixelImage?> images = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, PixelImage?> bundledImages = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly string DefaultChip = Path.Combine("Skins", "Mine", "chip", "Default.bmp");
+    private static readonly string ItemsSheet = Path.Combine("Skins", "Mine", "Images", "Items.bmp");
+    private static readonly string BundledFolder = Path.Combine(AppContext.BaseDirectory, "Assets", "BundledBasic");
     private readonly Dictionary<string, string> aliases = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> defaults = new(StringComparer.Ordinal);
     private readonly HashSet<string> issues = new(StringComparer.OrdinalIgnoreCase);
@@ -18,8 +22,9 @@ internal sealed class GraphicsStore
     public string Folder { get; private set; } = "";
     public int Revision { get; private set; }
     public int AnimationFrame { get; set; }
-    public string Notice => Folder.Length == 0 ? "図形地図を表示しています。「View」→「画像素材フォルダー…」でwphi素材を読み込めます。"
-        : issues.Count == 0 ? "ローカルの画像素材を読み込みました。" : "画像素材の読み込みを確認してください: " + string.Join(" | ", issues.Take(4));
+    public string Notice => (Folder.Length == 0 ? "同梱の基本画像を表示します。外部素材は「View」→「画像素材フォルダー…」で指定できます。"
+        : "外部素材を優先し、未設定・欠落した画像だけ同梱の基本画像で補います。") +
+        (issues.Count == 0 ? "" : " 読み込みを確認してください: " + string.Join(" | ", issues.Take(4)));
 
     public async Task SetFolderAsync(string folder)
     {
@@ -32,6 +37,7 @@ internal sealed class GraphicsStore
             if (Folder.Length > 0 && Directory.Exists(Path.Combine(Folder, "resources", "phi", "chara")))
                 Folder = Path.Combine(Folder, "resources", "phi");
             images.Clear();
+            bundledImages.Clear();
             aliases.Clear();
             defaults.Clear();
             issues.Clear();
@@ -97,28 +103,45 @@ internal sealed class GraphicsStore
 
     private string ChipPath(string name)
     {
+        if (Folder.Length == 0) return DefaultChip;
         if (resolvedChips.TryGetValue(name, out var cached)) return cached;
         if (resolvedChips.Count >= 4096) resolvedChips.Clear();
         var path = GraphicsNames.Allowed(name) && name != "default" ? Path.Combine("chip", name + ".bmp") : "";
         if (path.Length > 0 && File.Exists(Path.Combine(Folder, path))) return resolvedChips[name] = path;
         if (path.Length > 0) AddIssue($"Missing mapset '{name}'; using Default.bmp.");
-        return resolvedChips[name] = Path.Combine("Skins", "Mine", "chip", "Default.bmp");
+        return resolvedChips[name] = DefaultChip;
     }
+
+    private static string BundledCharacter(Actor actor) => Path.Combine("actors", (actor.DefaultGraphic switch
+    {
+        0 or 0x40 => "person", 2 => "beast", 3 => "berserker", 4 => "golem", 5 => "skeleton",
+        6 => "spirit", 7 => "eraser", 0x81 => "sign", 0x82 => "magic",
+        0x70 => "animated-object", 0x75 => "object", _ => "wanderer"
+    }) + ".bmp");
 
     public async Task PrepareAsync(GameSession session)
     {
         await gate.WaitAsync();
         try
         {
-            if (Folder.Length == 0) return;
-            foreach (var mapset in session.MapSets) await LoadAsync(ChipPath(mapset), 1);
-            await LoadAsync(Path.Combine("Skins", "Mine", "Images", "Items.bmp"), 2);
+            await LoadAsync("map.bmp", 1, bundled: true);
+            await LoadAsync("items.bmp", 2, bundled: true);
+            if (Folder.Length > 0)
+            {
+                await LoadAsync(DefaultChip, 1);
+                foreach (var mapset in session.MapSets) await LoadAsync(ChipPath(mapset), 1);
+                await LoadAsync(ItemsSheet, 2);
+            }
             foreach (var actor in (session.Map?.Actors ?? []).Concat(
                 session.Eagle is { } eagle ? EagleBoard.Build(eagle).Actors : []).Distinct())
             {
-                var path = CharacterPath(actor);
-                if (path is not null) await LoadAsync(path, 0);
-                else AddIssue($"Character image unavailable: {actor.Name} ({actor.Graphic}).");
+                await LoadAsync(BundledCharacter(actor), 0, bundled: true);
+                if (Folder.Length > 0)
+                {
+                    var path = CharacterPath(actor);
+                    if (path is not null) await LoadAsync(path, 0);
+                    else AddIssue($"外部キャラクター画像がないため基本画像で補います: {actor.Name} ({actor.Graphic})。");
+                }
             }
         }
         finally { gate.Release(); }
@@ -143,20 +166,21 @@ internal sealed class GraphicsStore
         finally { gate.Release(); }
     }
 
-    private async Task LoadAsync(string relative, int kind)
+    private async Task LoadAsync(string relative, int kind, bool bundled = false)
     {
-        if (images.ContainsKey(relative)) return;
-        if (images.Count >= 512)
+        var cache = bundled ? bundledImages : images;
+        if (cache.ContainsKey(relative)) return;
+        if (cache.Count >= 512)
         {
             AddIssue("Graphics cache limit reached (512 sheets). Reload graphics to clear it.");
             return;
         }
-        images.Add(relative, null);
+        cache.Add(relative, null);
         try
         {
             if (!GraphicsNames.Allowed(Path.GetFileName(relative)))
                 throw new ArgumentException("This graphic filename is excluded.");
-            var path = Path.Combine(Folder, relative);
+            var path = Path.Combine(bundled ? BundledFolder : Folder, relative);
             var file = new FileInfo(path);
             if (!file.Exists) throw new FileNotFoundException("File not found.");
             if (file.Length > 8 * 1024 * 1024) throw new IOException("Image exceeds 8 MiB.");
@@ -166,13 +190,13 @@ internal sealed class GraphicsStore
                 throw new IOException("Image exceeds 2048 pixels.");
             var data = await decoder.GetPixelDataAsync(BitmapPixelFormat.Bgra8, BitmapAlphaMode.Straight,
                 new BitmapTransform(), ExifOrientationMode.IgnoreExifOrientation, ColorManagementMode.DoNotColorManage);
-            images[relative] = new PixelImage((int)decoder.PixelWidth, (int)decoder.PixelHeight, data.DetachPixelData())
+            cache[relative] = new PixelImage((int)decoder.PixelWidth, (int)decoder.PixelHeight, data.DetachPixelData())
                 .Transparent(horizontalMask: kind == 1, verticalMask: kind == 2);
             Revision++;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or COMException)
         {
-            AddIssue($"{relative}: {ex.Message}");
+            AddIssue($"{(bundled ? "同梱画像" : "外部画像")} {relative}: {ex.Message}");
         }
     }
 
@@ -180,19 +204,22 @@ internal sealed class GraphicsStore
     {
         var eagle = session.ShowEagle ? session.Eagle : null;
         var map = display?.Frame ?? session.Map;
-        if (Folder.Length == 0 || map is null && eagle is null) return null;
+        if (map is null && eagle is null) return null;
         var frame = eagle is null ? AnimationFrame : 0;
         var slide = eagle is null && smooth && session.NorthFixed ? session.Model.Motion.Offset : (0, 0);
         var key = (map, eagle, session.Model.MapSets, Revision, frame, rasterScale, zoom, slide.Item1, slide.Item2);
         if (session.GraphicsKey == key && session.GraphicsImage is not null) return session.GraphicsImage;
         PixelImage? Get(string path) => images.GetValueOrDefault(path);
+        PixelImage? Bundled(string path) => bundledImages.GetValueOrDefault(path);
         var board = eagle is null ? null : EagleBoard.Build(eagle);
         var dim = board?.Dim ?? map!.Size;
         var actors = board?.Actors ?? map!.Actors;
-        PixelImage? Character(Actor actor) => CharacterPath(actor) is { } path ? Get(path) : null;
+        PixelImage? Character(Actor actor) =>
+            (Folder.Length > 0 && CharacterPath(actor) is { } path ? Get(path) : null) ?? Bundled(BundledCharacter(actor));
         var rendered = MapGraphics.Draw(dim, dim,
             board?.Tiles ?? map!.Tiles, board?.Attributes ?? map!.Attributes, actors,
-            slot => Get(ChipPath(session.MapSets[slot])), Get(Path.Combine("Skins", "Mine", "Images", "Items.bmp")),
+            slot => Get(ChipPath(session.MapSets[slot])) ?? Get(DefaultChip) ?? Bundled("map.bmp"),
+            Get(ItemsSheet) ?? Bundled("items.bmp"),
             Character, frame, eagle is not null, eagle is null ? display?.Recalled : null, slide.Item1, slide.Item2);
         session.GraphicsWidth = (int)Math.Round(rendered.Width * zoom);
         session.GraphicsHeight = (int)Math.Round(rendered.Height * zoom);
