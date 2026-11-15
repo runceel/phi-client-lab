@@ -73,8 +73,10 @@ partial class App
         if (session.Map is not { } map) return null;
         var enabled = model.Options.Automap && session.NorthFixed;
         var memory = model.Automaps.GetValueOrDefault(session.World) ?? EmptyMapping;
-        var zoom = model.Options.MapZoom / 100.0;
-        var ring = Automap.RingFor(session.MapViewportWidth, session.MapViewportHeight - 16 * zoom, 32 * zoom);
+        // Auto chooses recalled rings at a fixed logical scale, never from its own fitted output.
+        var zoom = model.Options.MapZoom == 0 ? 1 : model.Options.MapZoom / 100.0;
+        var ring = Automap.RingFor(model.Options.MapZoom == 0 ? MapContentWidth : session.MapViewportWidth,
+            (model.Options.MapZoom == 0 ? MapHeightBudget : session.MapViewportHeight) - 16 * zoom, 32 * zoom);
         var key = (map, memory, session.Model.Prediction.Offset, ring, enabled);
         if (session.DisplayKey == key && session.Display is not null) return session.Display;
         session.DisplayKey = key;

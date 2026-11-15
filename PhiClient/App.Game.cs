@@ -253,8 +253,7 @@ partial class App
         var integratedMap = showMap && model.Options.SingleWindow && !showCharacters;
         var compact = windowWidth < 760;
         var replaceChatWithPriv = session.Model.Priv.Visible && windowWidth < 1100;
-        var mapWidth = compact ? Math.Min(model.Options.MapPaneWidth, Math.Max(200, windowWidth - 48)) :
-            MapPaneLayout.Width(model.Options.MapPaneWidth, MapAvailableWidth);
+        var mapWidth = IntegratedMapWidth;
         var map = MapPane(session, mapWidth - 16);
         var mapHeight = Math.Max(120, model.GameBodyHeight);
         var gameBody = compact
@@ -299,7 +298,7 @@ partial class App
     {
         var bitmap = session.GraphicsImage;
         if (bitmap is null) return GameViews.Map(session, (x, y) => MapClick(session, x, y), () => Send(session, "hit"),
-            DisplayMap(session), model.Options.MapZoom / 100.0)
+            DisplayMap(session), EffectiveMapZoom(session))
                 .OnMount(element => AttachMapSurface((FrameworkElement)element, session));
         // The preview's Image descriptor requires a URI even when OnMount supplies a live bitmap.
         var picture = Image("ms-appx:///Assets/Square44x44Logo.scale-200.png")
