@@ -13,6 +13,7 @@ public sealed record InputAction(string[] Commands)
     public bool Numeric { get; init; }
     public string? Confirmation { get; init; }
     public bool AutoUnequip { get; init; }
+    public bool AutoReequip { get; init; }
     public int HiddenLists { get; init; }
     public bool Repeatable { get; init; }
     public int Number { get; init; }
@@ -25,10 +26,43 @@ public static class GameInput
     public static InputAction Spell(string name, bool unequip = true) =>
         new(["cast", name]) { HiddenLists = 1, AutoUnequip = unequip };
 
+    public static InputAction ApplyOptions(InputAction action, ClientOptions options) => action with
+    {
+        AutoUnequip = action.AutoUnequip && options.AutoUnequipSystemMagic,
+        AutoReequip = action.AutoUnequip && options.AutoUnequipSystemMagic && options.AutoEquipSystemMagic &&
+            action.Commands.Length >= 2 && action.Commands[0] == "cast" &&
+            action.Commands[1] is "wizard eye" or "wizard light" or "list" or "eagle eye" or "identify" or
+                "party eye" or "wizard lock" or "unlock" or "call" or "return"
+    };
+
+    public static string? FirstWeaponName(Choices list)
+    {
+        var text = list.Items.FirstOrDefault(choice => choice.Number == "1")?.Text;
+        if (text is null) return null;
+        var wp = text.LastIndexOf("Wp  :", StringComparison.Ordinal);
+        if (wp < 0) wp = text.IndexOf("Wp", StringComparison.Ordinal);
+        if (wp < 0 || !text[wp..].Contains("[Wpn]", StringComparison.Ordinal)) return null;
+        return text[..wp].Trim();
+    }
+
     // ConsoleKey provides portable key identifiers with the same codes as Windows virtual keys.
     public static InputAction? Resolve(ConsoleKey key, bool northUp, bool fullKeys = true,
-        bool shift = false, bool control = false, bool alt = false, bool listing = false, bool extended = false)
+        bool shift = false, bool control = false, bool alt = false, bool listing = false, bool extended = false,
+        ClientOptions? options = null)
     {
+        if (options is not null && !control && !shift)
+        {
+            var macro = alt && key == ConsoleKey.G ? options.AltGWord :
+                !alt && key is >= ConsoleKey.F8 and <= ConsoleKey.F12
+                    ? (listing ? options.ListShortcuts : options.Shortcuts)[key - ConsoleKey.F8] : "";
+            if (macro.Length > 0)
+            {
+                var lines = macro.Replace("\\n", "\n", StringComparison.Ordinal)
+                    .Split('\n').Select(line => line.TrimEnd('\r')).ToArray();
+                foreach (var line in lines) PhiWire.ValidateLine(line);
+                return Command(lines);
+            }
+        }
         if (key == ConsoleKey.Tab && control && !alt)
             return Intent(shift ? InputIntent.PreviousTab : InputIntent.NextTab);
         if (control && (shift || alt))

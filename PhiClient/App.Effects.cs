@@ -83,6 +83,8 @@ partial class App
 
     private async Task LoadAsync()
     {
+        settingsStore ??= new(Path.Combine(store.Folder, "settings.json"));
+        Dispatch(new ClientMessage.OptionsChanged(await settingsStore.LoadAsync(worldLifetime.Token)));
         characters = await store.LoadAsync();
         Dispatch(new ClientMessage.WorldsLoaded(await WorldsClient.LoadAsync(worldLifetime.Token)));
         loaded = true;

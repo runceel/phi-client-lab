@@ -18,7 +18,8 @@ partial class App : Component
         refresh = Refresh;
         UseEffect(StartServices, Array.Empty<object>());
 
-        Element content = active is null || model.Worlds.Visible
+        Element content = model.SettingsEditor is not null ? SettingsView().Flex(grow: 1, basis: 0) :
+            active is null || model.Worlds.Visible
             ? ScrollViewer(WorldDirectoryView()).AutomationId("world-directory").Flex(grow: 1, basis: 0)
             : TabView(sessions.IndexOf(active), index =>
                 {
@@ -35,7 +36,7 @@ partial class App : Component
             TitleBar("PHI Client").Flex(shrink: 0),
             AppMenu().Flex(shrink: 0),
             TextBlock(notice).TextWrapping(TextWrapping.Wrap).Padding(16, 8).AutomationId("notice").Flex(shrink: 0),
-            FlexRow(showCharacters || active is null ? CharacterSidebar() : Empty(), content)
+            FlexRow(model.SettingsEditor is null && (showCharacters || active is null) ? CharacterSidebar() : Empty(), content)
                 .Flex(grow: 1, basis: 0).FlexPadding(16),
             DialogView()
         ).Backdrop(BackdropKind.Mica).OnPreviewKeyDown(OnGameKeyDown);

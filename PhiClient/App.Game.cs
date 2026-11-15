@@ -32,6 +32,7 @@ partial class App
                 MenuSeparator(),
                 MenuItem("Close tab", () => { if (session is not null) CloseTab(session); })
                     with { IsEnabled = session is not null },
+                MenuItem("設定…", OpenSettings) with { IsEnabled = !busy },
                 MenuItem("Characters / registration", () => { showCharacters = !showCharacters; refresh(); })),
             Menu("Character",
                 MenuItem("Next tab  |  Ctrl+Tab", () => CycleTab(1)),

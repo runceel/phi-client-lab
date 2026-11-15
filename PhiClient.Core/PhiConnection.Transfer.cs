@@ -67,6 +67,11 @@ public sealed partial class PhiConnection
     {
         transferring = true;
         Interlocked.Increment(ref transportGeneration);
+        lock (automation)
+        {
+            equipmentPromptUntil = equipmentConfirmationUntil = 0;
+            reequipRequested = false;
+        }
         Received?.Invoke(new TransferProgress(true));
         var locked = false;
         var accepted = false;

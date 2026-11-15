@@ -13,6 +13,8 @@ public sealed partial class PhiConnection : IDisposable
     private int hiddenLists;
     private long hideUntil;
     private long equipmentPromptUntil;
+    private long equipmentConfirmationUntil;
+    private bool reequipRequested;
     private long lastReceive = Environment.TickCount64;
     private NetworkStream? stream;
     public event Action<ServerEvent>? Received;
@@ -131,7 +133,10 @@ public sealed partial class PhiConnection : IDisposable
             {
                 var response = new TaskCompletionSource<Choices?>(TaskCreationOptions.RunContinuationsAsynchronously);
                 lock (automation)
+                {
                     equipment = response;
+                    reequipRequested = action.AutoReequip;
+                }
                 Choices? list;
                 try
                 {
@@ -145,13 +150,17 @@ public sealed partial class PhiConnection : IDisposable
                 finally
                 {
                     lock (automation)
+                    {
                         equipment = null;
+                        reequipRequested = false;
+                    }
                 }
                 if (list is not null)
                 {
-                    var weapon = list.Items.Any(choice => choice.Number == "1" &&
-                        choice.Text.Contains("[Wpn]", StringComparison.OrdinalIgnoreCase));
-                    commands = [weapon ? "1" : ".", .. commands];
+                    var weaponName = GameInput.FirstWeaponName(list);
+                    commands = [weaponName is not null ? "1" : ".", .. commands];
+                    if (action.AutoReequip && weaponName is not null)
+                        commands = [.. commands, "equip " + weaponName];
                 }
             }
             await SendBatchAsync(commands, linked.Token, action.HiddenLists, generation);
@@ -172,6 +181,8 @@ public sealed partial class PhiConnection : IDisposable
                 if (item is Choices { Complete: true } list && equipment.TrySetResult(list))
                 {
                     equipmentPromptUntil = now + 5000;
+                    if (reequipRequested && GameInput.FirstWeaponName(list) is not null)
+                        equipmentConfirmationUntil = now + 5000;
                     return true;
                 }
                 if (item is LogLine line && (line.Text.Contains("装備を外せません", StringComparison.Ordinal) ||
@@ -182,9 +193,16 @@ public sealed partial class PhiConnection : IDisposable
             }
             if (item is LogLine prompt && now < equipmentPromptUntil &&
                 (prompt.Text.Contains("外す装備を選択", StringComparison.Ordinal) ||
+                    prompt.Text.Contains("Input item number to unequip.", StringComparison.Ordinal) ||
                     prompt.Text.Contains("Select equipment to unequip", StringComparison.OrdinalIgnoreCase)))
             {
                 equipmentPromptUntil = 0;
+                return true;
+            }
+            if (item is LogLine equipped && now < equipmentConfirmationUntil &&
+                equipped.Text.Contains("を装備した", StringComparison.Ordinal))
+            {
+                equipmentConfirmationUntil = 0;
                 return true;
             }
             if (item is Choices { Complete: true } && hiddenLists > 0)

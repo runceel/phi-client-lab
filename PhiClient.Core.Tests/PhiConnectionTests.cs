@@ -337,4 +337,58 @@ public sealed class PhiConnectionTests
         await Task.WhenAll(server, running).WaitAsync(timeout.Token);
         Assert.Equal([new Choice("1", "Potion")], Assert.Single(lists).Items);
     }
+
+    [Theory]
+    [InlineData("wizard eye", true, true, "Wpn", true)]
+    [InlineData("wizard eye", true, false, "Wpn", false)]
+    [InlineData("detect", true, true, "Wpn", false)]
+    [InlineData("wizard eye", false, true, "Wpn", false)]
+    [InlineData("wizard eye", true, true, "Arm", false)]
+    public async Task SpellOptionsReequipOnlyRemovedWeaponAndPreserveLiteralAndLaterConfirmation(
+        string spell, bool unequip, bool reequip, string kind, bool expectReequip)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        using var connection = new PhiConnection();
+        var ready = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var events = new ConcurrentQueue<ServerEvent>();
+        connection.Received += item =>
+        {
+            events.Enqueue(item);
+            if (item is ConnectionReady) ready.TrySetResult();
+        };
+        var server = Task.Run(async () =>
+        {
+            using var peer = await listener.AcceptTcpClientAsync(timeout.Token);
+            var stream = peer.GetStream();
+            using var reader = new StreamReader(stream, PhiWire.Encoding, false, 1024, true);
+            for (var i = 0; i < 11; i++) await reader.ReadLineAsync(timeout.Token);
+            if (unequip)
+            {
+                Assert.Equal("unequip", await reader.ReadLineAsync(timeout.Token));
+                await stream.WriteAsync(PhiWire.Encode($"#list\n[ 1] Wpの剣 Wp  :  5 [{kind}]\n" +
+                    "[ 2] 別の武器 Wp  :  5 [Wpn]\n#end-list\nInput item number to unequip.\n"), timeout.Token);
+                Assert.Equal(kind == "Wpn" ? "1" : ".", await reader.ReadLineAsync(timeout.Token));
+            }
+            Assert.Equal("cast", await reader.ReadLineAsync(timeout.Token));
+            Assert.Equal(spell, await reader.ReadLineAsync(timeout.Token));
+            if (expectReequip)
+                Assert.Equal("equip Wpの剣", await reader.ReadLineAsync(timeout.Token));
+            Assert.Equal("done", await reader.ReadLineAsync(timeout.Token));
+            await stream.WriteAsync(PhiWire.Encode("#more\n本を装備した\n#end-more\n" +
+                "剣を装備した\n鎧を装備した\n#close\n"), timeout.Token);
+        }, timeout.Token);
+        var running = connection.RunAsync("127.0.0.1", ((IPEndPoint)listener.LocalEndpoint).Port, "test-character", timeout.Token);
+        await ready.Task.WaitAsync(timeout.Token);
+        await connection.SendActionAsync(GameInput.ApplyOptions(GameInput.Spell(spell),
+            new ClientOptions { AutoUnequipSystemMagic = unequip, AutoEquipSystemMagic = reequip }), timeout.Token);
+        await connection.SendAsync(["done"], timeout.Token);
+        await Task.WhenAll(server, running);
+        Assert.Contains(new LogLine("本を装備した"), events);
+        Assert.Contains(new LogLine("鎧を装備した"), events);
+        Assert.Equal(!expectReequip, events.Contains(new LogLine("剣を装備した")));
+        Assert.DoesNotContain(new LogLine("Input item number to unequip."), events);
+        Assert.DoesNotContain(events.OfType<Choices>(), list => list.Complete);
+    }
 }

@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Text.Json.Serialization;
 
 namespace PhiClient.Core;
 
@@ -6,11 +7,36 @@ public sealed record SavedCharacter(string Key, string Name, string Host, int Po
 public sealed record CharacterDraft(string Name = "", string Host = "", string Port = "2000",
     string Id = "", string Password = "", string Image = "0", string Email = "");
 public sealed record ClientOptions(bool ShowCharacters = true, bool ShowMap = true,
-    bool FullKeys = true, bool FollowLog = true);
+    [property: JsonPropertyName("fullKeyMove")] bool FullKeys = true, bool FollowLog = true)
+{
+    public ImmutableArray<string> Shortcuts { get; init; } = ["", "", "", "", ""];
+    public ImmutableArray<string> ListShortcuts { get; init; } = ["", "", "", "", ""];
+    public string AltGWord { get; init; } = "";
+    public bool SoundPlay { get; init; } = true;
+    public bool TaskBarFlash { get; init; } = true;
+    public bool LogSaveHtml { get; init; } = true;
+    public bool LogDispTime { get; init; } = true;
+    public string LogFontName { get; init; } = "";
+    public uint LogFontSize { get; init; }
+    public bool LogTagDeleteCopy { get; init; }
+    public bool LogTagDeleteAlways { get; init; }
+    public bool LogTimeDelete { get; init; } = true;
+    public bool LogNameDelete { get; init; }
+    public bool LogTagCancel { get; init; }
+    public bool AutoUnequipSystemMagic { get; init; } = true;
+    public bool AutoEquipSystemMagic { get; init; }
+    public bool MasterMagicMenu { get; init; }
+    public int MapZoom { get; init; } = 100;
+    public bool Automap { get; init; } = true;
+    public bool SmoothMove { get; init; }
+    public bool SingleWindow { get; init; }
+}
 public sealed record DialogModel(string Title, string Text, string? Accept = null,
     string? InputLabel = null, string Value = "", string InputId = "action-answer",
     bool Secret = false, bool Reveal = false);
 public sealed record DialogAnswer(bool Accepted, string Value);
+public sealed record SettingsEditorModel(ClientOptions Value, string Zoom, string FontSize,
+    string ImportPath = "", string Message = "");
 
 public sealed record ClientModel
 {
@@ -25,6 +51,7 @@ public sealed record ClientModel
     public bool Loaded { get; init; }
     public bool Busy { get; init; }
     public DialogModel? Dialog { get; init; }
+    public SettingsEditorModel? SettingsEditor { get; init; }
     public int GraphicsRevision { get; init; }
     public string GraphicsNotice { get; init; } = "";
     public WorldDirectoryModel Worlds { get; init; } = new();
@@ -34,6 +61,7 @@ public abstract record ClientMessage
 {
     public sealed record DraftChanged(CharacterDraft Value) : ClientMessage;
     public sealed record OptionsChanged(ClientOptions Value) : ClientMessage;
+    public sealed record SettingsEdited(SettingsEditorModel? Value) : ClientMessage;
     public sealed record CharactersChanged(IReadOnlyList<SavedCharacter> Value) : ClientMessage;
     public sealed record NoticeChanged(string Value) : ClientMessage;
     public sealed record DeleteMarked(string? Key) : ClientMessage;
@@ -63,6 +91,7 @@ public static class ClientUpdate
     {
         ClientMessage.DraftChanged edit => model with { Draft = edit.Value },
         ClientMessage.OptionsChanged edit => model with { Options = edit.Value },
+        ClientMessage.SettingsEdited edit => model with { SettingsEditor = edit.Value },
         ClientMessage.CharactersChanged edit => model with { Characters = edit.Value.ToImmutableArray() },
         ClientMessage.NoticeChanged edit => model with { Notice = edit.Value },
         ClientMessage.DeleteMarked edit => model with { PendingDelete = edit.Key },

@@ -56,6 +56,22 @@ When registering the published folder directly, supply the MSBuild-generated
 unexpanded source `Package.appxmanifest`. A successful build alone does not
 verify that the trimmed package activates.
 
+## 設定
+
+**File > 設定…** から編集し、**設定を保存** でこのPCの `settings.json` に保存します。
+閉じると未保存の変更を破棄します。Philly.iniの取り込みは編集画面に反映するだけで、
+保存・接続・キャラクターIDの取り込みは行いません。キーは原典と同じ大文字小文字で解釈し、
+重複項目は先頭を採用します。
+
+F8–F12は通常時とリスト表示中で別の送信文字列を設定でき、`\n` は改行として送ります。
+Alt+Gとフルキー移動も設定できます。自動装備を有効にすると、原典と同じ対象選択のない
+系統魔法だけ、実際に外した1番の武器を名前で装備し直します。detectなどの対象選択魔法では
+装備し直しません。自動装備・武器を外す操作はそれぞれ無効にできます。
+
+設定の保存・キー・自動装備は実装済みです。拡張マップ、ログ表示・コピー・通知、
+独立マップ窓などの設定を各機能へ適用する作業と実UIでの確認は、互換性監査の後続作業です。
+これらは対応範囲から除外していません。
+
 ## Playing
 
 1. Register an existing character: enter a display name, server hostname, TCP

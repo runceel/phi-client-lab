@@ -18,7 +18,8 @@ partial class App
 
     private void OnGameKeyDown(object sender, KeyRoutedEventArgs args)
     {
-        if (active is not { } session || model.Worlds.Visible || dialogOpen || Down(VirtualKey.LeftWindows) || Down(VirtualKey.RightWindows))
+        if (active is not { } session || model.Worlds.Visible || model.SettingsEditor is not null ||
+            dialogOpen || Down(VirtualKey.LeftWindows) || Down(VirtualKey.RightWindows))
             return;
         var control = Down(VirtualKey.Control);
         var shift = Down(VirtualKey.Shift);
@@ -57,7 +58,7 @@ partial class App
             _ => (ConsoleKey)args.Key
         };
         var action = GameInput.Resolve(key, session.NorthFixed, fullKeys, shift, control, alt,
-            session.Selection.Active, args.KeyStatus.IsExtendedKey);
+            session.Selection.Active, args.KeyStatus.IsExtendedKey, model.Options);
         if (action is null)
             return;
         args.Handled = true;
@@ -165,6 +166,7 @@ partial class App
             session.Dispatch(new GameMessage.EditingChanged(true));
             action = GameInput.Command("write");
         }
+        action = GameInput.ApplyOptions(action, model.Options);
         session.Dispatch(new GameMessage.PreparingChanged(action.AutoUnequip));
         refresh();
         try { await connection.SendActionAsync(action); }
