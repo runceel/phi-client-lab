@@ -37,6 +37,33 @@ internal sealed class LogPresenter(Action<IReadOnlyList<LogEntry>, bool> copy, A
     private ImmutableDictionary<string, LogImageState>? images;
     private readonly Dictionary<string, ImageSource> bitmaps = [];
     private long? pressedRow;
+    private LogViewport? viewport;
+
+    public LogViewport CreateViewport(LogScrollState state, string id) =>
+        viewport = new LogViewport(this, state, id);
+
+    internal LogScrollAnchor? CaptureAnchor(double offset)
+    {
+        var pointer = Control.GetPositionFromPoint(new Windows.Foundation.Point(0, offset + 1));
+        if (pointer is null || Owner(pointer) is not { } row || !paragraphs.TryGetValue(row, out var paragraph))
+            return null;
+        var rect = pointer.GetCharacterRect(LogicalDirection.Forward);
+        return new(row, Math.Max(0, pointer.Offset - paragraph.ContentStart.Offset), rect.Top - offset);
+    }
+
+    internal double? ResolveAnchor(LogScrollAnchor anchor)
+    {
+        if (!paragraphs.TryGetValue(anchor.Row, out var paragraph))
+        {
+            var next = entries.FirstOrDefault(row => row.Id >= anchor.Row) ?? entries.FirstOrDefault();
+            return next is not null && paragraphs.TryGetValue(next.Id, out paragraph)
+                ? paragraph.ContentStart.GetCharacterRect(LogicalDirection.Forward).Top : 0;
+        }
+        var length = Math.Max(0, paragraph.ContentEnd.Offset - paragraph.ContentStart.Offset);
+        var pointer = paragraph.ContentStart.GetPositionAtOffset(Math.Clamp(anchor.Character, 0, length),
+            LogicalDirection.Forward);
+        return pointer?.GetCharacterRect(LogicalDirection.Forward).Top - anchor.Top;
+    }
 
     public Grid Surface
     {
@@ -86,11 +113,13 @@ internal sealed class LogPresenter(Action<IReadOnlyList<LogEntry>, bool> copy, A
     public void Update(ImmutableArray<LogEntry> value, ClientOptions options,
         ImmutableDictionary<string, LogImageState>? imageStates = null)
     {
+        viewport?.Configure(options.FollowLog);
         var next = new Presentation(options.LogFontName, options.LogFontSize, options.LogDispTime,
             options.LogUrlLink, options.LogImageDisp, options.LogImageDispURL, options.LogImageLinkDisp,
             options.LogImageDispLoud, options.LogLargeDispLoud, options.NotInterpretedTagDisp);
         if (presentation != next || !ReferenceEquals(images, imageStates))
         {
+            viewport?.ContentChanged();
             Control.Blocks.Clear();
             paragraphs.Clear();
             owners.Clear();
@@ -101,6 +130,7 @@ internal sealed class LogPresenter(Action<IReadOnlyList<LogEntry>, bool> copy, A
             Control.FontSize = options.LogFontSize == 0 ? 14 : options.LogFontSize;
         }
         if (entries == value && paragraphs.Count == value.Length) return;
+        viewport?.ContentChanged();
         layoutVersion++;
         entries = value;
         var retained = value.Select(row => row.Id).ToHashSet();

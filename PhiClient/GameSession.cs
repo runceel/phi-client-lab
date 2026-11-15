@@ -38,6 +38,8 @@ internal sealed class GameSession(SavedCharacter character, Func<GameModel> read
     public IReadOnlyList<string> Log => Model.Log;
     public LogPresenter? LogPresenter { get; set; }
     public LogPresenter? PrivPresenter { get; set; }
+    public LogScrollState LogScroll { get; } = new();
+    public Dictionary<string, LogScrollState> PrivScroll { get; } = [];
     public Microsoft.UI.Xaml.Controls.TextBox? PrivInput { get; set; }
     public Microsoft.UI.Xaml.Controls.TextBox? SignInput { get; set; }
     public Microsoft.UI.Xaml.FrameworkElement? MapSurface { get; set; }
