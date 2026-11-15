@@ -26,19 +26,19 @@ partial class App
                     string.Join("・", conversation.To) + (conversation.Unread ? "（未読）" : ""))
                     .TextWrapping(TextWrapping.Wrap).AutomationId($"priv-conversation-{index}")).ToArray())
                 .MaxHeight(110).IsEnabled(!priv.Sending).AutomationId("priv-conversations").Flex(shrink: 0),
-            ScrollViewer(Empty()).WithKey($"priv-{current?.Key ?? "none"}")
+            Border(Empty()).WithKey($"priv-{current?.Key ?? "none"}")
                 .OnMount(element =>
                 {
-                    var viewer = (Microsoft.UI.Xaml.Controls.ScrollViewer)element;
-                    viewer.HorizontalScrollMode = Microsoft.UI.Xaml.Controls.ScrollMode.Disabled;
-                    viewer.HorizontalScrollBarVisibility = Microsoft.UI.Xaml.Controls.ScrollBarVisibility.Disabled;
-                    viewer.HorizontalContentAlignment = HorizontalAlignment.Stretch;
                     var presenter = new LogPresenter((rows, toInput) => CopyLog(session, rows, toInput, privateInput: true),
                         OpenLogLink, ReportLogImageFailure);
                     presenter.Attach("priv-log", "選択した相手との内緒話");
+                    var key = current?.Key ?? "none";
+                    if (!session.PrivScroll.TryGetValue(key, out var scroll))
+                        session.PrivScroll.Add(key, scroll = new());
+                    var viewport = presenter.CreateViewport(scroll, "priv-log");
+                    Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(viewport.Viewer, "内緒話のログ");
                     presenter.Update(current?.Entries ?? [], model.Options, model.LogImages);
-                    viewer.Content = presenter.Surface;
-                    viewer.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White);
+                    ((Microsoft.UI.Xaml.Controls.Border)element).Child = viewport.Surface;
                     session.PrivPresenter = presenter;
                 }).Flex(grow: 1, basis: 0),
             InputBox(priv.Draft, text => session.Dispatch(new GameMessage.PrivDraftChanged(text)),
