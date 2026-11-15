@@ -89,8 +89,9 @@ public abstract record ClientMessage
     public sealed record OptionsChanged(ClientOptions Value) : ClientMessage;
     public sealed record LogImageLoading(string Url, long Request) : ClientMessage;
     public sealed record LogImageLoaded(string Url, long Request, int Width, int Height,
-        ImmutableArray<byte> Pixels) : ClientMessage;
+        ImmutableArray<byte> Pixels, LogAnimation? Animation = null) : ClientMessage;
     public sealed record LogImageFailed(string Url, long Request, string Error) : ClientMessage;
+    public sealed record LogImagePresentationFailed(string Url, long Request, string Error) : ClientMessage;
     public sealed record SettingsEdited(SettingsEditorModel? Value) : ClientMessage;
     public sealed record AutomapLoaded(string World, AutomapWorld Value) : ClientMessage;
     public sealed record AutomapFailed(string World, string Error) : ClientMessage;
@@ -145,11 +146,16 @@ public static class ClientUpdate
             LogMarkup.PublicHttpUrl(image.Url, out _) =>
             model with { LogImages = model.LogImages.Add(image.Url, new(image.Request)) },
         ClientMessage.LogImageLoaded image when model.LogImages.GetValueOrDefault(image.Url) is { Loading: true } pending &&
-            pending.Request == image.Request && LogImages.ValidPixels(image.Width, image.Height, image.Pixels) =>
+            pending.Request == image.Request && LogImages.ValidPixels(image.Width, image.Height, image.Pixels) &&
+            LogImages.ValidAnimation(image.Width, image.Height, image.Animation) =>
             model with { LogImages = model.LogImages.SetItem(image.Url,
-                new(image.Request, false, Width: image.Width, Height: image.Height, Pixels: image.Pixels)) },
+                new(image.Request, false, Width: image.Width, Height: image.Height, Pixels: image.Pixels,
+                    Animation: image.Animation)) },
         ClientMessage.LogImageFailed image when model.LogImages.GetValueOrDefault(image.Url) is { Loading: true } pending &&
             pending.Request == image.Request =>
+            model with { LogImages = model.LogImages.SetItem(image.Url, new(image.Request, false, image.Error)) },
+        ClientMessage.LogImagePresentationFailed image when model.LogImages.GetValueOrDefault(image.Url) is
+            { Loading: false, Animation: not null, Error.Length: 0 } ready && ready.Request == image.Request =>
             model with { LogImages = model.LogImages.SetItem(image.Url, new(image.Request, false, image.Error)) },
         ClientMessage.AutomapLoaded loaded => model with
         {

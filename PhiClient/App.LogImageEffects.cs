@@ -39,7 +39,7 @@ partial class App
             var decoded = await LogImageDecoder.DecodeAsync(data.Bytes, token);
             if (!disposed)
                 Dispatch(new ClientMessage.LogImageLoaded(uri.AbsoluteUri, request,
-                    decoded.Width, decoded.Height, decoded.Pixels));
+                    decoded.Width, decoded.Height, decoded.Pixels, decoded.Animation));
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception ex) when (ex is HttpRequestException or IOException or ArgumentException or
@@ -52,5 +52,12 @@ partial class App
         {
             if (acquired) imageDownloads.Release();
         }
+    }
+
+    private void ReportLogImageFailure(Uri uri, long request, string error)
+    {
+        if (!disposed)
+            Dispatch(new ClientMessage.LogImagePresentationFailed(uri.AbsoluteUri, request,
+                "画像の連続表示に失敗しました: " + error));
     }
 }

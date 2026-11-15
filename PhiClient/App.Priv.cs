@@ -33,7 +33,8 @@ partial class App
                     viewer.HorizontalScrollMode = Microsoft.UI.Xaml.Controls.ScrollMode.Disabled;
                     viewer.HorizontalScrollBarVisibility = Microsoft.UI.Xaml.Controls.ScrollBarVisibility.Disabled;
                     viewer.HorizontalContentAlignment = HorizontalAlignment.Stretch;
-                    var presenter = new LogPresenter((rows, toInput) => CopyLog(session, rows, toInput, privateInput: true), OpenLogLink);
+                    var presenter = new LogPresenter((rows, toInput) => CopyLog(session, rows, toInput, privateInput: true),
+                        OpenLogLink, ReportLogImageFailure);
                     presenter.Attach("priv-log", "選択した相手との内緒話");
                     presenter.Update(current?.Entries ?? [], model.Options, model.LogImages);
                     viewer.Content = presenter.Surface;

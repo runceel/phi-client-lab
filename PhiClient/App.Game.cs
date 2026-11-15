@@ -185,7 +185,8 @@ partial class App
                 viewer.HorizontalScrollMode = Microsoft.UI.Xaml.Controls.ScrollMode.Disabled;
                 viewer.HorizontalScrollBarVisibility = Microsoft.UI.Xaml.Controls.ScrollBarVisibility.Disabled;
                 viewer.HorizontalContentAlignment = HorizontalAlignment.Stretch;
-                var presenter = new LogPresenter((rows, toInput) => CopyLog(session, rows, toInput), OpenLogLink);
+                var presenter = new LogPresenter((rows, toInput) => CopyLog(session, rows, toInput),
+                    OpenLogLink, ReportLogImageFailure);
                 presenter.Attach();
                 presenter.Update(session.Model.LogEntries, model.Options, model.LogImages);
                 viewer.Content = presenter.Surface;

@@ -11,7 +11,8 @@ using PhiClient.Core;
 
 namespace PhiClient;
 
-internal sealed class LogPresenter(Action<IReadOnlyList<LogEntry>, bool> copy, Action<Uri> openLink)
+internal sealed class LogPresenter(Action<IReadOnlyList<LogEntry>, bool> copy, Action<Uri> openLink,
+    Action<Uri, long, string> reportImageFailure)
 {
     public RichTextBlock Control { get; } = new()
     {
@@ -32,7 +33,7 @@ internal sealed class LogPresenter(Action<IReadOnlyList<LogEntry>, bool> copy, A
     private ImmutableArray<LogEntry> entries = [];
     private ClientOptions? presentation;
     private ImmutableDictionary<string, LogImageState>? images;
-    private readonly Dictionary<string, WriteableBitmap> bitmaps = [];
+    private readonly Dictionary<string, ImageSource> bitmaps = [];
     private long? pressedRow;
 
     public Grid Surface
@@ -163,10 +164,39 @@ internal sealed class LogPresenter(Action<IReadOnlyList<LogEntry>, bool> copy, A
         {
             if (!bitmaps.TryGetValue(uri.AbsoluteUri, out var bitmap))
             {
-                bitmap = new(state.Width, state.Height);
-                using var buffer = bitmap.PixelBuffer.AsStream();
-                buffer.Write(state.Pixels.AsSpan());
-                bitmap.Invalidate();
+                if (state.Animation is { } animation)
+                {
+                    var animated = new BitmapImage { AutoPlay = new Windows.UI.ViewManagement.UISettings().AnimationsEnabled };
+                    var failureQueued = false;
+                    void Failed(string error)
+                    {
+                        if (failureQueued) return;
+                        failureQueued = true;
+                        Control.DispatcherQueue.TryEnqueue(() =>
+                        {
+                            bitmaps.Remove(uri.AbsoluteUri);
+                            reportImageFailure(uri, state.Request, error);
+                        });
+                    }
+                    animated.ImageFailed += (_, args) => Failed(args.ErrorMessage);
+                    try
+                    {
+                        using var data = new MemoryStream(animation.Bytes.ToArray(), writable: false);
+                        using var input = data.AsRandomAccessStream();
+                        animated.SetSource(input);
+                    }
+                    catch (Exception error) when (error is IOException or ArgumentException or
+                        System.Runtime.InteropServices.COMException) { Failed(error.Message); }
+                    bitmap = animated;
+                }
+                else
+                {
+                    var still = new WriteableBitmap(state.Width, state.Height);
+                    using var buffer = still.PixelBuffer.AsStream();
+                    buffer.Write(state.Pixels.AsSpan());
+                    still.Invalidate();
+                    bitmap = still;
+                }
                 bitmaps.Add(uri.AbsoluteUri, bitmap);
             }
             var image = new Image { Source = bitmap,
