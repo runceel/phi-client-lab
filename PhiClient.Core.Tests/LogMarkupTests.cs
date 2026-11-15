@@ -5,6 +5,20 @@ namespace PhiClient.Core.Tests;
 public sealed class LogMarkupTests
 {
     [Fact]
+    public void OverlineSurvivesNestedColorAndEndsAtTheOriginalClosingTag()
+    {
+        var parts = LogMarkup.Parse("plain/*style=over*/上/*color=red*/赤/*color=.*/上/*.*/plain");
+        Assert.Equal("plain上赤上plain", string.Concat(parts.Select(part => part.Text)));
+        Assert.False(parts[0].Style.Overline);
+        Assert.True(parts[1].Style.Overline);
+        Assert.True(parts[2].Style.Overline);
+        Assert.Equal("red", parts[2].Style.Color);
+        Assert.True(parts[3].Style.Overline);
+        Assert.Null(parts[3].Style.Color);
+        Assert.False(parts[4].Style.Overline);
+    }
+
+    [Fact]
     public void NestedTagsClosingResetSizesFontsAndStylesFollowOriginalSkinValues()
     {
         var parts = LogMarkup.Parse("/*r*/赤/*size=+3*/大/*size=.*/赤/*.*/通常/*br*/" +

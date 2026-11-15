@@ -186,7 +186,7 @@ partial class App
                 var presenter = new LogPresenter((rows, toInput) => CopyLog(session, rows, toInput), OpenLogLink);
                 presenter.Attach();
                 presenter.Update(session.Model.LogEntries, model.Options);
-                viewer.Content = presenter.Control;
+                viewer.Content = presenter.Surface;
                 viewer.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White);
                 session.LogPresenter = presenter;
                 var scrollQueued = false;

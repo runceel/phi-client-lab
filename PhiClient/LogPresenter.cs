@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Documents;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Shapes;
 using PhiClient.Core;
 
 namespace PhiClient;
@@ -21,9 +22,28 @@ internal sealed class LogPresenter(Action<IReadOnlyList<LogEntry>, bool> copy, A
     };
     private readonly Dictionary<DependencyObject, long> owners = [];
     private readonly Dictionary<long, Paragraph> paragraphs = [];
+    private readonly Dictionary<Run, long> overlines = [];
+    private readonly Canvas decorations = new() { IsHitTestVisible = false };
+    private Grid? surface;
+    private int layoutVersion;
+    private (double Width, double Height, double Scale, int Version)? decoratedLayout;
     private ImmutableArray<LogEntry> entries = [];
     private (bool, string, uint)? presentation;
     private long? pressedRow;
+
+    public Grid Surface
+    {
+        get
+        {
+            if (surface is not null) return surface;
+            surface = new Grid();
+            surface.Children.Add(Control);
+            surface.Children.Add(decorations);
+            Control.LayoutUpdated += (_, _) => DrawOverlines();
+            Control.Unloaded += (_, _) => { decorations.Children.Clear(); decoratedLayout = null; };
+            return surface;
+        }
+    }
 
     public void Attach(string id = "game-log", string name = "世界からのログ")
     {
@@ -64,17 +84,21 @@ internal sealed class LogPresenter(Action<IReadOnlyList<LogEntry>, bool> copy, A
             Control.Blocks.Clear();
             paragraphs.Clear();
             owners.Clear();
+            overlines.Clear();
             presentation = key;
             Control.FontFamily = new(options.LogFontName.Length == 0 ? "ＭＳ ゴシック, Consolas" : options.LogFontName);
             Control.FontSize = options.LogFontSize == 0 ? 14 : options.LogFontSize;
         }
         if (entries == value && paragraphs.Count == value.Length) return;
+        layoutVersion++;
         entries = value;
         var retained = value.Select(row => row.Id).ToHashSet();
         foreach (var stale in paragraphs.Keys.Where(id => !retained.Contains(id)).ToArray())
         {
             Control.Blocks.Remove(paragraphs[stale]);
             paragraphs.Remove(stale);
+            foreach (var run in overlines.Where(pair => pair.Value == stale).Select(pair => pair.Key).ToArray())
+                overlines.Remove(run);
             foreach (var owner in owners.Where(pair => pair.Value == stale).Select(pair => pair.Key).ToArray())
                 owners.Remove(owner);
         }
@@ -105,6 +129,7 @@ internal sealed class LogPresenter(Action<IReadOnlyList<LogEntry>, bool> copy, A
                 run.TextDecorations = (part.Style.Underline ? Windows.UI.Text.TextDecorations.Underline : 0) |
                     (part.Style.Strike ? Windows.UI.Text.TextDecorations.Strikethrough : 0);
                 owners.Add(run, row.Id);
+                if (part.Style.Overline) overlines.Add(run, row.Id);
                 if (part.Link is { } uri)
                 {
                     var link = new Hyperlink();
@@ -118,6 +143,47 @@ internal sealed class LogPresenter(Action<IReadOnlyList<LogEntry>, bool> copy, A
             paragraphs.Add(row.Id, paragraph);
             Control.Blocks.Add(paragraph);
         }
+    }
+
+    private void DrawOverlines()
+    {
+        var layout = (Control.ActualWidth, Control.ActualHeight, Control.XamlRoot?.RasterizationScale ?? 1, layoutVersion);
+        if (decoratedLayout == layout || Control.ActualWidth <= 0 || Control.ActualHeight <= 0) return;
+        var strokes = new List<(Windows.Foundation.Rect Rect, Brush Brush)>();
+        foreach (var run in overlines.Keys)
+        {
+            var rows = new Dictionary<double, Windows.Foundation.Rect>();
+            var offset = 0;
+            foreach (var rune in run.Text.EnumerateRunes())
+            {
+                var start = run.ContentStart.GetPositionAtOffset(offset, LogicalDirection.Forward);
+                offset += rune.Utf16SequenceLength;
+                if (rune.Value is '\r' or '\n') continue;
+                var end = run.ContentStart.GetPositionAtOffset(offset, LogicalDirection.Backward);
+                if (start is null || end is null) return;
+                var left = start.GetCharacterRect(LogicalDirection.Forward);
+                var right = end.GetCharacterRect(LogicalDirection.Backward);
+                if (left.Height <= 0 || right.Height <= 0) return;
+                var rect = left;
+                if (Math.Abs(left.Y - right.Y) < .5)
+                    rect = new(Math.Min(left.X, right.X), left.Y,
+                        Math.Max(left.Right, right.Right) - Math.Min(left.X, right.X), left.Height);
+                if (rows.TryGetValue(rect.Y, out var row))
+                    rect = new(Math.Min(row.X, rect.X), rect.Y,
+                        Math.Max(row.Right, rect.Right) - Math.Min(row.X, rect.X), Math.Max(row.Height, rect.Height));
+                rows[rect.Y] = rect;
+            }
+            foreach (var rect in rows.Values)
+                if (rect.Width > 0) strokes.Add((rect, run.Foreground ?? Control.Foreground));
+        }
+        decorations.Children.Clear();
+        foreach (var (rect, brush) in strokes)
+            decorations.Children.Add(new Line
+            {
+                X1 = rect.Left, X2 = rect.Right, Y1 = rect.Top + 1, Y2 = rect.Top + 1,
+                Stroke = brush, StrokeThickness = 1
+            });
+        decoratedLayout = layout;
     }
 
     private long? Owner(TextPointer? pointer)
