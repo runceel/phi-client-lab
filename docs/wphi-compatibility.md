@@ -126,7 +126,8 @@ OS設定変更・実行policy迂回・追加captureはありません。
 session `files\auto-map-native-207a0f6\results.json`と`cleanup.json`へ保存しました。
 CUA APIに画像exportがないため、独立PNGを保存したとはしていません。
 #22の同時観測は別Issueに記録し、さらに狭幅・物理focus・実HighContrastの残判定は変更しません。
-必要確認とmain反映まで#20はOpen、PR27も統合判断待ちのDraftです。#11/#12の差分は含みません。
+PR27のコード統合と全native受け入れを分け、残確認は#20をOpenにして追跡します。
+#11/#12の差分は含みません。
 
 ## チャット送信後の下書き
 
