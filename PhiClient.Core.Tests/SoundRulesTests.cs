@@ -59,4 +59,27 @@ public sealed class SoundRulesTests
         var sounds = SoundRules.Parse("説明\n/^(a+)+$/", "説明");
         Assert.Throws<InvalidDataException>(() => sounds.Find(new string('a', 10000) + "!"));
     }
+
+    [Fact]
+    public void LiteralBlocksSkipBothNotificationsAndOrdinaryTalkHonorsForegroundAndExclusions()
+    {
+        var sounds = SoundRules.Parse("説明\n/ping/", "説明\nping.wav");
+        var talk = new LogLine("Alice > ping") { Channel = LogChannel.Talk };
+        Assert.Equal(new SoundNotification(null, false), sounds.Plan(talk with { Literal = true }, new(), false));
+        Assert.Equal(new SoundNotification(new(2, "ping.wav"), false), sounds.Plan(talk, new(), true));
+        Assert.Equal(new SoundNotification(new(2, "ping.wav"), true), sounds.Plan(talk, new(), false));
+        Assert.Equal(new SoundNotification(null, false), sounds.Plan(talk, new() { SoundPlay = false }, true));
+        Assert.False(sounds.Plan(new("DM > 通知") { Channel = LogChannel.Talk }, new(), false).Flash);
+        Assert.False(sounds.Plan(new("/*r*/(Alice) > 大声") { Channel = LogChannel.Talk }, new(), false).Flash);
+        Assert.False(sounds.Plan(new("Alice > 通常") { Channel = LogChannel.Log }, new(), false).Flash);
+    }
+
+    [Fact]
+    public void ExplicitEmptyWaveRuleRemainsIndependentOfTalkFlashSetting()
+    {
+        var sounds = SoundRules.Parse("説明\n/ping/", "説明\n");
+        var line = new LogLine("ping") { Channel = LogChannel.Log };
+        Assert.True(sounds.Plan(line, new() { TaskBarFlash = false }, true).Flash);
+        Assert.False(sounds.Plan(line, new() { SoundPlay = false }, false).Flash);
+    }
 }

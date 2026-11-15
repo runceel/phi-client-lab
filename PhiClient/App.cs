@@ -39,7 +39,8 @@ partial class App : Component
             FlexRow(model.SettingsEditor is null && (showCharacters || active is null) ? CharacterSidebar() : Empty(), content)
                 .Flex(grow: 1, basis: 0).FlexPadding(16),
             DialogView()
-        ).Backdrop(BackdropKind.Mica).OnPreviewKeyDown(OnGameKeyDown);
+        ).Backdrop(BackdropKind.Mica).OnPreviewKeyDown(OnGameKeyDown)
+            .OnMount(element => AttachNotificationWindow((FrameworkElement)element));
     }
 
     private Element CharacterSidebar() => ScrollViewer(VStack(10,

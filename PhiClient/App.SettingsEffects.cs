@@ -14,11 +14,14 @@ partial class App
             fontSize > 64)
             throw new ArgumentException("ログの文字サイズは0–64の整数で入力してください。");
         var options = SettingsStore.Normalize(editor.Value with { MapZoom = zoom, LogFontSize = fontSize });
+        var rules = await SoundFiles.LoadAsync(options.SoundFolder, worldLifetime.Token);
         settingsStore ??= new(Path.Combine(store.Folder, "settings.json"));
         await settingsStore.SaveAsync(options, worldLifetime.Token);
         Dispatch(new ClientMessage.OptionsChanged(options));
+        SetSoundRules(rules);
         Dispatch(new ClientMessage.SettingsEdited(editor with { Value = options,
-            Zoom = options.MapZoom.ToString(CultureInfo.InvariantCulture), Message = "設定を保存しました。" }));
+            Zoom = options.MapZoom.ToString(CultureInfo.InvariantCulture),
+            Message = rules.Issues.Count == 0 ? "設定を保存しました。" : "設定を保存しました。" + SoundIssues(rules) }));
         notice = "設定を保存しました。";
         if (!loaded) await LoadAsync();
     }

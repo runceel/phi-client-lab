@@ -78,6 +78,11 @@ partial class App
                 Flag("コピーしたタグを無効にする", value.LogTagCancel,
                     (o, b) => o with { LogTagCancel = b }, "settings-cancel-tags")),
             VStack(8, SubHeading("通知"),
+                TextBox(value.SoundFolder, text => EditSettings(state => state with
+                    { Value = state.Value with { SoundFolder = text } }),
+                    header: "効果音を使うPhillyフォルダー（空欄で規則を解除）").AutomationId("settings-sound-folder"),
+                TextBlock("Config内のSoundRegexp.iniとSoundFile.iniを読み、指定したローカルWAVを使います。")
+                    .TextWrapping(TextWrapping.Wrap),
                 Flag("設定した効果音を鳴らす", value.SoundPlay, (o, b) => o with { SoundPlay = b }, "settings-sound"),
                 Flag("背面時に発言・privをタスクバーで知らせる", value.TaskBarFlash,
                     (o, b) => o with { TaskBarFlash = b }, "settings-taskbar")),

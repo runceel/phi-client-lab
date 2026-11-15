@@ -4,6 +4,7 @@ namespace PhiClient.Core;
 
 public sealed record SoundMatch(int Line, string? WavePath);
 public sealed record SoundRuleIssue(string File, int Line);
+public sealed record SoundNotification(SoundMatch? Sound, bool Flash);
 
 public sealed class SoundRules
 {
@@ -58,6 +59,18 @@ public sealed class SoundRules
         foreach (var rule in rules)
             if (Matches(rule.Pattern, text, "SoundRegexp.ini", rule.Action.Line)) return rule.Action;
         return null;
+    }
+
+    public SoundNotification Plan(LogLine line, ClientOptions options, bool foreground)
+    {
+        if (line.Literal) return new(null, false);
+        var raw = line.Raw ?? line.Text;
+        var sound = options.SoundPlay ? Find(raw) : null;
+        var talk = line.Channel is LogChannel.Talk or LogChannel.Priv;
+        var flash = sound is { WavePath: null } ||
+            options.TaskBarFlash && !foreground && talk &&
+            !ProtocolParser.PlainText(raw).StartsWith('(') && !SuppressTalkFlash(raw);
+        return new(sound, flash);
     }
 
     public bool SuppressTalkFlash(string text)

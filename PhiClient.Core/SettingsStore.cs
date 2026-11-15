@@ -41,6 +41,8 @@ public sealed class SettingsStore(string path)
 
     public static ClientOptions Normalize(ClientOptions options)
     {
+        if (options.SoundFolder is null || options.SoundFolder.Length > 2048)
+            throw new InvalidDataException("効果音のPhillyフォルダーを2048文字以内のパスで入力してください。");
         if (options.Shortcuts.IsDefault || options.Shortcuts.Length != 5 ||
             options.ListShortcuts.IsDefault || options.ListShortcuts.Length != 5 ||
             options.Shortcuts.Any(value => value is null) || options.ListShortcuts.Any(value => value is null) ||

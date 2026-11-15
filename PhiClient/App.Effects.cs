@@ -75,6 +75,7 @@ partial class App
             dialogCompletion?.TrySetResult(new(false, ""));
             foreach (var session in sessions)
                 session.Connection?.Dispose();
+            DisposeSounds();
         };
     }
 
@@ -119,6 +120,17 @@ partial class App
         }
         await LoadMasterMenuAsync();
         notice = "Ready. Choose a saved character or register a new one.";
+        try
+        {
+            var rules = await SoundFiles.LoadAsync(model.Options.SoundFolder, worldLifetime.Token);
+            SetSoundRules(rules);
+            if (rules.Issues.Count > 0) notice = SoundIssues(rules);
+        }
+        catch (Exception error) when (IsExpected(error))
+        {
+            soundRules = null;
+            notice = "通知の設定を読み込めませんでした。「設定」でPhillyフォルダーを確認してください: " + error.Message;
+        }
     }
 
     private async Task SaveCharacterAsync()
@@ -205,6 +217,7 @@ partial class App
                 session.MasterCancellation?.Cancel();
             var privWasVisible = session.Model.Priv.Visible;
             session.Dispatch(new GameMessage.Received(item, Environment.TickCount64, DateTimeOffset.Now));
+            if (item is LogLine log) ObserveSound(session, connection, log);
             if (item is LogLine { Channel: LogChannel.Priv, Literal: false } && !privWasVisible &&
                 session.Model.Priv.Visible)
                 _ = SessionOperationAsync(session, () => RefreshUsersAsync(session));

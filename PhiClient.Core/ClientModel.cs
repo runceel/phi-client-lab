@@ -13,6 +13,7 @@ public sealed record ClientOptions(bool ShowCharacters = true, bool ShowMap = tr
     public ImmutableArray<string> ListShortcuts { get; init; } = ["", "", "", "", ""];
     public string AltGWord { get; init; } = "";
     public bool SoundPlay { get; init; } = true;
+    public string SoundFolder { get; init; } = "";
     public bool TaskBarFlash { get; init; } = true;
     public bool LogSaveHtml { get; init; } = true;
     public bool LogDispTime { get; init; } = true;
