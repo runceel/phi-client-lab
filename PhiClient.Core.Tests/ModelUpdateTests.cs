@@ -5,6 +5,23 @@ namespace PhiClient.Core.Tests;
 public sealed class ModelUpdateTests
 {
     [Fact]
+    public void ViewportChangesInvalidateTheMvuSnapshotWithoutChangingDraftWorldSourceOrGames()
+    {
+        var initial = ClientUpdate.Apply(new(), new ClientMessage.GameOpened("alpha"));
+        var narrow = ClientUpdate.Apply(initial, new ClientMessage.WindowSizeChanged(600, 660));
+        Assert.NotEqual(initial, narrow);
+        Assert.Equal(600, narrow.WindowWidth);
+        Assert.Equal(660, narrow.WindowHeight);
+        Assert.Same(initial.Draft, narrow.Draft);
+        Assert.Same(initial.Worlds, narrow.Worlds);
+        Assert.Same(initial.Games, narrow.Games);
+        var graphics = ClientUpdate.Apply(narrow, new ClientMessage.GraphicsChanged(
+            narrow.GraphicsRevision, narrow.GraphicsNotice));
+        Assert.Equal(narrow, graphics);
+        Assert.NotEqual(initial, graphics);
+    }
+
+    [Fact]
     public void CompletedPasswordIsHiddenReadOnlyAndRemovedOnDialogClose()
     {
         var initial = new ClientModel

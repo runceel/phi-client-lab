@@ -84,7 +84,7 @@ partial class App
         Directory.CreateDirectory(store.Folder);
         var folder = await Windows.Storage.StorageFolder.GetFolderFromPathAsync(store.Folder);
         if (!await Launcher.LaunchFolderAsync(folder))
-            throw new IOException("Windows could not open the settings folder.");
+            throw new IOException("設定フォルダーを開けませんでした。Windowsのフォルダーへのアクセスを確認してください。");
     }
 
     private void DeleteCharacter(SavedCharacter character)
@@ -101,7 +101,7 @@ partial class App
             await store.RemoveAsync(character);
             characters = characters.Where(c => c.Key != character.Key).ToList();
             pendingDelete = null;
-            notice = "Character removed.";
+            notice = "このPCからキャラクターの接続情報を削除しました。";
         });
     }
 
@@ -119,7 +119,7 @@ partial class App
             await graphics.SetFolderAsync(graphicsFolder);
         }
         await LoadMasterMenuAsync();
-        notice = "Ready. Choose a saved character or register a new one.";
+        notice = "保存済みキャラクターに接続するか、キャラクターIDを登録して始めます。";
         try
         {
             var rules = await SoundFiles.LoadAsync(model.Options.SoundFolder, worldLifetime.Token);
@@ -136,10 +136,10 @@ partial class App
     private async Task SaveCharacterAsync()
     {
         if (!int.TryParse(port, out var portNumber))
-            throw new ArgumentException("Enter a numeric TCP port.");
+            throw new ArgumentException("TCPポートを数値で入力してください。");
         PhiConnection.ValidateEndpoint(host, portNumber);
         if (string.IsNullOrWhiteSpace(name))
-            throw new ArgumentException("Enter a display name.");
+            throw new ArgumentException("表示名を入力してください。");
         var character = new SavedCharacter(Guid.NewGuid().ToString("N"), name.Trim(), host.Trim(), portNumber);
         var characterId = id;
         var createdPassword = password;
@@ -161,7 +161,7 @@ partial class App
         catch (Exception ex) when (createdPassword.Length > 0 && IsExpected(ex))
         {
             throw new IOException("世界での作成は完了していますが、このPCへの保存に失敗しました。" +
-                "IDを入力欄に保持しています。保存先を確認して「保存」を再試行し、新規作成を繰り返さないでください。", ex);
+                "IDを入力欄に保持しています。保存先を確認して「キャラクターを保存」を再試行し、新規作成を繰り返さないでください。", ex);
         }
         characters = characters.Append(character).ToList();
         id = "";
@@ -179,7 +179,7 @@ partial class App
     {
         active = sessions.FirstOrDefault(s => s.Character.Key == character.Key);
         showCharacters = false;
-        notice = "PHI uses unencrypted TCP. Menus and game keys apply to the selected character.";
+        notice = "PHIの通信は暗号化されません。メニューとゲーム操作キーは、選択中のキャラクターに適用されます。";
         if (active is not null)
             return Task.CompletedTask;
         Dispatch(new ClientMessage.GameOpened(character.Key));
@@ -334,7 +334,7 @@ partial class App
         try { await operation(); }
         catch (Exception ex) when (IsExpected(ex))
         {
-            notice = $"Error: {ex.Message}";
+            notice = $"操作を完了できませんでした: {ex.Message}";
         }
         finally
         {

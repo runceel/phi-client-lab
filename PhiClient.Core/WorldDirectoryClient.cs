@@ -17,11 +17,11 @@ public sealed class WorldDirectoryClient(string folder) : IDisposable
             catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
             {
                 return new(WorldList.Bundled, WorldList.BundledSource,
-                    $"保存済み一覧を読めません: {ex.Message} 原典同梱の一覧を表示しています。");
+                    $"保存済み一覧の読み込みに失敗しました: {ex.Message} wphiに同梱された一覧を表示しています。");
             }
         }
         return new(WorldList.Bundled, WorldList.BundledSource,
-            "原典同梱の世界一覧です。更新は明示操作で行います。接続できるかは確認していません。");
+            "wphiに同梱された世界一覧です。更新には「HTTP 一覧を更新」または「INI ファイルから取り込む」を使います。各世界の接続可否は未確認です。");
     }
 
     public async Task<WorldListResult> RefreshAsync(string url, CancellationToken token = default)

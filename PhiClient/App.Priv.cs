@@ -30,6 +30,9 @@ partial class App
                 .OnMount(element =>
                 {
                     var viewer = (Microsoft.UI.Xaml.Controls.ScrollViewer)element;
+                    viewer.HorizontalScrollMode = Microsoft.UI.Xaml.Controls.ScrollMode.Disabled;
+                    viewer.HorizontalScrollBarVisibility = Microsoft.UI.Xaml.Controls.ScrollBarVisibility.Disabled;
+                    viewer.HorizontalContentAlignment = HorizontalAlignment.Stretch;
                     var presenter = new LogPresenter((rows, toInput) => CopyLog(session, rows, toInput, privateInput: true), OpenLogLink);
                     presenter.Attach("priv-log", "選択した相手との内緒話");
                     presenter.Update(current?.Entries ?? [], model.Options);
@@ -49,7 +52,13 @@ partial class App
                 }).OnKeyUp((_, args) =>
                     { if (args.Key == Windows.System.VirtualKey.Enter) session.PrivCommitting = false; })
                 .Flex(shrink: 0),
-            Button(priv.Sending ? "相手を確認して送信しています…" : "内緒話を送信", () => SendPriv(session))
+            Button(priv.SendStage switch
+                {
+                    PrivSendStage.Confirming => "返信先を確認しています…",
+                    PrivSendStage.Preparing => "相手の番号を確認しています…",
+                    PrivSendStage.Transmitting => "内緒話を送信しています…",
+                    _ => "内緒話を送信"
+                }, () => SendPriv(session))
                 .IsEnabled(session.Connected && !session.Model.Transferring && !priv.Sending &&
                     session.Model.Master is null && current is not null && priv.Draft.Length > 0).AutomationId("priv-send").Flex(shrink: 0),
             HStack(6, TextBlock(session.Model.UserRefresh.Started is null ? "この世界の相手" : "相手の一覧を読み込んでいます…"),
@@ -63,6 +72,7 @@ partial class App
             Button("選んだ相手との会話を開く", () =>
                     session.Dispatch(new GameMessage.PrivOpened(priv.Picked.ToArray())))
                 .IsEnabled(priv.Picked.Count > 0 && !priv.Sending).AutomationId("priv-open-conversation").Flex(shrink: 0)
-        ).Width(300).FlexPadding(8).AutomationId("priv-panel");
+        ).Width(windowWidth < 1000 ? Math.Max(260, windowWidth - 64) : 300)
+            .FlexPadding(8).AutomationId("priv-panel");
     }
 }

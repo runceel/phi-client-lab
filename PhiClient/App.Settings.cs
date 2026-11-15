@@ -98,7 +98,7 @@ partial class App
         return FlexColumn(
             HStack(12, Heading("設定"), Button("閉じる（未保存の変更を破棄）",
                 () => Dispatch(new ClientMessage.SettingsEdited(null))).IsEnabled(!busy)).Flex(shrink: 0),
-            TextBlock("設定はこのPCに保存します。変更だけでは送信・接続しません。")
+            TextBlock("「設定を保存」で変更をこのPCに保存します。ここで行う操作は、設定の編集と保存です。")
                 .TextWrapping(TextWrapping.Wrap).Flex(shrink: 0),
             ScrollViewer(body).Flex(grow: 1, basis: 0),
             HStack(12, Button(busy ? "保存しています…" : "設定を保存", () => _ = PerformAsync(SaveSettingsAsync))

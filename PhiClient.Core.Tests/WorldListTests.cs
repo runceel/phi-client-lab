@@ -97,7 +97,7 @@ public sealed class WorldListTests
             await File.WriteAllTextAsync(Path.Combine(folder, "resist.ini"), "broken");
             var fallback = await client.LoadAsync();
             Assert.Equal(WorldList.Bundled, fallback.Items);
-            Assert.Contains("読めません", fallback.Message);
+            Assert.Contains("読み込みに失敗", fallback.Message);
         }
         finally { Directory.Delete(folder, true); }
     }

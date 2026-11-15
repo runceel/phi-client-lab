@@ -4,11 +4,11 @@ partial class App
 {
     private void ShowGraphicsSettings() => _ = PerformAsync(async () =>
     {
-        var answer = await RequestDialogAsync(new("Graphics folder",
-            "Use the original wphi graphics from tools\\Get-WphiGraphics.ps1, a wphi checkout, " +
-            "or a permitted Philly folder. The app itself does not download images. " +
-            "Expected: chara and Skins\\Mine. Leave blank for the schematic map.",
-            "Load", "Graphics folder", graphicsFolder, "graphics-folder"));
+        var answer = await RequestDialogAsync(new("画像素材フォルダー",
+            "tools\\Get-WphiGraphics.ps1で取得したwphi素材、wphiのソースフォルダー、または利用が許可されたPhillyフォルダーを指定してください。" +
+            "画像は指定したローカルフォルダーのcharaとSkins\\Mineから読み込みます。素材ごとの利用条件を確認してください。" +
+            "空欄で読み込むと図形地図を表示します。",
+            "読み込む", "画像素材のローカルフォルダー", graphicsFolder, "graphics-folder"));
         if (!answer.Accepted) return;
         var folder = answer.Value.Trim();
         await graphics.SetFolderAsync(folder);

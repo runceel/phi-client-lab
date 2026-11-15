@@ -13,10 +13,10 @@ partial class App
         var current = registrationPreviewKey == (candidates.Request, image);
         var bitmap = current ? registrationPreview : null;
         return VStack(6,
-            Button(candidates.Loading ? "キャラグラの候補を取得しています…" : "キャラグラの候補を取得",
+            Button(candidates.Loading ? "キャラクター画像の一覧を取得しています…" : "キャラクター画像の一覧を取得",
                     () => _ = PerformAsync(LoadRegistrationGraphicsAsync))
                 .IsEnabled(loaded && !busy).AutomationId("load-registration-graphics"),
-            Caption("指定したゲームサーバーへ接続して一覧だけを取得します。作成・ログインはしません。")
+            Caption("指定したゲームサーバーに接続し、キャラクター画像の一覧を取得します。この操作は一覧の取得だけを行います。")
                 .TextWrapping(TextWrapping.Wrap),
             TextBlock(candidates.Message).TextWrapping(TextWrapping.Wrap).AutomationId("registration-graphics-message"),
             candidates.Names.IsEmpty ? Empty() :

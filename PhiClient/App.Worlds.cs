@@ -19,7 +19,7 @@ partial class App
             row.world.Host.Contains(worlds.Filter, StringComparison.OrdinalIgnoreCase)).ToArray();
         return VStack(10,
             Heading("接続先の世界"),
-            TextBlock("選ぶと登録欄のサーバーとポートを入力します。選択だけではゲームサーバーに接続しません。")
+            TextBlock("選んだ世界のサーバーとポートを、登録欄に入力します。この操作は接続先の入力だけを行います。")
                 .TextWrapping(TextWrapping.Wrap),
             TextBox(worlds.Filter, value => Dispatch(new ClientMessage.WorldFilterChanged(value)), header: "世界名・アドレスで絞り込み")
                 .AutomationId("world-filter"),
@@ -29,7 +29,7 @@ partial class App
             ScrollViewer(VStack(8, rows.Select(row => VStack(4,
                 TextBlock(row.world.Name).TextWrapping(TextWrapping.Wrap),
                 Caption($"{row.world.Host}:{row.world.Port}"),
-                Button("この世界を使う", () => Dispatch(new ClientMessage.WorldSelected(row.world)))
+                Button("登録欄に入力", () => Dispatch(new ClientMessage.WorldSelected(row.world)))
                     .IsEnabled(loaded && !busy && !worlds.Loading).AutomationId($"world-choose-{row.index}")
             ).WithKey($"{row.index}:{row.world.Host}:{row.world.Port}")).ToArray())).Height(280).AutomationId("world-list"),
             TextBox(worlds.Url, value => Dispatch(new ClientMessage.WorldUrlChanged(value)), header: "一覧の配布 URL（LZH / CP932 INI）")
@@ -39,7 +39,11 @@ partial class App
                     .IsEnabled(loaded && !busy).AutomationId("world-refresh"),
                 Button("INI ファイルから取り込む", () => _ = LoadWorldsAsync(import: true))
                     .IsEnabled(loaded && !busy).AutomationId("world-import")),
-            TextBlock("原典の配布元は HTTP の resist.lzh です。ゲーム通信とは別ですが、内容や接続先の安全性・稼働状況は保証されません。")
+            TextBlock((worlds.Url.Trim() == WorldList.DownloadUrl
+                ? "wphiの世界一覧は、HTTPで配布されるresist.lzhから取得します。"
+                : "指定した一覧の配布URLから、HTTPまたはHTTPSで世界一覧を取得します。") +
+                "一覧の取得とゲームサーバーへの接続は別の操作です。" +
+                "一覧の内容や、掲載サーバーの安全性・稼働状況は保証されません。")
                 .TextWrapping(TextWrapping.Wrap),
             active is not null ? Button("ゲーム画面に戻る", () => Dispatch(new ClientMessage.WorldVisibilityChanged(false))) : Empty()
         ).Padding(24);

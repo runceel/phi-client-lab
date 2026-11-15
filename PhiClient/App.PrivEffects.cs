@@ -65,13 +65,16 @@ partial class App
         {
             if (conversation.Confirm)
             {
+                session.Dispatch(new GameMessage.PrivSendStageChanged(PrivSendStage.Confirming));
                 if (!await SessionDialogAsync("内緒話の返信先を確認",
-                    $"受信したタグから作られた会話です。\n{string.Join("・", conversation.To)} の全員へ返信します。よろしいですか？", "全員へ返信"))
+                    $"{string.Join("・", conversation.To)}の全員へ返信します。\n" +
+                    "この会話は、受信メッセージのタグから作られました。全員へ返信してよろしいですか？", "全員へ返信"))
                     return;
                 if (session.Connection != connection || !session.Connected || connection.TransportVersion != generation)
                     throw new InvalidOperationException("確認中に接続先が変わったため、内緒話は送信しませんでした。");
                 session.Dispatch(new GameMessage.PrivConfirmed(conversation.Key));
             }
+            session.Dispatch(new GameMessage.PrivSendStageChanged(PrivSendStage.Preparing));
             await RefreshUsersAsync(session);
             if (session.Connection != connection || !session.Connected || connection.TransportVersion != generation)
                 throw new InvalidOperationException("確認中に接続先が変わったため、内緒話は送信しませんでした。");
@@ -79,6 +82,7 @@ partial class App
             foreach (var missing in send.Failed)
                 session.Append($"「{missing}」さんの番号が見つからず、内緒話を送信できませんでした。");
             if (send.Lines.Count == 0) return;
+            session.Dispatch(new GameMessage.PrivSendStageChanged(PrivSendStage.Transmitting));
             await ExecuteAsync(session, GameInput.Command(send.Lines.ToArray()));
             session.Dispatch(new GameMessage.PrivSent(priv.Draft));
         }

@@ -27,9 +27,9 @@ public sealed partial class PhiConnection : IDisposable
     {
         if (string.IsNullOrWhiteSpace(host) || host.Any(char.IsWhiteSpace) ||
             Uri.CheckHostName(host) == UriHostNameType.Unknown)
-            throw new ArgumentException("Enter a DNS hostname or IP address, not a URL.");
+            throw new ArgumentException("ゲームサーバー欄にホスト名またはIPアドレスを入力してください。例: example.com、192.0.2.1");
         if (port is < 1 or > 65535)
-            throw new ArgumentException("Port must be between 1 and 65535.");
+            throw new ArgumentException("TCPポートを1から65535の範囲で入力してください。");
     }
 
     private async Task OpenAsync(string host, int port, CancellationToken token)

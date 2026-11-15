@@ -50,7 +50,9 @@ public sealed record ClientModel
     public ImmutableArray<SavedCharacter> Characters { get; init; } = [];
     public ImmutableDictionary<string, GameModel> Games { get; init; } = ImmutableDictionary<string, GameModel>.Empty;
     public string? ActiveKey { get; init; }
-    public string Notice { get; init; } = "Load or register a character to begin. IDs are stored in Windows Credential Manager.";
+    public string Notice { get; init; } = "保存済みキャラクターに接続するか、キャラクターIDを登録して始めます。IDはWindows資格情報マネージャーに保存します。";
+    public double WindowWidth { get; init; } = 1200;
+    public double WindowHeight { get; init; } = 850;
     public string? PendingDelete { get; init; }
     public bool Creating { get; init; }
     public bool Loaded { get; init; }
@@ -70,6 +72,7 @@ public sealed record ClientModel
 public abstract record ClientMessage
 {
     public sealed record DraftChanged(CharacterDraft Value) : ClientMessage;
+    public sealed record WindowSizeChanged(double Width, double Height) : ClientMessage;
     public sealed record OptionsChanged(ClientOptions Value) : ClientMessage;
     public sealed record SettingsEdited(SettingsEditorModel? Value) : ClientMessage;
     public sealed record AutomapLoaded(string World, AutomapWorld Value) : ClientMessage;
@@ -109,6 +112,7 @@ public static class ClientUpdate
 {
     public static ClientModel Apply(ClientModel model, ClientMessage message) => message switch
     {
+        ClientMessage.WindowSizeChanged size => model with { WindowWidth = size.Width, WindowHeight = size.Height },
         ClientMessage.DraftChanged edit => model with { Draft = edit.Value,
             RegistrationGraphics = edit.Value.Host != model.Draft.Host || edit.Value.Port != model.Draft.Port
                 ? new() : model.RegistrationGraphics },

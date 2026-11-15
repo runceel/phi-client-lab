@@ -145,7 +145,7 @@ IME変換中はこの操作を行いません。
 追加モードのnative UIA試験はメニュー項目の取得で中断しており、実キーとIMEの確認も
 前面化が可能になってから行う残確認です。
 
-1. 既存のキャラクターは表示名、接続先、TCPポート、IDを入力して **Save character** で保存します。
+1. 既存のキャラクターは表示名、接続先、TCPポート、IDを入力して **キャラクターを保存** で保存します。
    **Phillyの登録を取り込む…** はPhillyフォルダー直下の `表示名.chara\.phirc` を読み込みます。
    `.Chara` も対象です。原典と同じCP932の1行目をID、2行目を `ホスト:ポート` または
    `ホスト ポート` として扱い、表示名を順序付きで取り込みます。
@@ -155,7 +155,7 @@ IME変換中はこの操作を行いません。
    同じ表示名のタブは閉じてから取り込んでください。取り込み後の接続はキャラクターの選択で行います。
    1ファイル64 KiB・一度に1000件までとし、ローカルの通常フォルダーを対象にします。
    原典の根拠は `src-tauri\src\characters.rs:138–175` です。
-2. 新規作成では **キャラグラの候補を取得** で、その世界が返す初期画像の一覧を取得できます。
+2. 新規作成では **キャラクター画像の一覧を取得** で、その世界が返す初期画像の一覧を取得できます。
    原典と同じ `#ex-get REGINFO IMG` を送り、`#ex-put REGINFO IMG` から `#ex-put .` までを
    0番から順番に表示します。この操作は指定したゲームサーバーへTCP接続しますが、
    ID・パスワード・作成要求は送りません。起動時や世界選択時の自動取得は行いません。
@@ -170,20 +170,19 @@ IME変換中はこの操作を行いません。
    原典と同じく送信時に `?` へ変換されるため、パスワードには上記の文字集合を推奨します。
    作成後の確認画面で本人がパスワードを表示して控えられます。ログや設定ファイルには保存しません。
    指定した世界に実際の作成要求を送る操作なので、接続先を確認してください。自動作成は行いません。
-3. Choose **Connect**. Each connected character gets its own tab and independent
-   connection, status, map, log and command input.
-4. Enter or **Send** sends the current line and keeps it for reuse.
-   Shift+Enter inserts a newline; Ctrl+Enter or **Party** sends to the party.
-   Ordinary Enter does not turn a leading `*` into an accidental world shout:
-   use **Operation > Shout current line** and confirm instead.
-5. Esc switches from the command field to movement mode; Tab returns to input.
-   Gameplay shortcuts do not intercept typing or editing controls.
-   Native menus expose actions, system magic, map options and keyboard help.
-6. **Action > Write sign** opens a multiline editor. **Send sign** sends separate lines
-   followed by `.`, and **Cancel sign** sends `.!`. Protocol-command lines and
-   standalone terminators cannot be inserted into sign content.
-7. **Disconnect** sends `#x` before closing. Close a tab before deleting its
-   saved character; deletion needs a second confirmation click.
+3. **接続** を選びます。キャラクターごとのタブで、接続・状態・地図・ログ・入力欄を個別に扱います。
+4. Enterまたは **送信** で現在の行を送り、再利用できるよう入力欄に残します。
+   Shift+Enterで改行し、Ctrl+Enterまたは **Party** でパーティーへ送信します。
+   通常のEnterは、先頭の `*` を世界全体への大声に変換しません。
+   大声には **Operation > 大声で発言** を使い、確認画面で送信します。
+5. Escで入力欄から移動モードへ切り替え、Tabで入力へ戻ります。
+   文字の入力・編集中は、ゲームのショートカットより編集操作を優先します。
+   メニューから行動・系統魔法・地図設定・キー操作のヘルプを開けます。
+6. **Action > Write sign** で複数行の看板編集を開きます。**Send sign** は各行のあとに
+   `.` を送り、**Cancel sign** は `.!` を送ります。看板の本文には、プロトコル命令の行や
+   単独の終端記号を指定できません。
+7. **切断** は `#x` を送ってから接続を閉じます。保存済みキャラクターを削除するときは、
+   先にそのタブを閉じ、削除ボタンを再度押して確認してください。
 
 | Keys outside text fields | Action |
 |---|---|
@@ -216,12 +215,12 @@ without sending, and a separate Enter sending exactly one Japanese line.
 
 ## 接続先世界の一覧
 
-登録画面の右側に世界一覧を表示します。ゲーム中は登録欄の
+登録画面に世界一覧を表示します。狭いウィンドウでは登録欄と縦に並び、下部へスクロールできます。ゲーム中は登録欄の
 **世界一覧から接続先を選ぶ** で開けます。世界名・アドレスで絞り込み、
-**この世界を使う** を選ぶと、既存 ID 登録／新規キャラ作成のサーバーと
+**登録欄に入力** を選ぶと、既存 ID 登録／新規キャラ作成のサーバーと
 ポートだけを入力します。名前・ID・パスワードなどは変更せず、
 選択だけでは保存・ログイン・キャラ作成・世界移動を行いません。
-接続には、登録後の **Connect** などの明示操作が必要です。
+接続には、登録後に **接続** を選びます。
 
 wphi の原典では、同梱 `Config/unew.ini` の `Schedule15` が指定する
 `http://www.tofup.net/raphi/resist.lzh` を HTTP で取得し、
@@ -265,7 +264,7 @@ LZH は Windows 標準の `tar.exe` で `resist.ini` だけをメモリーに読
 
 ## Character graphics and map chips
 
-Choose **View > Graphics folder**, enter an absolute local folder, then **Load**.
+**View > 画像素材フォルダー…** で、このPCにある素材フォルダーの絶対パスを入力し、**読み込む** を選びます。
 To use **the actual graphics shipped by wphi**, run this explicit setup command
 in PowerShell 7.4 or later:
 

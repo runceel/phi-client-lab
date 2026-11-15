@@ -18,13 +18,13 @@ internal sealed class GraphicsStore
     public string Folder { get; private set; } = "";
     public int Revision { get; private set; }
     public int AnimationFrame { get; set; }
-    public string Notice => Folder.Length == 0 ? "Graphics not configured: schematic map. Choose View > Graphics folder."
-        : issues.Count == 0 ? "User graphics loaded." : "Graphics: " + string.Join(" | ", issues.Take(4));
+    public string Notice => Folder.Length == 0 ? "図形地図を表示しています。「View」→「画像素材フォルダー…」でwphi素材を読み込めます。"
+        : issues.Count == 0 ? "ローカルの画像素材を読み込みました。" : "画像素材の読み込みを確認してください: " + string.Join(" | ", issues.Take(4));
 
     public async Task SetFolderAsync(string folder)
     {
         if (folder.Length > 0 && (!Path.IsPathFullyQualified(folder) || folder.StartsWith(@"\\") || !Directory.Exists(folder)))
-            throw new ArgumentException("Choose an existing absolute local graphics folder (not a network share).");
+            throw new ArgumentException("このPCにある画像素材フォルダーの絶対パスを指定してください。ネットワーク共有は指定できません。");
         await gate.WaitAsync();
         try
         {

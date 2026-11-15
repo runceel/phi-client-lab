@@ -78,7 +78,10 @@ partial class App
             animation?.Start();
             predictionTimer?.Start();
             mapSaveTimer?.Start();
-            notice = "終了前の保存を確認してください。画面とメモリ上の記録を保持しています: " + error.Message;
+            notice = error is TimeoutException
+                ? "終了前の処理が待機期限を超えました。記録は画面とメモリに残っています。状態を確認してから、終了を再試行してください。詳細: " + error.Message
+                : "終了前のログ・記録地図の保存に失敗しました。記録は画面とメモリに残っています。" +
+                    "保存先を確認してから、終了を再試行してください。詳細: " + error.Message;
             refresh();
         }
     }

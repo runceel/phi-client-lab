@@ -9,6 +9,8 @@ public sealed record PrivConversation(ImmutableArray<string> To, ImmutableArray<
     public string Key => Priv.Key(To);
 }
 
+public enum PrivSendStage { Idle, Preparing, Confirming, Transmitting }
+
 public sealed record PrivState
 {
     public ImmutableArray<PrivConversation> Conversations { get; init; } = [];
@@ -16,7 +18,8 @@ public sealed record PrivState
     public bool Visible { get; init; }
     public string? Active { get; init; }
     public string Draft { get; init; } = "";
-    public bool Sending { get; init; }
+    public PrivSendStage SendStage { get; init; }
+    public bool Sending => SendStage != PrivSendStage.Idle;
     public PrivConversation? Current => Conversations.FirstOrDefault(conversation => conversation.Key == Active);
 
     public PrivState Select(string key) => Conversations.Any(conversation => conversation.Key == key)

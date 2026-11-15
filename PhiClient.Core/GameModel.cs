@@ -73,6 +73,7 @@ public abstract record GameMessage
     public sealed record PrivSelected(string Key) : GameMessage;
     public sealed record PrivDraftChanged(string Text) : GameMessage;
     public sealed record PrivSendingChanged(bool Value) : GameMessage;
+    public sealed record PrivSendStageChanged(PrivSendStage Value) : GameMessage;
     public sealed record PrivConfirmed(string Key) : GameMessage;
     public sealed record PrivSent(string Text) : GameMessage;
     public sealed record UsersRefreshStarted(long At) : GameMessage;
@@ -113,13 +114,13 @@ public static class GameUpdate
             Append(new GameModel { Input = model.Input, BoardText = model.BoardText, Log = model.Log,
                 LogEntries = model.LogEntries, NextLogId = model.NextLogId, RawLogCharacters = model.RawLogCharacters,
                 LogCharacters = model.LogCharacters, LogSaving = model.LogSaving,
-                Priv = model.Priv with { Picked = [], Sending = false }, Phase = ConnectionPhase.Connecting,
+                Priv = model.Priv with { Picked = [], SendStage = PrivSendStage.Idle }, Phase = ConnectionPhase.Connecting,
                 Loud = model.Loud, RepeatLoud = model.RepeatLoud, AllTabSpeech = model.AllTabSpeech,
                 TalkPrefix = model.TalkPrefix }, "[Connecting...]"),
         GameMessage.PhaseChanged { Phase: ConnectionPhase.Offline } =>
             model with { Phase = ConnectionPhase.Offline, Selection = new(), Editing = false,
                 PreparingMagic = false, Transferring = false, Prediction = model.Prediction.Reset(),
-                UserRefresh = model.UserRefresh.Finish(), Priv = model.Priv with { Sending = false }, Master = null },
+                UserRefresh = model.UserRefresh.Finish(), Priv = model.Priv with { SendStage = PrivSendStage.Idle }, Master = null },
         GameMessage.PhaseChanged phase => model with { Phase = phase.Phase },
         GameMessage.InputChanged input => model with { Input = input.Text },
         GameMessage.LoudChanged loud => model with { Loud = loud.Value, RepeatLoud = loud.Value && loud.Repeat },
@@ -139,7 +140,9 @@ public static class GameUpdate
         GameMessage.PrivOpened open => model with { Priv = model.Priv.Open(open.To) },
         GameMessage.PrivSelected select => model with { Priv = model.Priv.Select(select.Key) },
         GameMessage.PrivDraftChanged draft => model with { Priv = model.Priv with { Draft = draft.Text } },
-        GameMessage.PrivSendingChanged sending => model with { Priv = model.Priv with { Sending = sending.Value } },
+        GameMessage.PrivSendingChanged sending => model with { Priv = model.Priv with
+            { SendStage = sending.Value ? PrivSendStage.Preparing : PrivSendStage.Idle } },
+        GameMessage.PrivSendStageChanged sending => model with { Priv = model.Priv with { SendStage = sending.Value } },
         GameMessage.PrivConfirmed confirm => model with { Priv = model.Priv.Confirmed(confirm.Key) },
         GameMessage.PrivSent sent when model.Priv.Draft == sent.Text => model with { Priv = model.Priv with { Draft = "" } },
         GameMessage.UsersRefreshStarted start => model with { UserRefresh = model.UserRefresh.Begin(start.At, model.UsersRevision) },
@@ -162,7 +165,7 @@ public static class GameUpdate
         TransferProgress progress => model with { Transferring = progress.Active, Prediction = model.Prediction.Reset() },
         WorldMoved => model with { Map = null, Eagle = null, ShowEagle = false, World = "", Area = "",
             Users = [], Selection = new(), Editing = false, PreparingMagic = false, Prediction = model.Prediction.Reset(),
-            UserRefresh = new(), Priv = model.Priv with { Sending = false }, Master = null },
+            UserRefresh = new(), Priv = model.Priv with { SendStage = PrivSendStage.Idle }, Master = null },
         LogLine { Literal: false } line when line.Text.StartsWith("DM > ", StringComparison.Ordinal) &&
             line.Text[5..] is "進めません." or "Can not go." =>
             Append(model with { Prediction = model.Prediction.CannotGo(at) }, line.Text, time, line),

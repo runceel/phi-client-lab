@@ -71,6 +71,26 @@ public sealed class PrivTests
     }
 
     [Fact]
+    public void MvuDistinguishesConfirmationPreparationTransmissionAndClearsBusyOnCancelOrDisconnect()
+    {
+        var initial = new GameModel();
+        var preparing = GameUpdate.Apply(initial, new GameMessage.PrivSendingChanged(true));
+        var confirming = GameUpdate.Apply(preparing, new GameMessage.PrivSendStageChanged(PrivSendStage.Confirming));
+        var transmitting = GameUpdate.Apply(confirming, new GameMessage.PrivSendStageChanged(PrivSendStage.Transmitting));
+        Assert.Equal(PrivSendStage.Idle, initial.Priv.SendStage);
+        Assert.Equal(PrivSendStage.Preparing, preparing.Priv.SendStage);
+        Assert.Equal(PrivSendStage.Confirming, confirming.Priv.SendStage);
+        Assert.Equal(PrivSendStage.Transmitting, transmitting.Priv.SendStage);
+        Assert.True(preparing.Priv.Sending);
+        Assert.True(confirming.Priv.Sending);
+        Assert.True(transmitting.Priv.Sending);
+        Assert.False(GameUpdate.Apply(confirming, new GameMessage.PrivSendingChanged(false)).Priv.Sending);
+        var offline = GameUpdate.Apply(transmitting, new GameMessage.PhaseChanged(ConnectionPhase.Offline));
+        Assert.False(offline.Priv.Sending);
+        Assert.Equal(PrivSendStage.Idle, offline.Priv.SendStage);
+    }
+
+    [Fact]
     public void MvuKeepsGroupMessagesIsolatedRetainsChangedDraftAndExcludesRosterClearFromResponseRevision()
     {
         var before = GameUpdate.Apply(new(), new GameMessage.Received(new PlayerName("Self")));
