@@ -151,10 +151,36 @@ public sealed class GameInputTests
     [InlineData("first\r", 6, false, null)]
     [InlineData("first\r\nsecond", 2, true, "+first")]
     [InlineData("*not a shout", 3, false, "/**/*not a shout")]
+    [InlineData("*not a shout", 3, true, "/**/*not a shout")]
     [InlineData("one\n\nthree", 4, false, "/**/")]
     [InlineData("one\n", 4, false, null)]
     public void ChatSendsOnlyCurrentLineAndProtectsAccidentalShouts(string text, int caret, bool party, string? expected) =>
         Assert.Equal(expected, GameInput.ChatLine(text, caret, party));
+
+    [Theory]
+    [InlineData("hello", 2, false, "*hello")]
+    [InlineData("*hello", 2, false, "**hello")]
+    [InlineData("hello", 2, true, "*hello")]
+    [InlineData("one\n\nlast", 4, false, "/**/")]
+    [InlineData("one\n", 4, false, null)]
+    public void ExplicitShoutingUsesTheUnescapedCurrentLineAndOriginalBlankLineRules(
+        string text, int caret, bool party, string? expected) =>
+        Assert.Equal(expected, GameInput.ChatLine(text, caret, party, loud: true));
+
+    [Fact]
+    public void SentLinesRemainInTheDraftAndTheCaretAdvancesAcrossCrLfOrToThePrefix()
+    {
+        Assert.Equal(("one\r\ntwo", 5), GameInput.AfterChatSend("one\r\ntwo", 2));
+        Assert.Equal(("one\r\ntwo\r\nnext", 14), GameInput.AfterChatSend("one\r\ntwo", 7, "next"));
+        var draft = string.Join('\n', Enumerable.Range(1, 100));
+        var after = GameInput.AfterChatSend(draft, draft.Length);
+        var lines = after.Text.Split('\n');
+        Assert.Equal(100, lines.Length);
+        Assert.Equal("2", lines[0]);
+        Assert.Equal("100", lines[^2]);
+        Assert.Empty(lines[^1]);
+        Assert.Equal(after.Text.Length, after.Caret);
+    }
 
     [Fact]
     public void MapMouseUsesEightAngularSectorsRatherThanAlwaysMovingDiagonally()

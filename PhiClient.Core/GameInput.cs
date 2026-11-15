@@ -230,7 +230,16 @@ public static class GameInput
         };
     }
 
-    public static string? ChatLine(string text, int caret, bool party)
+    public static string? ChatLine(string text, int caret, bool party, bool loud = false)
+    {
+        var (start, end) = ChatBounds(text, caret);
+        var line = text[start..end];
+        if (line.Length == 0)
+            return end == text.Length ? null : "/**/";
+        return loud ? "*" + line : line.StartsWith('*') ? "/**/" + line : party ? "+" + line : line;
+    }
+
+    private static (int Start, int End) ChatBounds(string text, int caret)
     {
         caret = Math.Clamp(caret, 0, text.Length);
         if (caret > 0 && caret < text.Length && text[caret - 1] == '\r' && text[caret] == '\n')
@@ -239,10 +248,19 @@ public static class GameInput
         var end = caret;
         while (start > 0 && text[start - 1] is not '\r' and not '\n') start--;
         while (end < text.Length && text[end] is not '\r' and not '\n') end++;
-        var line = text[start..end];
-        if (line.Length == 0)
-            return end == text.Length ? null : "/**/";
-        return party ? "+" + line : line.StartsWith('*') ? "/**/" + line : line;
+        return (start, end);
+    }
+
+    public static (string Text, int Caret) AfterChatSend(string text, int caret, string prefix = "")
+    {
+        var (_, end) = ChatBounds(text, caret);
+        if (end < text.Length)
+            return (text, end + (text[end] == '\r' && end + 1 < text.Length && text[end + 1] == '\n' ? 2 : 1));
+        var separator = text.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : text.Contains('\r') ? "\r" : "\n";
+        var next = text + separator + prefix;
+        var lines = next.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n');
+        if (lines.Length > 100) next = string.Join(separator, lines[^100..]);
+        return (next, next.Length);
     }
 
     public static string[] MapMovement(int x, int y, bool northUp)

@@ -139,7 +139,7 @@ partial class App
         refresh();
     }
 
-    private async Task ExecuteAsync(GameSession session, InputAction action, bool keepSelection = false)
+    private async Task<bool> ExecuteAsync(GameSession session, InputAction action, bool keepSelection = false)
     {
         if (!session.Connected || session.Connection is null)
             throw new InvalidOperationException("Connect before sending a command.");
@@ -153,11 +153,11 @@ partial class App
         var transportVersion = connection.TransportVersion;
         if (action.Confirmation is not null &&
             !await SessionDialogAsync("Confirm magic", action.Confirmation, "Cast"))
-            return;
+            return false;
         if (action.Prompt is not null)
         {
             var response = await RequestDialogAsync(new(action.Prompt, "", "Send", action.Prompt));
-            if (!response.Accepted) return;
+            if (!response.Accepted) return false;
             var answer = response.Value;
             if (answer.Length == 0) throw new ArgumentException("Enter a value before sending.");
             PhiWire.ValidateLine(answer);
@@ -181,6 +181,7 @@ partial class App
         refresh();
         try { await connection.SendActionAsync(action); }
         finally { session.Dispatch(new GameMessage.PreparingChanged(false)); }
+        return true;
     }
 
     private void Choose(GameSession session, SelectionCommand command)
@@ -202,11 +203,23 @@ partial class App
     {
         if (composing || committingComposition)
             return;
-        var text = GameInput.ChatLine(session.Input, inputControl?.SelectionStart ?? session.Input.Length, party);
+        var original = session.Input;
+        var caret = active == session ? inputControl?.SelectionStart ?? original.Length : original.Length;
+        var text = GameInput.ChatLine(original, caret, party, shout);
         if (text is null) return;
-        var action = shout ? GameInput.Command("*" + text)
+        var action = shout ? GameInput.Command(text)
             with { Confirmation = "Shout this line to everyone in the world?" } : GameInput.Command(text);
-        Execute(session, action);
+        _ = SessionOperationAsync(session, async () =>
+        {
+            if (!await ExecuteAsync(session, action) || session.Input != original) return;
+            var next = GameInput.AfterChatSend(original, caret);
+            session.Dispatch(new GameMessage.InputChanged(next.Text));
+            if (active == session && inputControl?.XamlRoot is not null)
+            {
+                inputControl.Text = next.Text;
+                inputControl.Select(next.Caret, 0);
+            }
+        });
     }
 
     private void MapClick(GameSession session, int x, int y)
