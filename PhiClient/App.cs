@@ -18,13 +18,8 @@ partial class App : Component
         refresh = Refresh;
         UseEffect(StartServices, Array.Empty<object>());
 
-        Element content = active is null
-            ? VStack(16, Heading("PHI Client"),
-                TextBlock("A native WinUI client using Microsoft's experimental Reactor framework."),
-                TextBlock("Save a character on the left, then choose Connect."),
-                TextBlock("Load your own Philly graphics through View > Graphics folder. No third-party art is bundled."),
-                TextBlock("Existing character IDs can also be found on the first line of your .phirc file."))
-                .Padding(24).Flex(grow: 1, basis: 0)
+        Element content = active is null || model.Worlds.Visible
+            ? ScrollViewer(WorldDirectoryView()).AutomationId("world-directory").Flex(grow: 1, basis: 0)
             : TabView(sessions.IndexOf(active), index =>
                 {
                     if (index >= 0 && index < sessions.Count) SelectSession(sessions[index]);
@@ -50,6 +45,8 @@ partial class App : Component
         Heading("Characters"), Caption("Saved profiles"),
         VStack(6, characters.Select(CharacterRow).ToArray()),
         SubHeading(creating ? "Create a new character" : "Register an existing ID"),
+        Button("世界一覧から接続先を選ぶ", () => Dispatch(new ClientMessage.WorldVisibilityChanged(true)))
+            .AutomationId("show-worlds"),
         TextBox(name, value => name = value, header: "Display name").AutomationId("character-name"),
         TextBox(host, value => host = value, header: "Server hostname / IP").AutomationId("server-host"),
         TextBox(port, value => port = value, header: "TCP port").AutomationId("server-port"),

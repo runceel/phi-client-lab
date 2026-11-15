@@ -1,0 +1,72 @@
+using Microsoft.UI.Reactor;
+using Microsoft.UI.Reactor.Core;
+using Microsoft.UI.Reactor.Layout;
+using Microsoft.UI.Xaml;
+using PhiClient.Core;
+using static Microsoft.UI.Reactor.Factories;
+
+partial class App
+{
+    private WorldDirectoryClient? worldClient;
+    private readonly CancellationTokenSource worldLifetime = new();
+    private WorldDirectoryClient WorldsClient => worldClient ??= new(Path.Combine(store.Folder, "world-directory"));
+
+    private Element WorldDirectoryView()
+    {
+        var worlds = model.Worlds;
+        var rows = worlds.Items.Select((world, index) => (world, index)).Where(row =>
+            row.world.Name.Contains(worlds.Filter, StringComparison.OrdinalIgnoreCase) ||
+            row.world.Host.Contains(worlds.Filter, StringComparison.OrdinalIgnoreCase)).ToArray();
+        return VStack(10,
+            Heading("接続先の世界"),
+            TextBlock("選ぶと登録欄のサーバーとポートを入力します。選択だけではゲームサーバーに接続しません。")
+                .TextWrapping(TextWrapping.Wrap),
+            TextBox(worlds.Filter, value => Dispatch(new ClientMessage.WorldFilterChanged(value)), header: "世界名・アドレスで絞り込み")
+                .AutomationId("world-filter"),
+            Caption($"取得元: {worlds.Source}").TextWrapping(TextWrapping.Wrap).AutomationId("world-source"),
+            TextBlock(worlds.Message).TextWrapping(TextWrapping.Wrap).AutomationId("world-status"),
+            Caption($"表示: {rows.Length} / {worlds.Items.Length} 件").AutomationId("world-count"),
+            ScrollViewer(VStack(8, rows.Select(row => VStack(4,
+                TextBlock(row.world.Name).TextWrapping(TextWrapping.Wrap),
+                Caption($"{row.world.Host}:{row.world.Port}"),
+                Button("この世界を使う", () => Dispatch(new ClientMessage.WorldSelected(row.world)))
+                    .IsEnabled(loaded && !busy && !worlds.Loading).AutomationId($"world-choose-{row.index}")
+            ).WithKey($"{row.index}:{row.world.Host}:{row.world.Port}")).ToArray())).Height(280).AutomationId("world-list"),
+            TextBox(worlds.Url, value => Dispatch(new ClientMessage.WorldUrlChanged(value)), header: "一覧の配布 URL（LZH / CP932 INI）")
+                .IsEnabled(!busy).AutomationId("world-source-url"),
+            HStack(8,
+                Button("HTTP 一覧を更新", () => _ = LoadWorldsAsync(import: false))
+                    .IsEnabled(loaded && !busy).AutomationId("world-refresh"),
+                Button("INI ファイルから取り込む", () => _ = LoadWorldsAsync(import: true))
+                    .IsEnabled(loaded && !busy).AutomationId("world-import")),
+            TextBlock("原典の配布元は HTTP の resist.lzh です。ゲーム通信とは別ですが、内容や接続先の安全性・稼働状況は保証されません。")
+                .TextWrapping(TextWrapping.Wrap),
+            active is not null ? Button("ゲーム画面に戻る", () => Dispatch(new ClientMessage.WorldVisibilityChanged(false))) : Empty()
+        ).Padding(24);
+    }
+
+    private Task LoadWorldsAsync(bool import) => PerformAsync(async () =>
+    {
+        var path = "";
+        if (import)
+        {
+            var answer = await RequestDialogAsync(new("世界一覧を取り込む",
+                "ローカルの resist.ini または worlds.ini の絶対パスを指定してください。ゲームサーバーへの接続は行いません。",
+                "取り込む", "INI ファイル", "", "world-file"));
+            if (!answer.Accepted) return;
+            path = answer.Value.Trim();
+        }
+        Dispatch(new ClientMessage.WorldsLoading());
+        try
+        {
+            var result = import
+                ? await WorldsClient.ImportAsync(path, worldLifetime.Token)
+                : await WorldsClient.RefreshAsync(model.Worlds.Url, worldLifetime.Token);
+            if (!disposed) Dispatch(new ClientMessage.WorldsLoaded(result));
+        }
+        catch (Exception ex) when (IsExpected(ex) || ex is InvalidDataException or HttpRequestException or System.ComponentModel.Win32Exception)
+        {
+            if (!disposed) Dispatch(new ClientMessage.WorldsFailed(ex.Message));
+        }
+    });
+}

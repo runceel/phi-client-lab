@@ -45,6 +45,9 @@ partial class App
         return () =>
         {
             disposed = true;
+            worldLifetime.Cancel();
+            worldClient?.Dispose();
+            worldLifetime.Dispose();
             animation?.Stop();
             dialogCompletion?.TrySetResult(new(false, ""));
             foreach (var session in sessions)
@@ -82,6 +85,7 @@ partial class App
     private async Task LoadAsync()
     {
         characters = await store.LoadAsync();
+        Dispatch(new ClientMessage.WorldsLoaded(await WorldsClient.LoadAsync(worldLifetime.Token)));
         loaded = true;
         var graphicsPath = Path.Combine(store.Folder, "graphics-folder.txt");
         if (File.Exists(graphicsPath))

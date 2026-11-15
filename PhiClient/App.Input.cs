@@ -18,7 +18,7 @@ partial class App
 
     private void OnGameKeyDown(object sender, KeyRoutedEventArgs args)
     {
-        if (active is not { } session || dialogOpen || Down(VirtualKey.LeftWindows) || Down(VirtualKey.RightWindows))
+        if (active is not { } session || model.Worlds.Visible || dialogOpen || Down(VirtualKey.LeftWindows) || Down(VirtualKey.RightWindows))
             return;
         var control = Down(VirtualKey.Control);
         var shift = Down(VirtualKey.Shift);

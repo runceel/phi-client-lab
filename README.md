@@ -109,6 +109,55 @@ require confirmation. Japanese IME composition has dedicated commit-key guards.
 A native Microsoft IME check verified physical romaji composition, commit Enter
 without sending, and a separate Enter sending exactly one Japanese line.
 
+## 接続先世界の一覧
+
+登録画面の右側に世界一覧を表示します。ゲーム中は登録欄の
+**世界一覧から接続先を選ぶ** で開けます。世界名・アドレスで絞り込み、
+**この世界を使う** を選ぶと、既存 ID 登録／新規キャラ作成のサーバーと
+ポートだけを入力します。名前・ID・パスワードなどは変更せず、
+選択だけでは保存・ログイン・キャラ作成・世界移動を行いません。
+接続には、登録後の **Connect** などの明示操作が必要です。
+
+wphi の原典では、同梱 `Config/unew.ini` の `Schedule15` が指定する
+`http://www.tofup.net/raphi/resist.lzh` を HTTP で取得し、
+展開した `resist.ini` を読みます。これはゲームサーバーへの照会ではなく、
+一覧ファイルの配布です。未取得または同梱の `Date` と取得記録が違う場合に
+更新し、取得できなければ前回のファイル、それもなければ同梱
+`Config/worlds.ini` を使います。原典には `worlds.ini` の配布元が
+見つからない旨のコメントがあります。
+
+本アプリは起動時に外部通信をせず、保存済みの一覧、なければ原典
+`d8f11bf60c95d470fa14ca83bcc4c02d5c83fecc` の同梱一覧から
+世界名・アドレス・ポートを抽出した 17 件を表示します。
+**HTTP 一覧を更新** で配布元へ明示的に取得を要求できます。
+原典の `Date` による自動再取得は行いません。配布 URL の変更は実行中だけ有効で、
+再起動時は原典の URL に戻ります。保存済みの一覧は引き続き利用できます。
+資格情報付き URL とリダイレクトは受け付けません。
+取得失敗時は理由を表示し、前の一覧を保持します。
+
+**INI ファイルから取り込む** では、既存の wphi／Philly の
+`resist.ini` または `worlds.ini` のローカル絶対パスを指定できます。
+原典と同様に CP932 の INI を読み、節名を世界名、`Address` をホスト、
+`Port` をポートとして扱います。キーの大文字・小文字を区別せず、
+不正な接続先は件数と理由を表示して除外します。全件が不正なら失敗します。
+世界の説明文や資格情報は一覧として取り込みません。
+
+HTTP の配布ファイルは 2 MiB、INI は 1 MiB までです。
+LZH は Windows 標準の `tar.exe` で `resist.ini` だけをメモリーに読み、
+アーカイブ内の他のファイルをディスクに展開しません。
+`tar.exe` が利用できない場合はエラーを表示するため、INI から取り込んでください。
+一覧は設定フォルダーの `world-directory\resist.ini` に保存されます。
+
+一覧の配布元は平文 HTTP であり、内容の真正性や接続先の稼働・安全性は
+保証されません。表示された世界へ自動接続したり、稼働確認したりはしません。
+開発時の取得・選択・接続適用のテストは、所有確認済みのローカルモックだけで
+行います。実ゲームサーバーへの接続は行いません。
+
+原典の根拠：
+[取得とキャッシュ](https://github.com/s7k/wphi/blob/d8f11bf60c95d470fa14ca83bcc4c02d5c83fecc/src-tauri/src/main.rs#L415-L434)、
+[HTTP/LZH と INI 解析](https://github.com/s7k/wphi/blob/d8f11bf60c95d470fa14ca83bcc4c02d5c83fecc/src-tauri/src/download.rs#L66-L135)、
+[選択による入力](https://github.com/s7k/wphi/blob/d8f11bf60c95d470fa14ca83bcc4c02d5c83fecc/ui/src/NewCharacter.tsx#L145-L168)。
+
 ## Character graphics and map chips
 
 Choose **View > Graphics folder**, enter an absolute local folder, then **Load**.
@@ -245,7 +294,7 @@ named conditions, 7x7 and legacy 5x5 terrain, 15x15 EagleEye, user-supplied spri
 and tile-sheet rendering, full-key movement and common actions, system-magic
 preparation, checked/paged selections, controlled dialogs, and sign editing.
 
-Not yet implemented: full Philly folder/settings import, world discovery and
+Not yet implemented: full Philly folder/settings import,
 image selection previews, automatic asset downloads, configurable skins other
 than the Mine directory layout, rich speech styling, overlaid actor status
 decorations, legacy 5x5 actor decoding, configurable 50–400% map zoom,
