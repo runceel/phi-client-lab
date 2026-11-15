@@ -46,7 +46,18 @@ compact表示でも同じバーを使い、操作パッドより上へ置きま�
 未知・最大値0・負値・最大超過・long上限を含む塗りの計算と、既存statusの関連テストは15件成功。
 packaged x64 buildも成功しています。theme resourceのLight/Darkと標準HighContrast、
 高コントラスト時のシステム前景/背景を使い、OSの配色変更購読は表示中だけ保持します。
-ただし実画面の色・太さ・狭幅/独立・値変化・高コントラスト・入力非横取りは未受け入れです。
+初回native検証（commit `8ccbe54`）は、所有fixtureの合成loopback接続直後に
+クラッシュしてFAILとなりました。バー観測前のため、実画面の色・太さ・狭幅/独立・
+値変化・高コントラスト・入力非横取りはすべて未受け入れです。
+Event1000 Record114043（所有PID28372、例外`0xc000027b`）と私的dumpを保存し、
+実際の例外・stackを調査しています。DLL offsetだけで既修正の#18と同一原因とは判断しません。
+公開symbolsと既存SOSでstowed HRESULT `80070490` とLoadedイベント配送中のstackを確認しましたが、
+現在のmanaged stackはReactorのイベントループだけで、元の例外は残っていません。
+minidumpに元stack・nested objectの必要メモリがなく、既存heap解析もCLR版非対応のため、
+アプリの原因箇所は未確定です。根拠のないバー実装修正やnative再起動は行っていません。
+実exit codeは不明で、正常終了やcleanup強制停止には数えていません。
+所有資格情報・profile・登録・mock・layout/dataはcleanup済みで、製品と永続backupの不変を確認しました。
+結果はsession `files\hp-mp-native\results.json` に保存しています。
 ビルド・純粋テストをnative確認の代わりにせず、#22はOpenで追跡します。
 #11ログ検索・#12地図効果・#20 Auto倍率の差分は含みません。
 
