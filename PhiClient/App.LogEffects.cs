@@ -45,15 +45,16 @@ partial class App
             throw new IOException("ログの保存先を開けませんでした。");
     });
 
-    private void CopyLog(GameSession session, IReadOnlyList<LogEntry> rows, bool toInput)
+    private void CopyLog(GameSession session, IReadOnlyList<LogEntry> rows, bool toInput, bool privateInput = false)
     {
         _ = SessionOperationAsync(session, () =>
         {
             var text = string.Join('\n', rows.Select(row => row.Copy(model.Options, toInput)));
             if (toInput)
             {
-                session.Dispatch(new GameMessage.InputChanged(text));
-                inputControl?.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+                session.Dispatch(privateInput ? new GameMessage.PrivDraftChanged(text) : new GameMessage.InputChanged(text));
+                var input = privateInput ? session.PrivInput : inputControl;
+                input?.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
             }
             else
             {

@@ -24,7 +24,7 @@ partial class App
         var control = Down(VirtualKey.Control);
         var shift = Down(VirtualKey.Shift);
         var alt = Down(VirtualKey.Menu);
-        if (args.Key == VirtualKey.Tab && control && !alt && !composing)
+        if (args.Key == VirtualKey.Tab && control && !alt && !composing && !session.PrivComposing && !session.PrivCommitting)
         {
             if (!args.KeyStatus.WasKeyDown) CycleTab(shift ? -1 : 1);
             args.Handled = true;

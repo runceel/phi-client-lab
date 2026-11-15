@@ -35,6 +35,8 @@ partial class App
                 MenuItem("設定…", OpenSettings) with { IsEnabled = !busy },
                 MenuItem("Characters / registration", () => { showCharacters = !showCharacters; refresh(); })),
             Menu("Character",
+                MenuItem("priv（内緒話）", () => { if (session is not null) TogglePriv(session); })
+                    with { IsEnabled = session is not null },
                 MenuItem("Next tab  |  Ctrl+Tab", () => CycleTab(1)),
                 MenuItem("Previous tab  |  Ctrl+Shift+Tab", () => CycleTab(-1)),
                 MenuSeparator(),
@@ -252,7 +254,8 @@ partial class App
                 session.PreparingMagic ? "Preparing magic: waiting for equipment response; other input is paused." :
                 $"Esc: movement  |  Tab: input  |  Ctrl+Tab: next character  |  {(fullKeys ? "Full-key movement on" : "Full-key movement off")}")
                 .AutomationId("input-mode").Flex(shrink: 0),
-            FlexRow(showMap && !showCharacters ? ScrollViewer(map).Width(360).Flex(shrink: 0) : Empty(), chat)
+            FlexRow(showMap && !showCharacters ? ScrollViewer(map).Width(360).Flex(shrink: 0) : Empty(), chat,
+                PrivView(session).Flex(shrink: 0))
                 .Flex(grow: 1, basis: 0)
         ).Flex(grow: 1, basis: 0).FlexPadding(12, 8);
     }

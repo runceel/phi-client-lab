@@ -35,7 +35,10 @@ public sealed record MapFrame(char Direction, byte[] Tiles, byte[] Attributes, I
 public sealed record MapStyle(bool NorthUp) : ServerEvent;
 public sealed record PlayerName(string Name) : ServerEvent;
 public sealed record User(int Number, string Name);
-public sealed record UserList(IReadOnlyList<User> Users) : ServerEvent;
+public sealed record UserList(IReadOnlyList<User> Users) : ServerEvent
+{
+    public bool Cleared { get; init; }
+}
 public sealed record MapPosition(long X, long Y);
 public sealed record WorldTransferRequest(string Host, int Port) : ServerEvent;
 public sealed record WorldMoved(string Host, int Port) : ServerEvent;
@@ -187,6 +190,7 @@ public sealed partial class ProtocolParser
     private static partial Regex ListNumberPattern();
 
     public static string PlainText(string text) => TagPattern().Replace(text.Replace("/*br*/", "\n"), "");
+    public void ClearUsers() => users.Clear();
 
     public IReadOnlyList<ServerEvent> Feed(byte[] raw)
     {

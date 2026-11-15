@@ -25,10 +25,10 @@ internal sealed class LogPresenter(Action<IReadOnlyList<LogEntry>, bool> copy, A
     private (bool, string, uint)? presentation;
     private long? pressedRow;
 
-    public void Attach()
+    public void Attach(string id = "game-log", string name = "世界からのログ")
     {
-        Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(Control, "game-log");
-        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(Control, "世界からのログ");
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(Control, id);
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(Control, name);
         var menu = new MenuFlyout();
         var clipboard = new MenuFlyoutItem { Text = "行全体をコピー" };
         var input = new MenuFlyoutItem { Text = "行全体を入力欄へコピー" };

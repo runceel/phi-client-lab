@@ -8,6 +8,8 @@ public sealed partial class PhiConnection : IDisposable
     private readonly SemaphoreSlim sending = new(1, 1);
     private readonly SemaphoreSlim actions = new(1, 1);
     private readonly object automation = new();
+    private readonly object parserGate = new();
+    private ProtocolParser? currentParser;
     private readonly CancellationTokenSource lifetime = new();
     private TaskCompletionSource<Choices?>? equipment;
     private int hiddenLists;
@@ -111,6 +113,11 @@ public sealed partial class PhiConnection : IDisposable
                     hideUntil = Environment.TickCount64 + 5000;
                 }
             var at = Environment.TickCount64;
+            if (lines.Contains("#ulist", StringComparer.Ordinal))
+            {
+                lock (parserGate) currentParser?.ClearUsers();
+                Received?.Invoke(new UserList([]) { Cleared = true });
+            }
             foreach (var line in lines) Sending?.Invoke(line, at);
             await stream.WriteAsync(PhiWire.Encode(string.Join('\n', lines) + "\n"), timeout.Token);
         }
@@ -225,6 +232,7 @@ public sealed partial class PhiConnection : IDisposable
     {
         var framer = new LineFramer();
         var parser = new ProtocolParser();
+        lock (parserGate) currentParser = parser;
         var pending = new Queue<byte[]>();
         var bytes = new byte[8192];
         while (true)
@@ -244,7 +252,9 @@ public sealed partial class PhiConnection : IDisposable
                     Received?.Invoke(new LogLine("[Protocol] A line over 64 KiB was discarded."));
                 continue;
             }
-            foreach (var item in parser.Feed(pending.Dequeue()))
+            IReadOnlyList<ServerEvent> items;
+            lock (parserGate) items = parser.Feed(pending.Dequeue());
+            foreach (var item in items)
             {
                 if (item is WorldTransferRequest request)
                 {
@@ -252,6 +262,7 @@ public sealed partial class PhiConnection : IDisposable
                     {
                         (framer, pending) = destination;
                         parser = new ProtocolParser();
+                        lock (parserGate) currentParser = parser;
                         host = request.Host;
                     }
                 }

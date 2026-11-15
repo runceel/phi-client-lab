@@ -63,8 +63,12 @@ partial class App
     {
         if (disposed) return;
         foreach (var game in sessions)
+        {
             if (game.LogPresenter is { Control.IsLoaded: true } presenter)
                 presenter.Update(game.Model.LogEntries, model.Options);
+            if (game.PrivPresenter is { Control.IsLoaded: true } privPresenter)
+                privPresenter.Update(game.Model.Priv.Current?.Entries ?? [], model.Options);
+        }
         if (active is { } session) session.GraphicsImage = graphics.Draw(session,
             gameControl?.XamlRoot?.RasterizationScale ?? 1, DisplayMap(session), model.Options.MapZoom / 100.0,
             model.Options.SmoothMove && visualPreferences.AnimationsEnabled);

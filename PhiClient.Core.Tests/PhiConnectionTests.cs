@@ -9,6 +9,43 @@ namespace PhiClient.Core.Tests;
 public sealed class PhiConnectionTests
 {
     [Fact]
+    public async Task UserRefreshClearsParserNamesBeforeNewRosterWithoutInterpretingLiteralUserCommands()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        using var connection = new PhiConnection();
+        var seen = new ConcurrentQueue<ServerEvent>();
+        var talked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        connection.Received += item =>
+        {
+            seen.Enqueue(item);
+            if (item is LogLine { Channel: LogChannel.Talk, From: "Alice" }) talked.TrySetResult();
+        };
+        var server = Task.Run(async () =>
+        {
+            using var peer = await listener.AcceptTcpClientAsync(timeout.Token);
+            var stream = peer.GetStream();
+            using var reader = new StreamReader(stream, PhiWire.Encoding, false, 1024, true);
+            for (var i = 0; i < 11; i++) await reader.ReadLineAsync(timeout.Token);
+            await stream.WriteAsync(PhiWire.Encode($"#user {4,4} {"Alice",-31}\nAlice > before\n"), timeout.Token);
+            Assert.Equal("#ulist", await reader.ReadLineAsync(timeout.Token));
+            await stream.WriteAsync(PhiWire.Encode("Alice > no longer known\n" +
+                $"#user {9,4} {"Bob",-31}\nBob > new roster\n" +
+                $"#more\n#user {4,4} {"Alice",-31}\n#end-more\n#close\n"), timeout.Token);
+        }, timeout.Token);
+        var run = connection.RunAsync("127.0.0.1", ((IPEndPoint)listener.LocalEndpoint).Port, "priv-fixture", timeout.Token);
+        await talked.Task.WaitAsync(timeout.Token);
+        await connection.SendAsync(["#ulist"], timeout.Token);
+        await Task.WhenAll(server, run).WaitAsync(timeout.Token);
+        Assert.Contains(seen.OfType<UserList>(), list => list.Cleared && list.Users.Count == 0);
+        Assert.Equal("Bob", Assert.Single(seen.OfType<UserList>().Last(list => !list.Cleared).Users).Name);
+        Assert.Contains(seen.OfType<LogLine>(), line => line.Text == "Alice > no longer known" && line.Channel == LogChannel.Log);
+        Assert.Contains(seen.OfType<LogLine>(), line => line.From == "Bob" && line.Channel == LogChannel.Talk);
+        Assert.Contains(seen.OfType<LogLine>(), line => line.Literal && line.Text.StartsWith("#user", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void RegistrationUsesOriginalUnicodeValidationAndCryptographicAlphabet()
     {
         for (var i = 0; i < 64; i++)

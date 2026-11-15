@@ -200,7 +200,11 @@ partial class App
         {
             if (disposed || session.Connection != connection)
                 return;
+            var privWasVisible = session.Model.Priv.Visible;
             session.Dispatch(new GameMessage.Received(item, Environment.TickCount64, DateTimeOffset.Now));
+            if (item is LogLine { Channel: LogChannel.Priv, Literal: false } && !privWasVisible &&
+                session.Model.Priv.Visible)
+                _ = SessionOperationAsync(session, () => RefreshUsersAsync(session));
             if (item is MapFrame && session.World is not "" and not "???")
                 _ = LoadAutomapAsync(session, session.World);
             if (item is WorldMoved moved)

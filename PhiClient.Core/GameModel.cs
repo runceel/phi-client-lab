@@ -18,6 +18,10 @@ public sealed record GameModel
     public bool Transferring { get; init; }
     public string PlayerName { get; init; } = "";
     public ImmutableArray<User> Users { get; init; } = [];
+    public long UsersRevision { get; init; }
+    public long UsersUpdatedAt { get; init; }
+    public PrivState Priv { get; init; } = new();
+    public UserListRefresh UserRefresh { get; init; } = new();
     public string World { get; init; } = "";
     public string Area { get; init; } = "";
     public string Input { get; init; } = "";
@@ -52,6 +56,16 @@ public abstract record GameMessage
     public sealed record EagleToggled : GameMessage;
     public sealed record Logged(string Text, DateTimeOffset? Time = null) : GameMessage;
     public sealed record LogSavingChanged(bool Value) : GameMessage;
+    public sealed record PrivVisibilityChanged(bool Value) : GameMessage;
+    public sealed record PrivPicked(string Name, bool Value) : GameMessage;
+    public sealed record PrivOpened(IReadOnlyList<string> To) : GameMessage;
+    public sealed record PrivSelected(string Key) : GameMessage;
+    public sealed record PrivDraftChanged(string Text) : GameMessage;
+    public sealed record PrivSendingChanged(bool Value) : GameMessage;
+    public sealed record PrivConfirmed(string Key) : GameMessage;
+    public sealed record PrivSent(string Text) : GameMessage;
+    public sealed record UsersRefreshStarted(long At) : GameMessage;
+    public sealed record UsersRefreshFinished : GameMessage;
     public sealed record SelectionMoved(int Delta) : GameMessage;
     public sealed record SelectionToggled(int Index) : GameMessage;
     public sealed record SelectionAdvanced : GameMessage;
@@ -87,10 +101,12 @@ public static class GameUpdate
         GameMessage.PhaseChanged { Phase: ConnectionPhase.Connecting } =>
             Append(new GameModel { Input = model.Input, BoardText = model.BoardText, Log = model.Log,
                 LogEntries = model.LogEntries, NextLogId = model.NextLogId, RawLogCharacters = model.RawLogCharacters,
-                LogCharacters = model.LogCharacters, LogSaving = model.LogSaving, Phase = ConnectionPhase.Connecting }, "[Connecting...]"),
+                LogCharacters = model.LogCharacters, LogSaving = model.LogSaving,
+                Priv = model.Priv with { Picked = [], Sending = false }, Phase = ConnectionPhase.Connecting }, "[Connecting...]"),
         GameMessage.PhaseChanged { Phase: ConnectionPhase.Offline } =>
             model with { Phase = ConnectionPhase.Offline, Selection = new(), Editing = false,
-                PreparingMagic = false, Transferring = false, Prediction = model.Prediction.Reset() },
+                PreparingMagic = false, Transferring = false, Prediction = model.Prediction.Reset(),
+                UserRefresh = model.UserRefresh.Finish(), Priv = model.Priv with { Sending = false } },
         GameMessage.PhaseChanged phase => model with { Phase = phase.Phase },
         GameMessage.InputChanged input => model with { Input = input.Text },
         GameMessage.BoardChanged board => model with { BoardText = board.Text },
@@ -99,6 +115,17 @@ public static class GameUpdate
         GameMessage.EagleToggled => model with { ShowEagle = !model.ShowEagle },
         GameMessage.Logged log => Append(model, log.Text, log.Time),
         GameMessage.LogSavingChanged save => model with { LogSaving = save.Value },
+        GameMessage.PrivVisibilityChanged visibility => model with { Priv = model.Priv with { Visible = visibility.Value } },
+        GameMessage.PrivPicked pick => model with { Priv = model.Priv with { Picked = pick.Value ?
+            model.Priv.Picked.Add(pick.Name) : model.Priv.Picked.Remove(pick.Name) } },
+        GameMessage.PrivOpened open => model with { Priv = model.Priv.Open(open.To) },
+        GameMessage.PrivSelected select => model with { Priv = model.Priv.Select(select.Key) },
+        GameMessage.PrivDraftChanged draft => model with { Priv = model.Priv with { Draft = draft.Text } },
+        GameMessage.PrivSendingChanged sending => model with { Priv = model.Priv with { Sending = sending.Value } },
+        GameMessage.PrivConfirmed confirm => model with { Priv = model.Priv.Confirmed(confirm.Key) },
+        GameMessage.PrivSent sent when model.Priv.Draft == sent.Text => model with { Priv = model.Priv with { Draft = "" } },
+        GameMessage.UsersRefreshStarted start => model with { UserRefresh = model.UserRefresh.Begin(start.At, model.UsersRevision) },
+        GameMessage.UsersRefreshFinished => model with { UserRefresh = model.UserRefresh.Finish() },
         GameMessage.SelectionMoved move => Select(model, selection => selection.Move(move.Delta)),
         GameMessage.SelectionToggled toggle => Select(model, selection => selection.Toggle(toggle.Index)),
         GameMessage.SelectionAdvanced => Select(model, selection => selection.ToggleCursor()),
@@ -111,10 +138,13 @@ public static class GameUpdate
     {
         ConnectionReady when model.Phase != ConnectionPhase.Closing => model with { Phase = ConnectionPhase.Connected },
         PlayerName name => model with { PlayerName = name.Name },
-        UserList list => model with { Users = list.Users.ToImmutableArray() },
+        UserList list => model with { Users = list.Users.ToImmutableArray(),
+            UsersRevision = model.UsersRevision + (list.Cleared ? 0 : 1),
+            UsersUpdatedAt = list.Cleared ? model.UsersUpdatedAt : at },
         TransferProgress progress => model with { Transferring = progress.Active, Prediction = model.Prediction.Reset() },
         WorldMoved => model with { Map = null, Eagle = null, ShowEagle = false, World = "", Area = "",
-            Users = [], Selection = new(), Editing = false, PreparingMagic = false, Prediction = model.Prediction.Reset() },
+            Users = [], Selection = new(), Editing = false, PreparingMagic = false, Prediction = model.Prediction.Reset(),
+            UserRefresh = new(), Priv = model.Priv with { Sending = false } },
         LogLine { Literal: false } line when line.Text.StartsWith("DM > ", StringComparison.Ordinal) &&
             line.Text[5..] is "進めません." or "Can not go." =>
             Append(model with { Prediction = model.Prediction.CannotGo(at) }, line.Text, time, line),
@@ -161,6 +191,7 @@ public static class GameUpdate
             remove++;
         }
         return model with { Log = log.RemoveRange(0, remove), LogEntries = entries.RemoveRange(0, remove),
-            LogCharacters = count, RawLogCharacters = rawCount, NextLogId = model.NextLogId + 1 };
+            LogCharacters = count, RawLogCharacters = rawCount, NextLogId = model.NextLogId + 1,
+            Priv = model.Priv.Received(entry, model.PlayerName) };
     }
 }
