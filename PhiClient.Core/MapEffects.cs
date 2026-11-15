@@ -5,6 +5,43 @@ namespace PhiClient.Core;
 
 public enum MapEffectKind { Talk, HpLost, HpGained, MpLost, MpGained, Miss, Poison, Palsy, Dead, Buff, Debuff }
 
+public readonly record struct MapEffectBounds(double X, double Y, double Width, double Height)
+{
+    public bool Overlaps(MapEffectBounds other, double gap = 2) =>
+        X < other.X + other.Width + gap && X + Width + gap > other.X &&
+        Y < other.Y + other.Height + gap && Y + Height + gap > other.Y;
+}
+
+public static class MapEffectLayout
+{
+    public static MapEffectBounds? Place(double x, double y, double width, double height,
+        double mapWidth, double mapHeight, IReadOnlyList<MapEffectBounds> occupied)
+    {
+        if (width > mapWidth || height > mapHeight) return null;
+        var maxX = mapWidth - width;
+        var maxY = mapHeight - height;
+        x = Math.Clamp(x, 0, maxX);
+        y = Math.Clamp(y, 0, maxY);
+        var preferred = new MapEffectBounds(x, y, width, height);
+        if (!occupied.Any(item => preferred.Overlaps(item))) return preferred;
+        var rows = new[] { y, 0, maxY }.Concat(occupied.SelectMany(item =>
+            new[] { item.Y - height - 2, item.Y + item.Height + 2 }));
+        MapEffectBounds? best = null;
+        var distance = double.PositiveInfinity;
+        foreach (var top in rows.Where(top => top >= 0 && top <= maxY).Distinct())
+        foreach (var left in new[] { x, 0, maxX }.Distinct())
+        {
+            var nextDistance = (left - x) * (left - x) + (top - y) * (top - y);
+            if (nextDistance >= distance) continue;
+            var candidate = new MapEffectBounds(left, top, width, height);
+            if (occupied.Any(item => candidate.Overlaps(item))) continue;
+            best = candidate;
+            distance = nextDistance;
+        }
+        return best;
+    }
+}
+
 public sealed record MapEffect(long Id, string Name, MapEffectKind Kind, string Text, long Started,
     string? By = null, bool Magic = false, (int X, int Y)? Anchor = null)
 {

@@ -5,6 +5,39 @@ namespace PhiClient.Core.Tests;
 public sealed class MapEffectTests
 {
     [Theory]
+    [InlineData(112, 120)]
+    [InlineData(224, 240)]
+    [InlineData(448, 480)]
+    public void DenseMeasuredLabelsStayInsideMapWithoutOverlapping(int mapWidth, int mapHeight)
+    {
+        var occupied = new List<MapEffectBounds>();
+        var sizes = new[] { (Math.Min(186, mapWidth), 48), (Math.Min(186, mapWidth), 48),
+            (42, 22), (26, 22), (64, 22), (30, 22) };
+        foreach (var (width, height) in sizes)
+        {
+            var result = MapEffectLayout.Place(mapWidth / 2.0 - width / 2.0, -8, width, height,
+                mapWidth, mapHeight, occupied);
+            if (result is not { } bounds) continue;
+            Assert.InRange(bounds.X, 0, mapWidth - bounds.Width);
+            Assert.InRange(bounds.Y, 0, mapHeight - bounds.Height);
+            Assert.All(occupied, previous => Assert.False(bounds.Overlaps(previous)));
+            occupied.Add(bounds);
+        }
+        Assert.Equal(mapWidth == 112 ? 2 : sizes.Length, occupied.Count);
+    }
+
+    [Fact]
+    public void EffectPlacementKeepsNearestFreePositionAndOmitsLabelsWhenMapIsFull()
+    {
+        MapEffectBounds[] occupied = [new(0, 0, 100, 40)];
+        Assert.Equal(new MapEffectBounds(20, 42, 40, 20),
+            MapEffectLayout.Place(20, 10, 40, 20, 100, 100, occupied));
+        Assert.Null(MapEffectLayout.Place(0, 0, 40, 20, 100, 40, occupied));
+        Assert.Null(MapEffectLayout.Place(0, 0, 101, 20, 100, 100, []));
+        Assert.Null(MapEffectLayout.Place(0, 0, 40, 101, 100, 100, []));
+    }
+
+    [Theory]
     [InlineData("DM > Alice は Slime を 剣 で攻撃した. [88 hp]", "Slime", MapEffectKind.HpLost, "88", "Alice")]
     [InlineData("DM > Alice attacked to Slime by Sword. [88 hp]", "Slime", MapEffectKind.HpLost, "88", "Alice")]
     [InlineData("DM > Alice が Cure によって回復した. [14 hp]", "Alice", MapEffectKind.HpGained, "+14", null)]

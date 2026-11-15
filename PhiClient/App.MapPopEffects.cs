@@ -12,6 +12,8 @@ using static Microsoft.UI.Reactor.Factories;
 partial class App
 {
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? mapEffectTimer;
+    private Action? redrawMapEffects;
+    private long mapEffectFrame;
 
     private void StartMapEffectAnimation(Microsoft.UI.Dispatching.DispatcherQueue queue)
     {
@@ -20,9 +22,16 @@ partial class App
         var previouslyVisible = false;
         mapEffectTimer.Tick += (_, _) =>
         {
+            if (disposed || closingApplication) return;
             var visible = showMap && model.Options.MapEffects &&
                 active?.Model.MapEffects.Items.Any(item => item.Alive(Environment.TickCount64)) == true;
-            if (visible || previouslyVisible) refresh();
+            if (visible || previouslyVisible)
+            {
+                // Equal model updates do not rerender Reactor; expiry needs one final frame.
+                mapEffectFrame++;
+                if (model.Options.SingleWindow) redrawMapEffects?.Invoke();
+                else if (mapWindow?.IsVisible == true) refreshMapWindow?.Invoke();
+            }
             previouslyVisible = visible;
         };
         mapEffectTimer.Start();
@@ -32,7 +41,7 @@ partial class App
     {
         var now = Environment.TickCount64;
         return Canvas().Width(session.GraphicsWidth).Height(session.GraphicsHeight)
-            .IsHitTestVisible(false).AccessibilityHidden().WithKey($"map-effects-{now / 100}")
+            .IsHitTestVisible(false).AccessibilityHidden().WithKey($"map-effects-{mapEffectFrame}-{now / 100}")
             .AutomationId("map-effects")
             .OnMount(element =>
             {
@@ -43,7 +52,10 @@ partial class App
                 var center = session.GraphicsDim / 2;
                 var zoom = session.GraphicsZoom;
                 var stack = new Dictionary<string, int>();
-                foreach (var effect in session.Model.MapEffects.Items.Where(item => item.Alive(now)))
+                var occupied = new List<MapEffectBounds>();
+                var bubbles = new List<(Border Bubble, MapEffectBounds Bounds)>();
+                foreach (var effect in session.Model.MapEffects.Items.Where(item => item.Alive(now))
+                    .OrderByDescending(item => item.Kind == MapEffectKind.Talk).ThenByDescending(item => item.Id))
                 {
                     var actor = MapEffectState.FindActor(actors, effect.Name, center);
                     var tile = effect.Anchor is { } anchor ? (anchor.X + center, anchor.Y + center) :
@@ -106,12 +118,17 @@ partial class App
                         CornerRadius = new CornerRadius(talk ? 4 : 2),
                         Opacity = talk || !moving ? 1 : Math.Max(.2, 1 - progress) };
                     bubble.Measure(new Windows.Foundation.Size(Math.Min(186, session.GraphicsWidth), double.PositiveInfinity));
-                    var left = Math.Clamp(x - bubble.DesiredSize.Width / 2, 0,
-                        Math.Max(0, session.GraphicsWidth - bubble.DesiredSize.Width));
                     var top = y - (talk ? 16 * zoom + bubble.DesiredSize.Height : 8 * zoom + n * 16);
                     if (!talk && moving) top -= progress * 24;
-                    Add(bubble, left, Math.Max(0, top));
+                    if (MapEffectLayout.Place(x - bubble.DesiredSize.Width / 2, top,
+                        bubble.DesiredSize.Width, bubble.DesiredSize.Height,
+                        session.GraphicsWidth, session.GraphicsHeight, occupied) is { } bounds)
+                    {
+                        occupied.Add(bounds);
+                        bubbles.Add((bubble, bounds));
+                    }
                 }
+                foreach (var (bubble, bounds) in bubbles) Add(bubble, bounds.X, bounds.Y);
 
                 void Add(FrameworkElement child, double x, double y)
                 {

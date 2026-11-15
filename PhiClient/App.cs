@@ -22,6 +22,8 @@ partial class App : Component
         var (snapshot, update) = UseReducer(model);
         model = snapshot;
         publish = next => update(_ => next);
+        var (_, updateMapEffects) = UseReducer(0L);
+        redrawMapEffects = () => updateMapEffects(frame => frame + 1);
         refresh = Refresh;
         UseEffect(StartServices, Array.Empty<object>());
         UseEffect(SyncMapSplitter, model.Options.MapPaneWidth, windowWidth, active?.Model.Priv.Visible ?? false);
