@@ -1,4 +1,5 @@
 using Microsoft.UI.Windowing;
+using Microsoft.UI.Reactor;
 using Microsoft.UI.Xaml;
 using PhiClient.Core;
 
@@ -68,6 +69,10 @@ partial class App
             }
             await Logs.FlushAsync();
             await FlushAutomapsAsync(failOnError: true);
+            var primary = ReactorApp.PrimaryWindow ??
+                throw new InvalidOperationException("メイン窓の配置を保存する画面を確認できません。");
+            primary.SavePlacement();
+            mapWindow?.SavePlacement();
             stoppingTrace = true;
             StopDiagnosticTrace();
             stoppingTrace = false;
