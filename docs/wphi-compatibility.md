@@ -28,24 +28,63 @@ Model/Update/Viewと、通信・保存・native操作を分けています。
 nativeの選択範囲はReactor反映後に、同じ入力欄・revision・本文の場合だけ更新します。
 この処理からフォーカス移動は行いません。
 
-追加のソース照合で、非同期`TextChanged`より前にcontrolled描画が古い本文を再適用できる経路を確認しました。
-`TextChanging`で本文とrevisionを同期的にModel/hookへ取り込み、遅れた同文echoは既存の一致判定で除外します。
-この同期イベント内では純粋なModel更新とhookへの公開だけを行い、ログ/地図更新や直接のvisual tree操作を行いません。
-正式preview.17のhook更新は既存画面では描画をqueueへ送ります。Reactorの非公開APIは使っていません。
-この経路は実入力にも成立するため、先のnative失敗をdriver固有とは判定しません。
+初期修正`25379e1`では、非同期`TextChanged`より前にcontrolled描画が古い本文を再適用できる経路に対し、
+チャットの`TextChanging`でModel/hookを先に更新しました。ただし、Modelからの書き戻しも同じイベントを発火し、
+進行中の古い描画値まで新たな編集としてModelへ戻す余地があります。この捕捉だけで問題が解決したとは判定しません。
+登録・設定・priv・看板・通常ダイアログの編集欄にも、元の非同期controlled経路が残っていました。
 
-`GameInputTests`は **Passed: 53, Failed: 0, Skipped: 0**、
+初期修正時の`GameInputTests`は **Passed: 53, Failed: 0, Skipped: 0**、
 Core全体は **Passed: 269, Failed: 0, Skipped: 0**。packaged x64 buildは警告0/エラー0です。
 結果は `files\chat-send-regression\chat-input-targeted.trx`、`chat-core-all.trx`、同期化後の`chat-sync-core-all.trx`に保存しました。
 
-**新しい動作のnative受け入れは未完了です。**
-新規の試験専用identityと所有loopbackで、UIAによる下書き設定が送信前に空へ戻りました。
+**製品チャットのnative受け入れは未完了です。**
+初期修正前の新規試験identityと所有loopbackでは、UIAによる下書き設定が送信前に空へ戻りました。
 直接ValuePatternと公式WinApp set-valueの両方で送信前条件を満たせず、追加の反復は止めました。
 `files\chat-send-20261115-203738\results.json`は失敗記録であり、送信後クリアの成功証拠ではありません。
 取消/送信失敗/prefix caretの後続native確認と、物理Enter/IME/focusは保留です。
-同期化後は指示どおり追加のUI試行を行っていません。以前の失敗との因果と修正後のnative動作は未確定です。
+初期修正直後は追加のUI試行を行っていません。以前の失敗との因果は未確定です。
 合成登録の削除・試験前データの復元・製品データSHA不変・正常終了0は各バッチで確認し、
 所有mockも停止しました。以前の行保持native試験は変更後の合格へ読み替えません。
+
+### Issue #4: 編集欄の同期所有権
+
+編集可能なTextBoxは`InputBox`に統一し、Reactorの`Value`/`OnChanged`は未設定にします。
+`TextChanging`から直ちにModelと`UseReducer`のhookを公開し、Modelからnativeへの反映は
+`TextInputBinding.Apply`の間だけ編集通知を抑止します。描画の途中でnative編集が入った場合は、
+編集epochが変わった古い描画からの代入を避け、次の描画で最新の下書きを反映します。
+同文のnative代入は避け、再利用された欄のcallbackは値の反映より先に更新します。
+PasswordBoxも同じ仕組みで、`PasswordProperty`の同期通知を使います。秘密をログへ記録しません。
+同期イベント内の`Refresh`はhook公開だけに限定し、ログ・地図・別窓等のvisual tree操作は行いません。
+既存のIME、送信成功/失敗/取消、revision、caret/focusのポリシーは変更していません。
+
+preview.17の根拠は、配布packageに対応する
+[`a61657f`](https://github.com/microsoft/microsoft-ui-reactor/tree/a61657ff404c180464061912b0c02d4a4560492a)の
+`Element.cs`（TextChanged trampoline）、`PropEntry.cs`（controlled drift書き戻し）、
+`RenderContext.cs`（hookの同期更新）です。Reactor本体や非公開APIは変更していません。
+現行mainの独立identityによるCUA確認では、登録host/port/nameとModel由来の接続先ラベルが一致しました。
+したがって過去のreadback失敗を常時再現する不具合とも、driver固有の問題とも断定していません。
+
+`TextInputBindingTests`の5件は、受信再描画、送信中の同文へ戻る編集、進行中描画のecho、
+欄の再利用時のcallback更新、代入例外後の編集を対象にしています。
+入力関連のfocused回帰は **77件合格**、Core全体は **287件合格**、
+x64 buildは警告0/エラー0です。これらを製品チャットの実Enter・IME・focusの合格とは扱いません。
+
+独立identityのWinUIプローブに製品の`App.TextInputs.cs`を直接リンクし、同じpreview.17上で
+同期Model/hook更新、受信相当の再描画、`ChatSent`による成功行除去、新下書き保持、
+callback再利用、PasswordPropertyの同期とecho抑止の**9項目を確認**しました。
+ただし旧controlled経路の反例では期待した巻き戻りが起きず、**プローブ全体の結果はFAIL**です。
+その後のepoch検証項目は未実行で、過去のUIA失敗の因果が実証されたとは扱いません。
+初回のプローブ起動設定不整合と、nativeの改行正規化を考慮しないassertは試験側で修正しました。
+反復上限で終了し、不合格記録を成功記録へ置き換えていません。
+
+修正版の実アプリでも、保存しない登録フォームでhost/port/nameの保持、Model由来の接続先ラベル、
+手入力→一覧への切替後の絞り込み（17件→1件）と接続先保持をCUAで観測しました。
+資格情報の入力・保存、設定保存、ネットワーク接続は行っていません。
+両アプリは終了0、試験用2登録は解除し、永続backupを残して製品登録と3データのSHA不変を確認しました。
+結果は入力同期セッションの`files\input-native-summary.json`と`native-probe-results.json`、
+回帰結果は`files\regression`に保存しています。
+実アプリのチャット送信wire、Enter/IME/focus/caret、priv/看板/設定のnative統合は未確認です。
+このため[#4](https://github.com/runceel/phi-client-lab/issues/4)は未完了で、修正PRはDraftとします。
 
 ## 追加の操作性改善
 

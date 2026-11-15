@@ -21,7 +21,7 @@ partial class App
             Heading("接続先の世界"),
             TextBlock("選んだ世界のサーバーとポートを、登録欄に入力します。この操作は接続先の入力だけを行います。")
                 .TextWrapping(TextWrapping.Wrap),
-            TextBox(worlds.Filter, value => Dispatch(new ClientMessage.WorldFilterChanged(value)), header: "世界名・アドレスで絞り込み")
+            InputBox(worlds.Filter, value => Dispatch(new ClientMessage.WorldFilterChanged(value)), header: "世界名・アドレスで絞り込み")
                 .AutomationId("world-filter"),
             Caption($"取得元: {worlds.Source}").TextWrapping(TextWrapping.Wrap).AutomationId("world-source"),
             TextBlock(worlds.Message).TextWrapping(TextWrapping.Wrap).AutomationId("world-status"),
@@ -32,7 +32,7 @@ partial class App
                 Button("登録欄に入力", () => Dispatch(new ClientMessage.WorldSelected(row.world)))
                     .IsEnabled(loaded && !busy && !worlds.Loading).AutomationId($"world-choose-{row.index}")
             ).WithKey($"{row.index}:{row.world.Host}:{row.world.Port}")).ToArray())).Height(280).AutomationId("world-list"),
-            TextBox(worlds.Url, value => Dispatch(new ClientMessage.WorldUrlChanged(value)), header: "一覧の配布 URL（LZH / CP932 INI）")
+            InputBox(worlds.Url, value => Dispatch(new ClientMessage.WorldUrlChanged(value)), header: "一覧の配布 URL（LZH / CP932 INI）")
                 .IsEnabled(!busy).AutomationId("world-source-url"),
             HStack(8,
                 Button("HTTP 一覧を更新", () => _ = LoadWorldsAsync(import: false))
