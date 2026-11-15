@@ -127,6 +127,24 @@ nativeボタンのSpace、長押し、狭幅、秘密の保存待ち/結果不�
 `acceptance-exit.json`、`acceptance-crash-events.json`、`acceptance-cleanup.json`に保存しました。
 今回のfocused回帰は86件合格、x64 buildは警告0/エラー0です。これらを未確認の実キーの代用にはしません。
 
+### Issue #18: Close後のタイトル計測
+
+空の独立fixtureでも、終了時のprivate dumpは`AttachCenteredTitle.Layout`内のnull参照を示しました。
+native stackは`DispatcherQueueController::ShutdownQueue`内で、
+`XamlRoot.ContentIslandEnvironment`の戻りがnullになった直後の`AppWindowId`参照で例外が起きています。
+captured ILもこの呼出し順を裏付けます。`XamlRoot`が残っていても、そのcontent islandが生きているとは限りません。
+ログではCLR例外、WinRTの`80004003`、`0xC000027B`へ続いており、ソースだけからの原因推測ではありません。
+
+[#24](https://github.com/runceel/phi-client-lab/pull/24)は、未loadのchrome、消失したcontent island、
+失効したAppWindowでは計測しないように限定修正します。通常の中央寄せの数式やイベント配線は変更しません。
+修正commit `aeb89ca`の新規空fixtureで、正式タイトルの表示・中央位置を確認し、
+debuggerなしのClose1回で自然exit **0**、該当runのApplication Error/WER一致 **0件**を確認しました。
+独立manifest/layout/所有PID/exe/binary SHAとdebugger未接続を照合し、
+登録解除後も製品登録と3データのSHA不変・永続backupを確認しています。
+強制cleanupした収集runの終了コードとは区別します。既存のタイトル幅回帰は6件合格、x64 buildは警告0/エラー0です。
+private証拠は入力同期セッションの`files\close-capture-recovery`と`close-fixed-recovery`に保存しました。
+この結果で入力/Tab/IMEの未確認項目を合格に読み替えることはありません。
+
 ## 追加の操作性改善
 
 チャット等の編集欄・IME・モーダル・メニュー・地図幅操作を保護しながら、通常ボタンと
