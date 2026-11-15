@@ -47,6 +47,102 @@ Model/Update/Viewと、通信・保存・native操作を分けています。
 原典の実素材は利用条件付きの外部フォルダー取り込みであり、ソースやMSIXへ同梱していません。
 別途制作したオリジナル基本画像だけを同梱しています。
 
+## HP/MPの2段バー（#22）
+
+通常・独立地図の共通表示を、マップ直下のHP/MP縦2段へ変更しました。
+各28 DIP、左右4 DIPの余白と4 DIPの段間、HP赤系・MP青系で、
+ラベルと実値をバー内に表示します。標準ProgressBarの最小高とトラック高を指定し、
+小さい線のまま外枠だけを大きくする実装にはしていません。
+compact表示でも同じバーを使い、操作パッドより上へ置きます。
+狭幅では地図viewport側の高さを減らし、バーの追加によってチャット領域を削らないようにしています。
+状態名・能力・所持金・経験値は既存の表示位置に残します。
+
+未知・最大値0・負値・最大超過・long上限を含む塗りの計算と、既存statusの関連テストは15件成功。
+packaged x64 buildも成功しています。theme resourceのLight/Darkと標準HighContrast、
+高コントラスト時のシステム前景/背景を使い、OSの配色変更購読は表示中だけ保持します。
+初回native検証（commit `8ccbe54`）は、所有fixtureの合成loopback接続直後に
+クラッシュしてFAILとなりました。バー観測前のため、実画面の色・太さ・狭幅/独立・
+値変化・高コントラスト・入力非横取りは、この初回試行ではすべて未受け入れでした。
+初回のEvent1000 Record114043（所有PID28372、例外`0xc000027b`）とminidumpだけでは、
+元のmanaged例外を回収できませんでした。初回の実exit codeは不明です。
+そのため、first/second-chance・EOF時のdetachを非UIで実証したcollectorを使い、
+承認された追加1回だけ、別identityの所有PIDへattachして最初の合成接続を採取しました。
+full dumpの元例外は`COMException: Element not found. (0x80070490)`で、
+`AccessibilitySettings.add_HighContrastChanged` → `StatusBarView.Bar`のLoaded handlerへ対応しました。
+DLL offsetの一致ではなく、managed stackと同じdumpのcall先から原因を特定しています。
+
+この購読と、直後にある`UISettings.ColorValuesChanged`は、どちらも
+[desktop非対応のイベント](https://learn.microsoft.com/windows/apps/desktop/modernize/winrt-api-desktop-app-support)です。
+両方を、restored APIと[公式例](https://learn.microsoft.com/windows/windows-app-sdk/api/winrt/microsoft.ui.system.themesettings)で
+確認した`ThemeSettings.CreateForWindowId` / `Changed`へ置き換えました。
+Loadedで対象ウィンドウに結びつけ、Unloadedで解除します。遅延通知は同じ購読が有効な間だけ反映します。
+修正後も関連テスト15件とpackaged x64 buildは成功しています。
+
+修正版`1eabab3`のfresh専用identityによる1回起動・所有合成接続1回の限定再確認では、
+Loaded例外を再現せず、通常・独立地図の両方でバーを描画できました。
+独立地図のバーは各42物理pxの高さ、左右と段間は6物理pxで、
+sourceの28 DIP / 4 DIP指定と整合する太さ・余白を確認しました。
+HP赤/MP青、`30/100・10/200`から`85/100・150/200`への文字と塗りの更新、
+最大値0では実値を残して塗り0、未知値では`-- / --`と塗り0を確認しました。
+通常窓への切替後も同じバーと未送信下書きが残り、ログ・入力との重なりはありませんでした。
+より狭い幅へのwindow dragは座標範囲外で拒否、別の幅control操作も値の検証に失敗したため、
+狭幅到達の合格には数えていません。実高コントラストと物理focus/key非横取りも未確認です。
+cleanupは正規UI削除・自然Close exit0・所有error/WER0・専用登録/layout/data解除まで完了し、
+製品と3組の永続backupの不変を確認しました。
+詳細はsession `files\hp-mp-acceptance\results.json`と`cleanup.json`へ保存しています。
+
+追加採取の所有PID23876は実exit `-1073740286`で終了し、cleanup強制停止ではありません。
+採取後は、正規UIで接続せず合成profile/資格情報を削除するcleanup専用起動を1回行い、
+自然Close exit0と所有error/WER一致0を確認しました。ExecutionPolicyの変更・迂回はしていません。
+専用登録・mock・layout/dataもcleanupし、製品と新旧永続backupの不変を確認しました。
+結果はsession `files\hp-mp-native\results.json`と`files\hp-mp-capture-once\results.json`へ保存し、
+dump・localsは私的に保持しています。
+ビルド・純粋テストをnative確認の代わりにせず、#22はOpenで追跡します。
+#11ログ検索・#12地図効果・#20 Auto倍率の差分は含みません。
+
+## Auto倍率とチャット優先の領域配分（#20）
+
+#22のバー配置に依存する別変更です。保存値`mapZoom: 0`をAutoとし、新規・項目なしもAuto、
+明示保存済みの50–400%の整数は維持します。既存JSONを勝手に書き換えるmigrationはしません。
+Auto/手動の切替は地図見出しの32 DIPのメニューへまとめ、常設の数値欄・増減・reset行を除去しました。
+任意の整数とAutoは設定画面からも入力できます。
+
+地図の幅、ゲーム本体/独立窓の高さ、実測したHP/MP・状態・補助操作の高さから利用可能領域を求めます。
+通常地図の上部16pxも含めて同じ倍率で縦横を縮放し、幅だけに合わせてチャットを押し潰しません。
+狭幅の縦積みはログ/入力用に160 DIPを先に残し、極端に低い窓では地図側を0まで縮めます。
+描画・ラベル・クリックは同じ実効倍率を使います。拡張地図の周辺リングはAutoの描画結果から逆算せず、
+固定の論理タイル寸法と利用可能領域から選び、layoutと倍率の循環を避けます。
+レイアウト実測はModelの更新として通知し、同値Modelを再発行してReactorの描画が省略される経路を避けます。
+
+fit・高さ配分・旧設定保存/Auto復帰・非整数倍率の座標を純粋テストで確認しています。
+#22の実装はmain `ee9c6c73`へ統合済みです。この依存修正を取り込んだ`207a0f6`で、
+Auto関連とHP/MP/displayの計44件、x64 build警告0/エラー0を確認しました。
+
+その固定payloadをfresh専用identityで起動し、所有合成loopbackへ1回だけ接続して限定native確認を行いました。
+未設定の独立窓はAuto116%で地図・両バー・footerが収まり、地図のスクロールバーはありませんでした。
+倍率メニューを開いたままframe/statusを更新してもメニューが残り、100%を選択できました。
+設定から137を保存するとcaptionと描画が変わり、Autoへ戻すと保存値0・caption116%へ復帰しました。
+設定画面を開き直してAutoの表示も確認しています。再起動による復元確認ではありません。
+独立窓の最大化ではAuto400%へ変化し、復元で116%へ戻りました。
+通常窓へ切り替えるとAuto153%となり、地図・バー・補助欄とログ・チャットの重なりはなく、
+同じ接続と未送信の合成下書きを保持していました。返却CUA画像を目視確認した結果です。
+
+**未受け入れは残しています。** 追加resizeのdrag1回はCUA上で完了しても600×780の寸法が変わらず、
+さらに狭い/低い窓には到達していません。許可された地図click2回もdelivery完了表示だけで、
+所有serverに移動コマンドの受信がありませんでした。別経路や再送での再試行はしていません。
+連続resize中のちらつき、物理focus、EagleEyeとactorラベルのnative確認も残ります。
+静かなmockによる3分無応答通知は出ましたが、再接続はありません。
+
+接続から自然Closeまで承認待ち込み621.6秒で、15分枠内に終了しました。
+正規UIで合成profile/credentialを削除し、保持handleによる自然exit0・所有error/WER0を確認しました。
+所有mock・専用登録/layout/dataは除去済みで、製品5ファイルと新旧4組の永続backupは不変です。
+OS設定変更・実行policy迂回・追加captureはありません。
+session `files\auto-map-native-207a0f6\results.json`と`cleanup.json`へ保存しました。
+CUA APIに画像exportがないため、独立PNGを保存したとはしていません。
+#22の同時観測は別Issueに記録し、さらに狭幅・物理focus・実HighContrastの残判定は変更しません。
+PR27のコード統合と全native受け入れを分け、残確認は#20をOpenにして追跡します。
+#11/#12の差分は含みません。
+
 ## チャット送信後の下書き
 
 送信済みの行を残す旧処理を変更し、送信成功時には現在行だけを除去します。

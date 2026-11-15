@@ -8,8 +8,10 @@ partial class App
     private async Task SaveSettingsAsync()
     {
         if (model.SettingsEditor is not { } editor) return;
-        if (!int.TryParse(editor.Zoom, NumberStyles.Integer, CultureInfo.InvariantCulture, out var zoom))
-            throw new ArgumentException("マップの拡大率は整数で入力してください。");
+        var auto = editor.Zoom.Trim().Equals("Auto", StringComparison.OrdinalIgnoreCase);
+        var zoom = 0;
+        if (!auto && !int.TryParse(editor.Zoom, NumberStyles.Integer, CultureInfo.InvariantCulture, out zoom))
+            throw new ArgumentException("マップの拡大率はAutoまたは50–400の整数で入力してください。");
         if (!uint.TryParse(editor.FontSize, NumberStyles.None, CultureInfo.InvariantCulture, out var fontSize) ||
             fontSize > 64)
             throw new ArgumentException("ログの文字サイズは0–64の整数で入力してください。");
@@ -20,7 +22,7 @@ partial class App
         Dispatch(new ClientMessage.OptionsChanged(options));
         SetSoundRules(rules);
         Dispatch(new ClientMessage.SettingsEdited(editor with { Value = options,
-            Zoom = options.MapZoom.ToString(CultureInfo.InvariantCulture),
+            Zoom = options.MapZoom == 0 ? "Auto" : options.MapZoom.ToString(CultureInfo.InvariantCulture),
             Message = rules.Issues.Count == 0 ? "設定を保存しました。" : "設定を保存しました。" + SoundIssues(rules) }));
         notice = "設定を保存しました。";
         if (!loaded) await LoadAsync();
