@@ -137,11 +137,11 @@ partial class App
                         viewer.ChangeView(viewer.ScrollableWidth / 2, viewer.ScrollableHeight / 2, null, disableAnimation: true);
                 });
         }),
+        GameViews.Status(session, width, details: false),
         model.GameGuideVisible ? CheckBox(model.Options.ShowMovementPad,
             value => SetMapOptions(model.Options with { ShowMovementPad = value }), "操作パッドを表示")
             .AutomationId("show-movement-pad") : Empty(),
         model.Options.ShowMovementPad ? MovementPad(session, width) : Empty(),
-        GameViews.Status(session, width, details: false),
         session.Eagle is null ? Empty() : Button(session.ShowEagle ? "周辺地図に戻る" : "EagleEyeを表示", () =>
             session.Dispatch(new GameMessage.EagleToggled())),
         Expander("地図情報・保存", VStack(8,
@@ -168,7 +168,7 @@ partial class App
     {
         // Recorded terrain uses the available viewport to select its surrounding ring.
         var maximum = model.Options.SingleWindow && windowWidth < 760
-            ? Math.Clamp(CompactMapHeight - 92, 64, 144) : 360;
+            ? Math.Clamp(CompactMapHeight - 156, 64, 144) : 360;
         if (!session.ShowEagle && model.Options.Automap && session.NorthFixed &&
             session.Map is { Size: 7, Position: not null })
             return Math.Min(width, maximum);

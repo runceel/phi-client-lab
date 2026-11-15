@@ -99,29 +99,18 @@ internal static class GameViews
     public static Element Status(GameSession session, double width, bool details = true)
     {
         var status = session.Stats;
-        if (!details)
-            return VStack(2,
-                TextBlock($"HP {status?.Hp} / {status?.MaxHp}　MP {status?.Mp} / {status?.MaxMp}")
-                    .TextWrapping(TextWrapping.Wrap).AutomationId("compact-vitals"),
-                TextBlock(string.Join(" | ", session.Conditions.Active
-                    .Concat(session.AttackMode ? new[] { "Attack" } : [])
-                    .Concat(session.MagicMode ? new[] { "Magic" } : [])))
-                    .TextWrapping(TextWrapping.Wrap).AutomationId("compact-conditions"));
-        Element Bar(string label, long? now, long? max) => VStack(2,
-            TextBlock($"{label}  {now?.ToString() ?? "--"} / {max?.ToString() ?? "--"}")
-                .TextWrapping(TextWrapping.Wrap).AutomationId($"{label.ToLowerInvariant()}-value"),
-            Progress(now is null || max is null or <= 0 ? 0 : Math.Clamp((double)now / max.Value * 100, 0, 100))
-                .AutomationName($"{label}: {now?.ToString() ?? "unknown"} of {max?.ToString() ?? "unknown"}"));
         return VStack(4,
             details ? TextBlock(status?.Name ?? session.Character.Name).FontWeight(FontWeights.SemiBold).TextWrapping(TextWrapping.Wrap) : Empty(),
-            HStack(8, Bar("HP", status?.Hp, status?.MaxHp).Width((width - 8) / 2),
-                Bar("MP", status?.Mp, status?.MaxMp).Width((width - 8) / 2)),
+            VStack(4,
+                StatusBarView.Bar("HP", status?.Hp, status?.MaxHp, width - 8),
+                StatusBarView.Bar("MP", status?.Mp, status?.MaxMp, width - 8))
+                .Margin(4, 0, 4, 0).AutomationId("vitals-bars"),
             details ? TextBlock($"F {status?.Fighter}   W {status?.Warrior}   M {status?.Magician}   C {status?.Cleric}\n" +
                 $"Gp {status?.Gold}   Exp {status?.Experience}").TextWrapping(TextWrapping.Wrap).AutomationId("game-status") : Empty(),
             TextBlock(string.Join(" | ", session.Conditions.Active
                 .Concat(session.AttackMode ? new[] { "Attack" } : [])
                 .Concat(session.MagicMode ? new[] { "Magic" } : [])))
-                .TextWrapping(TextWrapping.Wrap).AutomationId("conditions")
+                .TextWrapping(TextWrapping.Wrap).AutomationId(details ? "conditions" : "compact-conditions")
         );
     }
 }
