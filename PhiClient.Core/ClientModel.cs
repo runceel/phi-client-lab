@@ -55,6 +55,8 @@ public sealed record ClientModel
     public int GraphicsRevision { get; init; }
     public string GraphicsNotice { get; init; } = "";
     public WorldDirectoryModel Worlds { get; init; } = new();
+    public ImmutableDictionary<string, AutomapWorld> Automaps { get; init; } =
+        ImmutableDictionary<string, AutomapWorld>.Empty;
 }
 
 public abstract record ClientMessage
@@ -62,6 +64,11 @@ public abstract record ClientMessage
     public sealed record DraftChanged(CharacterDraft Value) : ClientMessage;
     public sealed record OptionsChanged(ClientOptions Value) : ClientMessage;
     public sealed record SettingsEdited(SettingsEditorModel? Value) : ClientMessage;
+    public sealed record AutomapLoaded(string World, AutomapWorld Value) : ClientMessage;
+    public sealed record AutomapFailed(string World, string Error) : ClientMessage;
+    public sealed record AutomapSaved(string World, MapPosition Block,
+        ImmutableDictionary<MapPosition, MapCell> Cells) : ClientMessage;
+    public sealed record AutomapCleared(string World) : ClientMessage;
     public sealed record CharactersChanged(IReadOnlyList<SavedCharacter> Value) : ClientMessage;
     public sealed record NoticeChanged(string Value) : ClientMessage;
     public sealed record DeleteMarked(string? Key) : ClientMessage;
@@ -90,8 +97,26 @@ public static class ClientUpdate
     public static ClientModel Apply(ClientModel model, ClientMessage message) => message switch
     {
         ClientMessage.DraftChanged edit => model with { Draft = edit.Value },
-        ClientMessage.OptionsChanged edit => model with { Options = edit.Value },
+        ClientMessage.OptionsChanged edit => model with { Options = edit.Value,
+            Games = edit.Value.Automap != model.Options.Automap ? ResetPredictions(model.Games) :
+                edit.Value.SmoothMove != model.Options.SmoothMove ? model.Games.SetItems(model.Games.Select(pair =>
+                    KeyValuePair.Create(pair.Key, pair.Value with { Motion = pair.Value.Motion.Stop() }))) : model.Games },
         ClientMessage.SettingsEdited edit => model with { SettingsEditor = edit.Value },
+        ClientMessage.AutomapLoaded loaded => model with
+        {
+            Automaps = model.Automaps.SetItem(loaded.World,
+                (model.Automaps.GetValueOrDefault(loaded.World) ?? new()).MergeLoaded(loaded.Value))
+        },
+        ClientMessage.AutomapFailed failed => model with
+        {
+            Automaps = model.Automaps.SetItem(failed.World,
+                (model.Automaps.GetValueOrDefault(failed.World) ?? new()) with { Loaded = true, Error = failed.Error })
+        },
+        ClientMessage.AutomapCleared clear => model with
+            { Automaps = model.Automaps.SetItem(clear.World, new() { Loaded = true }) },
+        ClientMessage.AutomapSaved saved when model.Automaps.GetValueOrDefault(saved.World) is { } world &&
+            ReferenceEquals(world.Blocks.GetValueOrDefault(saved.Block), saved.Cells) =>
+            model with { Automaps = model.Automaps.SetItem(saved.World, world with { Dirty = world.Dirty.Remove(saved.Block) }) },
         ClientMessage.CharactersChanged edit => model with { Characters = edit.Value.ToImmutableArray() },
         ClientMessage.NoticeChanged edit => model with { Notice = edit.Value },
         ClientMessage.DeleteMarked edit => model with { PendingDelete = edit.Key },
@@ -133,14 +158,40 @@ public static class ClientUpdate
             Options = model.Options with { ShowCharacters = false }
         },
         ClientMessage.GameSelected select when select.Key is null || model.Games.ContainsKey(select.Key) =>
-            model with { ActiveKey = select.Key },
+            model with { ActiveKey = select.Key, Games = select.Key != model.ActiveKey ? ResetPredictions(model.Games) : model.Games },
         ClientMessage.GameClosed close => model with
         {
             Games = model.Games.Remove(close.Key),
             ActiveKey = model.ActiveKey == close.Key ? close.NextKey : model.ActiveKey
         },
         ClientMessage.GameChanged update when model.Games.TryGetValue(update.Key, out var game) =>
-            model with { Games = model.Games.SetItem(update.Key, GameUpdate.Apply(game, update.Message)) },
+            UpdateGame(model, update.Key, game, update.Message),
         _ => model
     };
+
+    private static ImmutableDictionary<string, GameModel> ResetPredictions(ImmutableDictionary<string, GameModel> games) =>
+        games.SetItems(games.Select(pair => KeyValuePair.Create(pair.Key,
+            pair.Value with { Prediction = pair.Value.Prediction.Reset(), Motion = pair.Value.Motion.Stop() })));
+
+    private static ClientModel UpdateGame(ClientModel model, string key, GameModel game, GameMessage message)
+    {
+        var next = GameUpdate.Apply(game, message);
+        var result = model with { Games = model.Games.SetItem(key, next) };
+        if (message is not GameMessage.Received { Event: MapFrame frame } || !next.NorthFixed ||
+            next.Conditions.Flags.Length > 6 && next.Conditions.Flags[6] == '*' ||
+            next.World is "" or "???") return result;
+        var world = model.Automaps.GetValueOrDefault(next.World) ?? new();
+        try
+        {
+            return result with { Automaps = model.Automaps.SetItem(next.World, world.Absorb(frame)) };
+        }
+        catch (InvalidOperationException ex)
+        {
+            return result with
+            {
+                Automaps = model.Automaps.SetItem(next.World, world with { Error = ex.Message }),
+                Games = result.Games.SetItem(key, GameUpdate.Apply(next, new GameMessage.Logged("[記録地図] " + ex.Message)))
+            };
+        }
+    }
 }

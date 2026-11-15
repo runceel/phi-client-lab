@@ -7,7 +7,10 @@ namespace PhiClient.Core;
 
 public abstract record ServerEvent;
 public sealed record ConnectionReady : ServerEvent;
-public sealed record LogLine(string Text) : ServerEvent;
+public sealed record LogLine(string Text) : ServerEvent
+{
+    public bool Literal { get; init; }
+}
 public sealed record StatusLine(string Text) : ServerEvent;
 public sealed record Reply(string Command) : ServerEvent;
 public sealed record Closed : ServerEvent;
@@ -185,7 +188,7 @@ public sealed partial class ProtocolParser
                 more = false;
                 return [];
             }
-            return [new LogLine(PlainText(text))];
+            return [new LogLine(PlainText(text)) { Literal = true }];
         }
         if (raw.AsSpan().StartsWith("#m57 M"u8) || raw.AsSpan().StartsWith("#map M"u8))
         {

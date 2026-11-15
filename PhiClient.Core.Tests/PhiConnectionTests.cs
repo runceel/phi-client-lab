@@ -87,8 +87,8 @@ public sealed class PhiConnectionTests
         await Task.WhenAll(server, running).WaitAsync(timeout.Token);
 
         Assert.Contains(new LogLine("こんにちは"), events);
-        Assert.Contains(new LogLine("#lag"), events);
-        Assert.Contains(new LogLine("#ch-srv untrusted.invalid 2000"), events);
+        Assert.Contains(events.OfType<LogLine>(), line => line.Text == "#lag" && line.Literal);
+        Assert.Contains(events.OfType<LogLine>(), line => line.Text == "#ch-srv untrusted.invalid 2000" && line.Literal);
         Assert.Contains(new StatusLine("Alice : 10 : 20 : 3 : 5"), events);
         Assert.Contains(new MapStyle(false), events);
         var map = Assert.Single(events.OfType<MapFrame>());
@@ -302,7 +302,7 @@ public sealed class PhiConnectionTests
         await Task.WhenAll(server, running, casting, moving).WaitAsync(timeout.Token);
         var displayed = Assert.Single(events.OfType<Choices>(), item => item.Complete);
         Assert.Equal([new Choice("9", "Choose target")], displayed.Items);
-        Assert.Contains(new LogLine("Can not unequip."), events);
+        Assert.Contains(events.OfType<LogLine>(), line => line.Text == "Can not unequip." && line.Literal);
     }
 
     [Fact]
@@ -385,7 +385,7 @@ public sealed class PhiConnectionTests
             new ClientOptions { AutoUnequipSystemMagic = unequip, AutoEquipSystemMagic = reequip }), timeout.Token);
         await connection.SendAsync(["done"], timeout.Token);
         await Task.WhenAll(server, running);
-        Assert.Contains(new LogLine("本を装備した"), events);
+        Assert.Contains(events.OfType<LogLine>(), line => line.Text == "本を装備した" && line.Literal);
         Assert.Contains(new LogLine("鎧を装備した"), events);
         Assert.Equal(!expectReequip, events.Contains(new LogLine("剣を装備した")));
         Assert.DoesNotContain(new LogLine("Input item number to unequip."), events);

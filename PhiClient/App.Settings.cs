@@ -48,7 +48,7 @@ partial class App
                     header: "拡大率（50–400%）").AutomationId("settings-map-zoom"),
                 Flag("通った地形を記録する拡張マップ・位置予測", value.Automap,
                     (o, b) => o with { Automap = b }, "settings-automap"),
-                Flag("移動を滑らかに表示する（試験中）", value.SmoothMove,
+                Flag("移動を滑らかに表示する（原典の実験的機能）", value.SmoothMove,
                     (o, b) => o with { SmoothMove = b }, "settings-smooth"),
                 Flag("マップをログと同じ窓に表示する", value.SingleWindow,
                     (o, b) => o with { SingleWindow = b }, "settings-single-window")),

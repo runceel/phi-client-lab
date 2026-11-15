@@ -18,6 +18,7 @@ public sealed partial class PhiConnection : IDisposable
     private long lastReceive = Environment.TickCount64;
     private NetworkStream? stream;
     public event Action<ServerEvent>? Received;
+    public event Action<string, long>? Sending;
 
     public static void ValidateEndpoint(string host, int port)
     {
@@ -109,6 +110,8 @@ public sealed partial class PhiConnection : IDisposable
                     hiddenLists += suppressLists;
                     hideUntil = Environment.TickCount64 + 5000;
                 }
+            var at = Environment.TickCount64;
+            foreach (var line in lines) Sending?.Invoke(line, at);
             await stream.WriteAsync(PhiWire.Encode(string.Join('\n', lines) + "\n"), timeout.Token);
         }
         finally

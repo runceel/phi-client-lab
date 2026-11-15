@@ -61,7 +61,8 @@ partial class App
     {
         if (disposed) return;
         if (active is { } session) session.GraphicsImage = graphics.Draw(session,
-            gameControl?.XamlRoot?.RasterizationScale ?? 1);
+            gameControl?.XamlRoot?.RasterizationScale ?? 1, DisplayMap(session), model.Options.MapZoom / 100.0,
+            model.Options.SmoothMove && visualPreferences.AnimationsEnabled);
         model = ClientUpdate.Apply(model, new ClientMessage.GraphicsChanged(graphics.Revision, graphics.Notice));
         publish?.Invoke(model);
     }

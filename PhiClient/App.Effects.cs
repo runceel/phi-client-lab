@@ -26,8 +26,11 @@ partial class App
     private bool composing;
     private bool committingComposition;
     private readonly GraphicsStore graphics = new();
+    private readonly Windows.UI.ViewManagement.UISettings visualPreferences = new();
     private string graphicsFolder = "";
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? animation;
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? predictionTimer;
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? mapSaveTimer;
 
     private Action StartServices()
     {
@@ -41,6 +44,23 @@ partial class App
             refresh();
         };
         animation.Start();
+        predictionTimer = dispatcher.CreateTimer();
+        predictionTimer.Interval = TimeSpan.FromMilliseconds(20);
+        predictionTimer.Tick += (_, _) =>
+        {
+            if (active is { NorthFixed: true } session)
+            {
+                var now = Environment.TickCount64;
+                if (model.Options.Automap && !ReferenceEquals(session.Model.Prediction, session.Model.Prediction.Tick(now)) ||
+                    model.Options.SmoothMove && visualPreferences.AnimationsEnabled && session.Model.Motion.Offset != (0, 0))
+                    session.Dispatch(new GameMessage.PredictionTick(now));
+            }
+        };
+        predictionTimer.Start();
+        mapSaveTimer = dispatcher.CreateTimer();
+        mapSaveTimer.Interval = TimeSpan.FromSeconds(5);
+        mapSaveTimer.Tick += (_, _) => _ = FlushAutomapsAsync();
+        mapSaveTimer.Start();
         _ = PerformAsync(LoadAsync);
         return () =>
         {
@@ -49,6 +69,9 @@ partial class App
             worldClient?.Dispose();
             worldLifetime.Dispose();
             animation?.Stop();
+            predictionTimer?.Stop();
+            mapSaveTimer?.Stop();
+            _ = FlushAutomapsAsync();
             dialogCompletion?.TrySetResult(new(false, ""));
             foreach (var session in sessions)
                 session.Connection?.Dispose();
@@ -164,11 +187,22 @@ partial class App
             ConfirmWorldTransferAsync(session, connection, targetHost, targetPort, token);
         session.Connection = connection;
         session.Dispatch(new GameMessage.PhaseChanged(ConnectionPhase.Connecting));
+        connection.Sending += (line, at) => dispatcher?.TryEnqueue(() =>
+        {
+            if (disposed || session.Connection != connection || !model.Options.Automap || !session.NorthFixed) return;
+            _ = SessionOperationAsync(session, () =>
+            {
+                session.Dispatch(new GameMessage.CommandSent(line, at));
+                return Task.CompletedTask;
+            });
+        });
         connection.Received += item => dispatcher?.TryEnqueue(() =>
         {
             if (disposed || session.Connection != connection)
                 return;
-            session.Dispatch(new GameMessage.Received(item));
+            session.Dispatch(new GameMessage.Received(item, Environment.TickCount64));
+            if (item is MapFrame && session.World is not "" and not "???")
+                _ = LoadAutomapAsync(session, session.World);
             if (item is WorldMoved moved)
             {
                 session.Character = session.Character with { Host = moved.Host, Port = moved.Port };
@@ -204,6 +238,7 @@ partial class App
             connection.Dispose();
             session.Connection = null;
             session.Dispatch(new GameMessage.PhaseChanged(ConnectionPhase.Offline));
+            await FlushAutomapsAsync();
             if (!disposed)
                 refresh();
         }

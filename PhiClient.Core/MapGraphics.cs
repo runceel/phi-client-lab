@@ -103,16 +103,21 @@ public static class MapGraphics
 
     public static PixelImage Draw(int width, int height, byte[] tiles, byte[] attributes,
         IReadOnlyList<Actor> actors, Func<int, PixelImage?> chip, PixelImage? items,
-        Func<Actor, PixelImage?> character, int frame = 0, bool eagle = false)
+        Func<Actor, PixelImage?> character, int frame = 0, bool eagle = false, bool[]? recalled = null,
+        int slideX = 0, int slideY = 0)
     {
         if (width is < 1 or > 15 || height is < 1 or > 15 ||
             tiles.Length != 0 && tiles.Length != width * height || attributes.Length != tiles.Length)
             throw new ArgumentException("Invalid map graphics frame.");
+        if (recalled is { Length: > 0 } && recalled.Length != width * height)
+            throw new ArgumentException("Invalid recalled map cells.", nameof(recalled));
         var top = eagle ? 0 : 16;
         var canvas = new PixelImage(width * 32, height * 32 + top, new byte[width * 32 * (height * 32 + top) * 4]);
         for (var i = top * canvas.Width * 4 + 3; i < canvas.Pixels.Length; i += 4) canvas.Pixels[i] = 255;
         void Copy(PixelImage image, int sx, int sy, int w, int h, int dx, int dy)
         {
+            dx += slideX;
+            dy += slideY;
             for (var y = 0; y < h; y++)
             for (var x = 0; x < w; x++)
             {
@@ -133,13 +138,14 @@ public static class MapGraphics
             if (dh < 0) dy += dh;
             var w = Math.Abs((double)dw);
             var h = Math.Abs((double)dh);
-            var left = (int)Math.Clamp(Math.Ceiling(dx), 0, canvas.Width);
-            var right = (int)Math.Clamp(Math.Ceiling(dx + w), 0, canvas.Width);
-            var first = (int)Math.Clamp(Math.Ceiling(dy), 0, canvas.Height);
-            var last = (int)Math.Clamp(Math.Ceiling(dy + h), 0, canvas.Height);
+            var left = (int)Math.Clamp(Math.Ceiling(dx + slideX), 0, canvas.Width);
+            var right = (int)Math.Clamp(Math.Ceiling(dx + w + slideX), 0, canvas.Width);
+            var first = (int)Math.Clamp(Math.Ceiling(dy + slideY), 0, canvas.Height);
+            var last = (int)Math.Clamp(Math.Ceiling(dy + h + slideY), 0, canvas.Height);
             for (var y = first; y < last; y++)
             for (var x = left; x < right; x++)
-                Copy(image, sx + (int)((x - dx) * sw / w), sy + (int)((y - dy) * sh / h), 1, 1, x, y);
+                Copy(image, sx + (int)((x - slideX - dx) * sw / w), sy + (int)((y - slideY - dy) * sh / h),
+                    1, 1, x - slideX, y - slideY);
         }
         void Tile(PixelImage sheet, int index, int x, int y) =>
             Copy(sheet, index % 16 * 32, index / 16 * 48, 32, 48, x * 32, y * 32 + top - 16);
@@ -203,6 +209,21 @@ public static class MapGraphics
                 }
             }
         }
+        if (recalled is not null)
+            for (var i = 0; i < recalled.Length; i++)
+            {
+                if (!recalled[i]) continue;
+                for (var y = 0; y < 32; y++)
+                for (var x = 0; x < 32; x++)
+                {
+                    var dx = i % width * 32 + x + slideX;
+                    var dy = i / width * 32 + top + y + slideY;
+                    if (dx < 0 || dx >= canvas.Width || dy < 0 || dy >= canvas.Height) continue;
+                    var pixel = (dy * canvas.Width + dx) * 4;
+                    for (var channel = 0; channel < 3; channel++)
+                        canvas.Pixels[pixel + channel] = (byte)(canvas.Pixels[pixel + channel] * 3 / 4);
+                }
+            }
         return canvas;
     }
 }

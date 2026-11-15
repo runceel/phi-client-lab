@@ -13,17 +13,34 @@ internal static class GameViews
     private static readonly ThemeRef Accent = new("AccentFillColorDefaultBrush");
     private static readonly ThemeRef AccentText = new("TextOnAccentFillColorPrimaryBrush");
 
-    public static Element Map(GameSession session, Action<int, int> move, Action attack)
+    public static Element Compass(GameSession session)
+    {
+        var direction = session.NorthFixed ? 'N' : session.Map?.Direction ?? 'N';
+        var arrow = direction switch { 'E' => "→", 'S' => "↓", 'W' => "←", _ => "↑" };
+        var name = direction switch { 'E' => "東", 'S' => "南", 'W' => "西", _ => "北" };
+        Element Letter(string text, double x, double y, double width) => TextBlock(text).FontSize(14)
+            .Width(width).TextAlignment(TextAlignment.Center).AccessibilityHidden().Canvas(x, y);
+        return Border(Canvas(
+            Letter("N", 0, 0, 54), Letter("W", 0, 18, 14), Letter("E", 40, 18, 14), Letter("S", 0, 36, 54),
+            TextBlock(arrow).FontSize(24).Width(32).TextAlignment(TextAlignment.Center)
+                .Foreground(Accent).AccessibilityHidden().Canvas(11, 13)).Width(54).Height(56))
+            .BorderBrush(Stroke).BorderThickness(1).Padding(6)
+            .AutomationId("map-compass").AutomationName(session.NorthFixed ? "方位: 北固定、上が北" : $"方位: {name}向き");
+    }
+
+    public static Element Map(GameSession session, Action<int, int> move, Action attack,
+        MapDisplay? display = null, double zoom = 1)
     {
         var eagle = session.ShowEagle ? session.Eagle : null;
         var board = eagle is null ? null : EagleBoard.Build(eagle);
-        var width = board?.Dim ?? session.Map?.Size ?? 7;
+        var map = display?.Frame ?? session.Map;
+        var width = board?.Dim ?? map?.Size ?? 7;
         var height = width;
-        var tiles = board?.Tiles ?? session.Map?.Tiles;
-        var attributes = board?.Attributes ?? session.Map?.Attributes;
+        var tiles = board?.Tiles ?? map?.Tiles;
+        var attributes = board?.Attributes ?? map?.Attributes;
         var selfX = eagle?.SelfX ?? width / 2;
         var selfY = eagle?.SelfY ?? height / 2;
-        const int cell = 32;
+        var cell = 32 * (eagle is null ? zoom : 1);
         var rows = new List<Element>();
         for (var y = 0; y < height; y++)
         {
@@ -33,7 +50,7 @@ internal static class GameViews
                 var index = y * width + x;
                 var tile = tiles is null || index >= tiles.Length ? '?' : (char)tiles[index];
                 var attr = attributes is null || index >= attributes.Length ? 0 : attributes[index];
-                var actors = (board?.Actors ?? session.Map?.Actors)?.Where(a => a.X == x && a.Y == y).ToArray();
+                var actors = (board?.Actors ?? map?.Actors)?.Where(a => a.X == x && a.Y == y).ToArray();
                 var self = x == selfX && y == selfY;
                 var actor = actors?.Length > 0;
                 var caption = tile is ' ' or 's' ? "" : tile.ToString();
@@ -66,7 +83,7 @@ internal static class GameViews
                         (x + y) % 2 == 0 ? "LayerFillColorDefaultBrush" : "CardBackgroundFillColorDefaultBrush"))
                     .ToolTip(description).OnPointerPressed((_, args) =>
                     {
-                        if (eagle is not null) return;
+                        if (eagle is not null || !session.Connected) return;
                         var pointer = args.GetCurrentPoint(null).Properties;
                         if (pointer.IsRightButtonPressed) attack();
                         else if (pointer.IsLeftButtonPressed) move(tileX - width / 2, tileY - height / 2);

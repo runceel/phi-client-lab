@@ -91,6 +91,8 @@ partial class App
                 Key("Return...  |  Alt+R", ConsoleKey.R, true)),
             Menu("View",
                 MenuItem("Graphics folder...", ShowGraphicsSettings),
+                MenuItem("現在の世界の記録地図を消す…", () => _ = PerformAsync(ClearAutomapAsync))
+                    with { IsEnabled = session?.World is not null and not "" and not "???" },
                 ToggleMenuItem("Map pane  |  Shift+F5", showMap, value => { showMap = value; refresh(); }),
                 Key("Rotating  |  T", ConsoleKey.T),
                 Key("North up  |  Shift+T", ConsoleKey.T, shift: true),
@@ -181,11 +183,25 @@ partial class App
         var map = VStack(8,
             SubHeading(session.ShowEagle && session.Eagle is not null ? "EagleEye" :
                 $"Local map ({session.Map?.Size ?? 7} x {session.Map?.Size ?? 7})").AutomationId("local-map"),
+            HStack(8, GameViews.Compass(session), TextBlock(session.Map is null ? "地図を待っています。" :
+                session.NorthFixed ? "北固定（上が北）" : "回転マップ（方位は矢印で確認）")
+                .TextWrapping(TextWrapping.Wrap)),
             (ScrollViewer(GraphicMap(session)) with
             {
                 HorizontalScrollBarVisibility = Microsoft.UI.Xaml.Controls.ScrollBarVisibility.Auto,
                 HorizontalScrollMode = Microsoft.UI.Xaml.Controls.ScrollMode.Enabled
-            }).AutomationId("map-viewport").MaxWidth(344),
+            }).AutomationId("map-viewport").MaxWidth(344).Height(344)
+                .OnMount(element =>
+                {
+                    var viewer = (Microsoft.UI.Xaml.Controls.ScrollViewer)element;
+                    viewer.SizeChanged += (_, args) =>
+                    {
+                        if (args.NewSize.Width <= 0 || args.NewSize.Height <= 0) return;
+                        session.MapViewportWidth = args.NewSize.Width;
+                        session.MapViewportHeight = args.NewSize.Height;
+                        refresh();
+                    };
+                }),
             TextBlock("Characters: " + string.Join(", ", MapLabels.NameList(session.Map?.Actors ?? [])))
                 .TextWrapping(TextWrapping.Wrap).Width(336).AutomationId("map-character-names"),
             TextBlock(model.GraphicsNotice).TextWrapping(TextWrapping.Wrap).FontSize(12).Width(336)
@@ -232,7 +248,8 @@ partial class App
     private Element GraphicMap(GameSession session)
     {
         var bitmap = session.GraphicsImage;
-        if (bitmap is null) return GameViews.Map(session, (x, y) => MapClick(session, x, y), () => Send(session, "hit"));
+        if (bitmap is null) return GameViews.Map(session, (x, y) => MapClick(session, x, y), () => Send(session, "hit"),
+            DisplayMap(session), model.Options.MapZoom / 100.0);
         // The preview's Image descriptor requires a URI even when OnMount supplies a live bitmap.
         var picture = Image("ms-appx:///Assets/Square44x44Logo.scale-200.png")
             .AccessibilityHidden()
@@ -241,10 +258,11 @@ partial class App
             .OnMount(element => MountMapImage((Microsoft.UI.Xaml.Controls.Image)element, bitmap));
         Element Label(MapLabel label, int dx, int dy, string color) => TextBlock(label.Text)
             .AccessibilityHidden()
-            .FontFamily("Segoe UI").FontSize(label.Missing ? 14 : 9).FontWeight(Microsoft.UI.Text.FontWeights.Bold)
+            .FontFamily("Segoe UI").FontSize((label.Missing ? 14 : 9) * session.GraphicsZoom)
+            .FontWeight(Microsoft.UI.Text.FontWeights.Bold)
             .Foreground(BrushHelper.Parse(color)).Width(session.GraphicsWidth).TextAlignment(TextAlignment.Center)
-            .IsHitTestVisible(false).Canvas(label.X - session.GraphicsWidth / 2.0 + dx,
-                label.Y - (label.Missing ? 9 : 0) + dy);
+            .IsHitTestVisible(false).Canvas(label.X - session.GraphicsWidth / 2.0 + dx * session.GraphicsZoom,
+                label.Y - (label.Missing ? 9 * session.GraphicsZoom : 0) + dy * session.GraphicsZoom);
         var layers = new List<Element> { picture.Canvas(0, 0) };
         foreach (var label in session.GraphicsLabels)
         {
@@ -266,7 +284,7 @@ partial class App
                 var point = args.GetCurrentPoint(view);
                 if (point.Properties.IsRightButtonPressed) Send(session, "hit");
                 else if (point.Properties.IsLeftButtonPressed &&
-                    MapLabels.Hit(point.Position.X, point.Position.Y, session.Map!.Size) is { } hit)
+                    MapLabels.Hit(point.Position.X, point.Position.Y, session.GraphicsDim, session.GraphicsZoom) is { } hit)
                     MapClick(session, hit.X, hit.Y);
                 else return;
                 args.Handled = true;

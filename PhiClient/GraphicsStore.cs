@@ -157,13 +157,15 @@ internal sealed class GraphicsStore
         }
     }
 
-    public WriteableBitmap? Draw(GameSession session, double rasterScale)
+    public WriteableBitmap? Draw(GameSession session, double rasterScale, MapDisplay? display, double zoom, bool smooth)
     {
         var eagle = session.ShowEagle ? session.Eagle : null;
-        var map = session.Map;
+        var map = display?.Frame ?? session.Map;
         if (Folder.Length == 0 || map is null && eagle is null) return null;
         var frame = eagle is null ? AnimationFrame : 0;
-        var key = (map, eagle, session.Model.MapSets, Revision, frame, rasterScale);
+        if (eagle is not null) zoom = 1;
+        var slide = eagle is null && smooth && session.NorthFixed ? session.Model.Motion.Offset : (0, 0);
+        var key = (map, eagle, session.Model.MapSets, Revision, frame, rasterScale, zoom, slide.Item1, slide.Item2);
         if (session.GraphicsKey == key && session.GraphicsImage is not null) return session.GraphicsImage;
         PixelImage? Get(string path) => images.GetValueOrDefault(path);
         var board = eagle is null ? null : EagleBoard.Build(eagle);
@@ -173,13 +175,19 @@ internal sealed class GraphicsStore
         var rendered = MapGraphics.Draw(dim, dim,
             board?.Tiles ?? map!.Tiles, board?.Attributes ?? map!.Attributes, actors,
             slot => Get(ChipPath(session.MapSets[slot])), Get(Path.Combine("Skins", "Mine", "Images", "Items.bmp")),
-            Character, frame, eagle is not null);
-        session.GraphicsWidth = rendered.Width;
-        session.GraphicsHeight = rendered.Height;
+            Character, frame, eagle is not null, eagle is null ? display?.Recalled : null, slide.Item1, slide.Item2);
+        session.GraphicsWidth = (int)Math.Round(rendered.Width * zoom);
+        session.GraphicsHeight = (int)Math.Round(rendered.Height * zoom);
+        session.GraphicsDim = dim;
+        session.GraphicsZoom = zoom;
         session.GraphicsLabels = MapLabels.Missing(actors, dim, actor => Character(actor) is not null, board is null ? 16 : 0)
-            .Concat(MapLabels.Names(actors, dim, board is null ? 16 : 0)).ToArray();
-        rendered = rendered.ScaleNearest((int)Math.Round(rendered.Width * rasterScale),
-            (int)Math.Round(rendered.Height * rasterScale));
+            .Concat(MapLabels.Names(actors, dim, board is null ? 16 : 0))
+            .Select(label => label with { X = (label.X + slide.Item1) * zoom, Y = (label.Y + slide.Item2) * zoom }).ToArray();
+        var scale = Math.Min(rasterScale * zoom, 4096.0 / Math.Max(rendered.Width, rendered.Height));
+        if (scale < rasterScale * zoom)
+            AddIssue("このDPIと倍率では描画解像度の上限に達しました。倍率を下げると最近傍表示を保てます。");
+        rendered = rendered.ScaleNearest((int)Math.Round(rendered.Width * scale),
+            (int)Math.Round(rendered.Height * scale));
         if (session.GraphicsImage is not { } bitmap || bitmap.PixelWidth != rendered.Width || bitmap.PixelHeight != rendered.Height)
             session.GraphicsImage = bitmap = new WriteableBitmap(rendered.Width, rendered.Height);
         using (var buffer = bitmap.PixelBuffer.AsStream()) buffer.Write(rendered.Pixels);

@@ -37,7 +37,13 @@ internal sealed class GameSession(SavedCharacter character, Func<GameModel> read
     public ChoiceSelection Selection => Model.Selection;
     public IReadOnlyList<string> Log => Model.Log;
     public Microsoft.UI.Xaml.Media.Imaging.WriteableBitmap? GraphicsImage { get; set; }
-    public (MapFrame?, EagleFrame?, ImmutableArray<string>, int, int, double) GraphicsKey { get; set; }
+    public (MapFrame?, EagleFrame?, ImmutableArray<string>, int, int, double, double, int, int) GraphicsKey { get; set; }
+    public (MapFrame?, AutomapWorld?, MapPosition, int, bool) DisplayKey { get; set; }
+    public MapDisplay? Display { get; set; }
+    public double MapViewportWidth { get; set; } = 344;
+    public double MapViewportHeight { get; set; } = 344;
+    public int GraphicsDim { get; set; } = 7;
+    public double GraphicsZoom { get; set; } = 1;
     public int GraphicsWidth { get; set; }
     public int GraphicsHeight { get; set; }
     public IReadOnlyList<MapLabel> GraphicsLabels { get; set; } = [];

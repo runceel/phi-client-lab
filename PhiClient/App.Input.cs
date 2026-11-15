@@ -65,6 +65,10 @@ partial class App
         if (args.KeyStatus.WasKeyDown && !action.Repeatable &&
             !(action.Intent == InputIntent.ListNumber && action.Number == 9))
             return;
+        if (args.KeyStatus.WasKeyDown && model.Options.Automap && session.NorthFixed &&
+            !session.Model.Prediction.Queue.IsEmpty && action.Commands.Any(line =>
+                line.Length == 4 && line.StartsWith("go ", StringComparison.Ordinal)))
+            return;
         Execute(session, action);
     }
 
