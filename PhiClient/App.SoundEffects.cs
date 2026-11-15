@@ -26,8 +26,11 @@ partial class App
         void Loaded()
         {
             if (root.XamlRoot is { } xaml)
+            {
                 notificationWindow = new(Microsoft.UI.Win32Interop.GetWindowFromWindowId(
                     xaml.ContentIslandEnvironment.AppWindowId));
+                AttachClosingWindow(root);
+            }
         }
         root.Loaded += (_, _) => Loaded();
         root.Unloaded += (_, _) => notificationWindow = default;

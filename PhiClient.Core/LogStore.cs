@@ -48,17 +48,26 @@ public sealed class LogStore(string folder)
         CancellationToken cancellationToken = default)
     {
         var path = Path.Combine(Folder(label), $"LogBuffer-{Guid.NewGuid():N}.html");
+        var temporary = path + ".tmp";
         var data = Encoding.UTF8.GetBytes(LogFormat.Header(label, options) +
             string.Concat(rows.Select(row => LogFormat.Html(row, options.LogDispTime))));
         await writes.WaitAsync(cancellationToken);
         try
         {
             Directory.CreateDirectory(Folder(label));
-            await using var file = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.Read, 4096, true);
-            await file.WriteAsync(data, cancellationToken);
+            await using (var file = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, true))
+            {
+                await file.WriteAsync(data, cancellationToken);
+                await file.FlushAsync(cancellationToken);
+            }
+            File.Move(temporary, path);
             return path;
         }
-        finally { writes.Release(); }
+        finally
+        {
+            try { if (File.Exists(temporary)) File.Delete(temporary); }
+            finally { writes.Release(); }
+        }
     }
 
     public static string SafeLabel(string label)

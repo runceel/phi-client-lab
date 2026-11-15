@@ -22,12 +22,17 @@ partial class App
 
     private async Task AppendSavedLogAsync(GameSession session, LogEntry row, ClientOptions options)
     {
+        pendingLogWrites++;
         try { await Logs.AppendAsync(session.Character.Name, row, options); }
         catch (Exception error) when (IsExpected(error))
         {
+            if (!unsavedLogEntries.TryGetValue(session, out var rows))
+                unsavedLogEntries.Add(session, rows = []);
+            rows.Add(row);
             session.Dispatch(new GameMessage.LogSavingChanged(false));
             session.Append($"ログの保存に失敗しました。自動保存を停止しました: {error.Message}");
         }
+        finally { pendingLogWrites--; }
     }
 
     private void ToggleLogSaving(GameSession session, bool enabled)

@@ -25,7 +25,7 @@ partial class App
         finally { loadingMaps.Remove(world); }
     }
 
-    private async Task FlushAutomapsAsync()
+    private async Task FlushAutomapsAsync(bool failOnError = false)
     {
         if (savingMaps) return;
         savingMaps = true;
@@ -44,6 +44,7 @@ partial class App
         }
         catch (Exception ex) when (IsExpected(ex))
         {
+            if (failOnError) throw;
             notice = "記録地図を保存できませんでした。メモリ上の記録を保持し、次回の保存で再試行します: " + ex.Message;
         }
         finally { savingMaps = false; }

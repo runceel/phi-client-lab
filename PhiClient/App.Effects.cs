@@ -71,7 +71,7 @@ partial class App
             animation?.Stop();
             predictionTimer?.Stop();
             mapSaveTimer?.Stop();
-            _ = FlushAutomapsAsync();
+            if (mainWindow is not null) mainWindow.Closing -= OnWindowClosing;
             dialogCompletion?.TrySetResult(new(false, ""));
             foreach (var session in sessions)
                 session.Connection?.Dispose();
@@ -228,7 +228,7 @@ partial class App
                 session.Character = session.Character with { Host = moved.Host, Port = moved.Port };
                 characters = characters.Select(character => character.Key == session.Character.Key
                     ? session.Character : character).ToList();
-                _ = SessionOperationAsync(session, () => store.UpdateEndpointAsync(session.Character));
+                _ = SessionOperationAsync(session, () => store.UpdateEndpointAsync(session.Character), allowClosing: true);
             }
             if (item is InputRequested && active == session) inputControl?.Focus(FocusState.Programmatic);
             if (item is MapFrame or EagleFrame or MapSetNotice or WorldMoved)
@@ -311,20 +311,23 @@ partial class App
     private void Send(GameSession session, params string[] commands) =>
         Execute(session, GameInput.Command(commands));
 
-    private async Task SessionOperationAsync(GameSession session, Func<Task> operation)
+    private async Task SessionOperationAsync(GameSession session, Func<Task> operation, bool allowClosing = false)
     {
+        if (closingApplication && !allowClosing) return;
+        pendingSessionOperations++;
         try { await operation(); }
         catch (Exception ex) when (IsExpected(ex))
         {
             session.Append($"[Error] {ex.Message}");
         }
+        finally { pendingSessionOperations--; }
         if (!disposed)
             refresh();
     }
 
     private async Task PerformAsync(Func<Task> operation)
     {
-        if (busy)
+        if (busy || closingApplication)
             return;
         busy = true;
         refresh();

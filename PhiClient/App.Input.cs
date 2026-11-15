@@ -18,6 +18,11 @@ partial class App
 
     private void OnGameKeyDown(object sender, KeyRoutedEventArgs args)
     {
+        if (closingApplication)
+        {
+            args.Handled = true;
+            return;
+        }
         if (active is not { } session || model.Worlds.Visible || model.SettingsEditor is not null ||
             dialogOpen || Down(VirtualKey.LeftWindows) || Down(VirtualKey.RightWindows))
             return;
